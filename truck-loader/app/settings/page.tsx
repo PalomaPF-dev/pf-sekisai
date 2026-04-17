@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useAppStore } from '@/lib/store';
-import type { Product, Warehouse } from '@/lib/types';
+import type { Product, Warehouse, PalletType } from '@/lib/types';
 import clsx from 'clsx';
 
 const PRESET_COLORS = [
@@ -11,19 +11,21 @@ const PRESET_COLORS = [
   '#3498DB','#27AE60','#D35400','#8E44AD',
 ];
 
-type Tab = 'products' | 'warehouses';
+type Tab = 'products' | 'warehouses' | 'pallets';
 
 export default function SettingsPage() {
   const {
-    products, warehouses, truckTypes,
+    products, warehouses, truckTypes, palletTypes,
     addProduct, updateProduct, removeProduct,
     addWarehouse, updateWarehouse, removeWarehouse,
+    addPalletType, updatePalletType, removePalletType,
     resetToDefaults,
   } = useAppStore();
 
   const [tab, setTab] = useState<Tab>('products');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(null);
+  const [editingPallet, setEditingPallet] = useState<PalletType | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
 
   // 製品の新規追加用空テンプレート
@@ -34,6 +36,11 @@ export default function SettingsPage() {
   // 拠点の新規追加用空テンプレート
   const newWarehouse = (): Warehouse => ({
     code: '', name: '', group: '東', truckType: 'T06', maxPallets: 12,
+  });
+
+  // パレット型の新規追加用空テンプレート
+  const newPalletType = (): PalletType => ({
+    code: '', name: '', widthMM: 1100, depthMM: 1100, heightMM: 144, maxWeightKg: 1000,
   });
 
   const handleSaveProduct = () => {
@@ -50,6 +57,14 @@ export default function SettingsPage() {
     if (exists) updateWarehouse(editingWarehouse);
     else addWarehouse(editingWarehouse);
     setEditingWarehouse(null);
+  };
+
+  const handleSavePallet = () => {
+    if (!editingPallet || !editingPallet.code.trim() || !editingPallet.name.trim()) return;
+    const exists = palletTypes.some((p) => p.code === editingPallet.code);
+    if (exists) updatePalletType(editingPallet);
+    else addPalletType(editingPallet);
+    setEditingPallet(null);
   };
 
   return (
@@ -99,6 +114,7 @@ export default function SettingsPage() {
         {([
           { key: 'products',   label: '📦 製品マスタ' },
           { key: 'warehouses', label: '🏭 拠点マスタ' },
+          { key: 'pallets',    label: '🪵 パレット型' },
         ] as { key: Tab; label: string }[]).map(({ key, label }) => (
           <button
             key={key}
@@ -266,6 +282,96 @@ export default function SettingsPage() {
           )}
         </div>
       )}
+
+      {/* ── パレット型マスタ ── */}
+      {tab === 'pallets' && (
+        <div>
+          <div className="flex justify-end mb-3">
+            <button
+              onClick={() => setEditingPallet(newPalletType())}
+              className="text-sm px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors"
+            >
+              + パレット型を追加
+            </button>
+          </div>
+
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 text-xs text-slate-500">
+                  <th className="px-4 py-2.5 text-left font-semibold">コード</th>
+                  <th className="px-4 py-2.5 text-left font-semibold">名称</th>
+                  <th className="px-4 py-2.5 text-right font-semibold">幅（mm）</th>
+                  <th className="px-4 py-2.5 text-right font-semibold">奥行き（mm）</th>
+                  <th className="px-4 py-2.5 text-right font-semibold">高さ（mm）</th>
+                  <th className="px-4 py-2.5 text-right font-semibold">最大荷重（kg）</th>
+                  <th className="px-4 py-2.5 text-left font-semibold">使用製品数</th>
+                  <th className="px-4 py-2.5 text-right font-semibold">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {palletTypes.map((pt) => {
+                  const usedCount = products.filter((p) => p.palletType === pt.code).length;
+                  return (
+                    <tr key={pt.code} className="border-t border-slate-100 hover:bg-slate-50">
+                      <td className="px-4 py-2 font-mono text-xs font-bold text-slate-600">{pt.code}</td>
+                      <td className="px-4 py-2 font-medium">{pt.name}</td>
+                      <td className="px-4 py-2 text-right text-slate-600">{pt.widthMM.toLocaleString()}</td>
+                      <td className="px-4 py-2 text-right text-slate-600">{pt.depthMM.toLocaleString()}</td>
+                      <td className="px-4 py-2 text-right text-slate-600">{pt.heightMM.toLocaleString()}</td>
+                      <td className="px-4 py-2 text-right text-slate-600">{pt.maxWeightKg.toLocaleString()}</td>
+                      <td className="px-4 py-2">
+                        {usedCount > 0 ? (
+                          <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
+                            {usedCount}製品
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-300">未使用</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        <button
+                          onClick={() => setEditingPallet({ ...pt })}
+                          className="text-xs text-brand-600 hover:underline mr-3"
+                        >
+                          編集
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (usedCount > 0) {
+                              alert(`「${pt.name}」は ${usedCount} 製品で使用中のため削除できません。`);
+                              return;
+                            }
+                            if (confirm(`「${pt.name}」を削除しますか？`)) removePalletType(pt.code);
+                          }}
+                          className="text-xs text-red-400 hover:underline"
+                        >
+                          削除
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <p className="text-xs text-slate-400 mt-3">
+            ※ パレットサイズは積載図の描画に使用されます。使用中のパレット型は削除できません。
+          </p>
+
+          {/* パレット型編集モーダル */}
+          {editingPallet && (
+            <PalletModal
+              pallet={editingPallet}
+              onChange={setEditingPallet}
+              onSave={handleSavePallet}
+              onCancel={() => setEditingPallet(null)}
+              isNew={!palletTypes.some((p) => p.code === editingPallet.code)}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -402,6 +508,94 @@ function WarehouseModal({
               ))}
             </select>
           </Field>
+        </div>
+        <div className="flex gap-2 justify-end mt-6">
+          <button onClick={onCancel} className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">
+            キャンセル
+          </button>
+          <button onClick={onSave} className="px-4 py-2 text-sm text-white bg-brand-600 rounded-lg hover:bg-brand-700">
+            保存
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── パレット型モーダル ────────────────────────────────────────────────
+function PalletModal({
+  pallet, onChange, onSave, onCancel, isNew,
+}: {
+  pallet: PalletType;
+  onChange: (p: PalletType) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  isNew: boolean;
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl p-6 shadow-xl w-full max-w-md mx-4">
+        <h3 className="font-bold text-slate-800 mb-4">{isNew ? 'パレット型を追加' : 'パレット型を編集'}</h3>
+        <div className="flex flex-col gap-3">
+          <Field label="コード（例: P04）">
+            <input
+              className={INPUT_CLASS}
+              value={pallet.code}
+              onChange={(e) => onChange({ ...pallet, code: e.target.value.toUpperCase() })}
+              disabled={!isNew}
+              placeholder="例: P04"
+            />
+          </Field>
+          <Field label="名称">
+            <input
+              className={INPUT_CLASS}
+              value={pallet.name}
+              onChange={(e) => onChange({ ...pallet, name: e.target.value })}
+              placeholder="例: 特殊パレット(900)"
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="幅（mm）">
+              <input
+                type="number"
+                min={1}
+                className={INPUT_CLASS}
+                value={pallet.widthMM}
+                onChange={(e) => onChange({ ...pallet, widthMM: parseInt(e.target.value, 10) || 0 })}
+              />
+            </Field>
+            <Field label="奥行き（mm）">
+              <input
+                type="number"
+                min={1}
+                className={INPUT_CLASS}
+                value={pallet.depthMM}
+                onChange={(e) => onChange({ ...pallet, depthMM: parseInt(e.target.value, 10) || 0 })}
+              />
+            </Field>
+            <Field label="高さ（mm）">
+              <input
+                type="number"
+                min={1}
+                className={INPUT_CLASS}
+                value={pallet.heightMM}
+                onChange={(e) => onChange({ ...pallet, heightMM: parseInt(e.target.value, 10) || 0 })}
+              />
+            </Field>
+            <Field label="最大荷重（kg）">
+              <input
+                type="number"
+                min={1}
+                className={INPUT_CLASS}
+                value={pallet.maxWeightKg}
+                onChange={(e) => onChange({ ...pallet, maxWeightKg: parseInt(e.target.value, 10) || 0 })}
+              />
+            </Field>
+          </div>
+          <div className="bg-slate-50 rounded-lg px-3 py-2 text-xs text-slate-500">
+            サイズ: {pallet.widthMM} × {pallet.depthMM} mm　高さ: {pallet.heightMM} mm
+            最大荷重: {pallet.maxWeightKg.toLocaleString()} kg
+          </div>
         </div>
         <div className="flex gap-2 justify-end mt-6">
           <button onClick={onCancel} className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">

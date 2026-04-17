@@ -26,6 +26,15 @@ export interface TruckType {
   depthMM: number;
 }
 
+export interface PalletType {
+  code: string;    // P01, P02, P03 ...
+  name: string;    // 表示名
+  widthMM: number; // 幅（mm）
+  depthMM: number; // 奥行き（mm）
+  heightMM: number; // 高さ（mm）
+  maxWeightKg: number; // 最大積載重量（kg）
+}
+
 // ─── 入力データ型 ────────────────────────────────────────────────────
 
 /** productCode → 週間生産数 */

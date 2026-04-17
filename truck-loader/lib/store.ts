@@ -1,10 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Product, Warehouse, TruckType, ProductionPlan, DistributionRatios, InventoryStock, LocationStock } from './types';
+import type { Product, Warehouse, TruckType, PalletType, ProductionPlan, DistributionRatios, InventoryStock, LocationStock } from './types';
 import {
   DEFAULT_PRODUCTS,
   DEFAULT_WAREHOUSES,
   DEFAULT_TRUCK_TYPES,
+  DEFAULT_PALLET_TYPES,
   DEFAULT_PRODUCTION_PLAN,
   DEFAULT_DISTRIBUTION_RATIOS,
   DEFAULT_INVENTORY_STOCK,
@@ -15,6 +16,7 @@ interface AppState {
   products: Product[];
   warehouses: Warehouse[];
   truckTypes: TruckType[];
+  palletTypes: PalletType[];
   productionPlan: ProductionPlan;
   distributionRatios: DistributionRatios;
   inventoryStock: InventoryStock;
@@ -31,6 +33,9 @@ interface AppState {
   addWarehouse: (warehouse: Warehouse) => void;
   updateWarehouse: (warehouse: Warehouse) => void;
   removeWarehouse: (warehouseCode: string) => void;
+  addPalletType: (palletType: PalletType) => void;
+  updatePalletType: (palletType: PalletType) => void;
+  removePalletType: (code: string) => void;
   resetToDefaults: () => void;
 }
 
@@ -38,6 +43,7 @@ const defaultState = {
   products: DEFAULT_PRODUCTS,
   warehouses: DEFAULT_WAREHOUSES,
   truckTypes: DEFAULT_TRUCK_TYPES,
+  palletTypes: DEFAULT_PALLET_TYPES,
   productionPlan: DEFAULT_PRODUCTION_PLAN,
   distributionRatios: DEFAULT_DISTRIBUTION_RATIOS,
   inventoryStock: DEFAULT_INVENTORY_STOCK,
@@ -107,6 +113,21 @@ export const useAppStore = create<AppState>()(
       removeWarehouse: (warehouseCode) =>
         set((s) => ({
           warehouses: s.warehouses.filter((w) => w.code !== warehouseCode),
+        })),
+
+      addPalletType: (palletType) =>
+        set((s) => ({ palletTypes: [...s.palletTypes, palletType] })),
+
+      updatePalletType: (palletType) =>
+        set((s) => ({
+          palletTypes: s.palletTypes.map((p) =>
+            p.code === palletType.code ? palletType : p,
+          ),
+        })),
+
+      removePalletType: (code) =>
+        set((s) => ({
+          palletTypes: s.palletTypes.filter((p) => p.code !== code),
         })),
 
       resetToDefaults: () => set(defaultState),

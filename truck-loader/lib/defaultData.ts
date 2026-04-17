@@ -1,4 +1,4 @@
-import type { Product, Warehouse, TruckType, ProductionPlan, DistributionRatios, InventoryStock, LocationStock } from './types';
+import type { Product, Warehouse, TruckType, PalletType, ProductionPlan, DistributionRatios, InventoryStock, LocationStock } from './types';
 
 export const DEFAULT_PRODUCTS: Product[] = [
   { code: '1064521424', name: 'PH-5BN (A色)',     capacityPerPallet: 40, palletType: 'P03', color: '#4A90D9' },
@@ -9,6 +9,12 @@ export const DEFAULT_PRODUCTS: Product[] = [
   { code: '1064410424', name: 'PH-2015AW (B色)',  capacityPerPallet: 44, palletType: 'P01', color: '#1ABC9C' },
   { code: '1053859000', name: 'HCFA-8 450L',      capacityPerPallet: 64, palletType: 'P02', color: '#F39C12' },
   { code: '1060017944', name: 'PH-E32EDVL',       capacityPerPallet: 20, palletType: 'P03', color: '#C0392B' },
+];
+
+export const DEFAULT_PALLET_TYPES: PalletType[] = [
+  { code: 'P01', name: '標準パレット(1100)',  widthMM: 1100, depthMM: 1100, heightMM: 144, maxWeightKg: 1000 },
+  { code: 'P02', name: '大型パレット(1200)',  widthMM: 1200, depthMM: 1000, heightMM: 144, maxWeightKg: 1000 },
+  { code: 'P03', name: '軽量パレット(800)',   widthMM:  800, depthMM: 1100, heightMM: 120, maxWeightKg:  500 },
 ];
 
 export const DEFAULT_TRUCK_TYPES: TruckType[] = [
