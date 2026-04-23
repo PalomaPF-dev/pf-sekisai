@@ -130,102 +130,6 @@ export default function ProductionPage() {
       {/* ── タブ①：週間生産数 ── */}
       {activeTab === 'production' && (
         <div className="flex flex-col gap-6">
-          {/* 入力テーブル */}
-          <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-slate-50 text-slate-500 text-xs">
-                  <th className="px-4 py-2.5 text-left font-semibold">工場</th>
-                  <th className="px-4 py-2.5 text-left font-semibold">製品コード</th>
-                  <th className="px-4 py-2.5 text-left font-semibold">製品名</th>
-                  <th className="px-4 py-2.5 text-right font-semibold w-44">週間生産数（個）</th>
-                  <th className="px-4 py-2.5 text-right font-semibold">週パレット数</th>
-                </tr>
-              </thead>
-              <tbody>
-                {factories.map((factory) => {
-                  const factoryProducts = products.filter(
-                    (p) => (p.factoryCode ?? 'F001') === factory.code,
-                  );
-                  if (factoryProducts.length === 0) return null;
-                  const subtotalQty  = factoryProducts.reduce((s, p) => s + (productionPlan[p.code] ?? 0), 0);
-                  const subtotalPals = factoryProducts.reduce((s, p) => {
-                    const qty = productionPlan[p.code] ?? 0;
-                    return s + (qty > 0 ? Math.ceil(qty / p.capacityPerPallet) : 0);
-                  }, 0);
-                  return (
-                    <>
-                      <tr key={`hdr-${factory.code}`} className="bg-indigo-50 border-t-2 border-indigo-100">
-                        <td colSpan={5} className="px-4 py-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-700">{factory.code}</span>
-                            <span className="text-sm font-semibold text-indigo-800">{factory.name}</span>
-                          </div>
-                        </td>
-                      </tr>
-                      {factoryProducts.map((p) => {
-                        const qty  = productionPlan[p.code] ?? 0;
-                        const pals = qty > 0 ? Math.ceil(qty / p.capacityPerPallet) : 0;
-                        return (
-                          <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
-                            <td className="px-4 py-2 text-slate-400 text-xs" />
-                            <td className="px-4 py-2">
-                              <div className="flex items-center gap-2">
-                                <span className="w-3 h-3 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
-                                <span className="font-mono text-xs text-slate-600">{p.code}</span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-2 font-medium text-slate-700">{p.name}</td>
-                            <td className="px-4 py-2">
-                              <input
-                                type="number" min={0}
-                                value={qty === 0 ? '' : qty}
-                                onChange={(e) => setProductionQty(p.code, parseInt(e.target.value, 10) || 0)}
-                                placeholder="0"
-                                className="w-full text-right border border-slate-200 rounded px-2 py-1 text-sm
-                                           focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 bg-white"
-                              />
-                            </td>
-                            <td className="px-4 py-2 text-right font-medium text-slate-700">
-                              {pals > 0 ? `${pals}枚` : <span className="text-slate-300">—</span>}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                      <tr key={`sub-${factory.code}`} className="border-t border-indigo-100 bg-indigo-50/60">
-                        <td colSpan={3} className="px-4 py-1.5 text-xs text-indigo-500 font-semibold">{factory.name} 小計</td>
-                        <td className="px-4 py-1.5 text-right text-xs font-bold text-indigo-600">
-                          {subtotalQty > 0 ? `${subtotalQty.toLocaleString()}個` : '—'}
-                        </td>
-                        <td className="px-4 py-1.5 text-right text-xs font-bold text-indigo-500">
-                          {subtotalPals > 0 ? `${subtotalPals}枚` : '—'}
-                        </td>
-                      </tr>
-                    </>
-                  );
-                })}
-                {(() => {
-                  const totalQty  = products.reduce((s, p) => s + (productionPlan[p.code] ?? 0), 0);
-                  const totalPals = products.reduce((s, p) => {
-                    const qty = productionPlan[p.code] ?? 0;
-                    return s + (qty > 0 ? Math.ceil(qty / p.capacityPerPallet) : 0);
-                  }, 0);
-                  return (
-                    <tr className="border-t-2 border-slate-300 bg-slate-50 font-semibold">
-                      <td colSpan={3} className="px-4 py-2 text-slate-600">総合計</td>
-                      <td className="px-4 py-2 text-right text-brand-600">
-                        {totalQty > 0 ? `${totalQty.toLocaleString()}個` : '—'}
-                      </td>
-                      <td className="px-4 py-2 text-right text-slate-500">
-                        {totalPals > 0 ? `${totalPals}枚` : '—'}
-                      </td>
-                    </tr>
-                  );
-                })()}
-              </tbody>
-            </table>
-          </div>
-
           {/* CSV インポート */}
           <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
             <h2 className="text-sm font-bold text-slate-700 mb-1">CSVインポート</h2>
@@ -326,6 +230,103 @@ export default function ProductionPage() {
               </div>
             )}
           </div>
+
+          {/* 入力テーブル */}
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 text-slate-500 text-xs">
+                  <th className="px-4 py-2.5 text-left font-semibold">工場</th>
+                  <th className="px-4 py-2.5 text-left font-semibold">製品コード</th>
+                  <th className="px-4 py-2.5 text-left font-semibold">製品名</th>
+                  <th className="px-4 py-2.5 text-right font-semibold w-44">週間生産数（個）</th>
+                  <th className="px-4 py-2.5 text-right font-semibold">週パレット数</th>
+                </tr>
+              </thead>
+              <tbody>
+                {factories.map((factory) => {
+                  const factoryProducts = products.filter(
+                    (p) => (p.factoryCode ?? 'F001') === factory.code,
+                  );
+                  if (factoryProducts.length === 0) return null;
+                  const subtotalQty  = factoryProducts.reduce((s, p) => s + (productionPlan[p.code] ?? 0), 0);
+                  const subtotalPals = factoryProducts.reduce((s, p) => {
+                    const qty = productionPlan[p.code] ?? 0;
+                    return s + (qty > 0 ? Math.ceil(qty / p.capacityPerPallet) : 0);
+                  }, 0);
+                  return (
+                    <>
+                      <tr key={`hdr-${factory.code}`} className="bg-indigo-50 border-t-2 border-indigo-100">
+                        <td colSpan={5} className="px-4 py-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-700">{factory.code}</span>
+                            <span className="text-sm font-semibold text-indigo-800">{factory.name}</span>
+                          </div>
+                        </td>
+                      </tr>
+                      {factoryProducts.map((p) => {
+                        const qty  = productionPlan[p.code] ?? 0;
+                        const pals = qty > 0 ? Math.ceil(qty / p.capacityPerPallet) : 0;
+                        return (
+                          <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
+                            <td className="px-4 py-2 text-slate-400 text-xs" />
+                            <td className="px-4 py-2">
+                              <div className="flex items-center gap-2">
+                                <span className="w-3 h-3 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
+                                <span className="font-mono text-xs text-slate-600">{p.code}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-2 font-medium text-slate-700">{p.name}</td>
+                            <td className="px-4 py-2">
+                              <input
+                                type="number" min={0}
+                                value={qty === 0 ? '' : qty}
+                                onChange={(e) => setProductionQty(p.code, parseInt(e.target.value, 10) || 0)}
+                                placeholder="0"
+                                className="w-full text-right border border-slate-200 rounded px-2 py-1 text-sm
+                                           focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 bg-white"
+                              />
+                            </td>
+                            <td className="px-4 py-2 text-right font-medium text-slate-700">
+                              {pals > 0 ? `${pals}枚` : <span className="text-slate-300">—</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      <tr key={`sub-${factory.code}`} className="border-t border-indigo-100 bg-indigo-50/60">
+                        <td colSpan={3} className="px-4 py-1.5 text-xs text-indigo-500 font-semibold">{factory.name} 小計</td>
+                        <td className="px-4 py-1.5 text-right text-xs font-bold text-indigo-600">
+                          {subtotalQty > 0 ? `${subtotalQty.toLocaleString()}個` : '—'}
+                        </td>
+                        <td className="px-4 py-1.5 text-right text-xs font-bold text-indigo-500">
+                          {subtotalPals > 0 ? `${subtotalPals}枚` : '—'}
+                        </td>
+                      </tr>
+                    </>
+                  );
+                })}
+                {(() => {
+                  const totalQty  = products.reduce((s, p) => s + (productionPlan[p.code] ?? 0), 0);
+                  const totalPals = products.reduce((s, p) => {
+                    const qty = productionPlan[p.code] ?? 0;
+                    return s + (qty > 0 ? Math.ceil(qty / p.capacityPerPallet) : 0);
+                  }, 0);
+                  return (
+                    <tr className="border-t-2 border-slate-300 bg-slate-50 font-semibold">
+                      <td colSpan={3} className="px-4 py-2 text-slate-600">総合計</td>
+                      <td className="px-4 py-2 text-right text-brand-600">
+                        {totalQty > 0 ? `${totalQty.toLocaleString()}個` : '—'}
+                      </td>
+                      <td className="px-4 py-2 text-right text-slate-500">
+                        {totalPals > 0 ? `${totalPals}枚` : '—'}
+                      </td>
+                    </tr>
+                  );
+                })()}
+              </tbody>
+            </table>
+          </div>
+
         </div>
       )}
 
@@ -335,6 +336,98 @@ export default function ProductionPage() {
           <p className="text-xs text-slate-500 bg-green-50 border border-green-200 rounded px-3 py-2">
             💡 各拠点の製品別現在庫数を入力します。必要在庫数との差分（予定出荷も考慮）が不足数（送り数）となります。
           </p>
+
+          {/* CSV インポート */}
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
+            <h2 className="text-sm font-bold text-slate-700 mb-1">CSVインポート</h2>
+            <p className="text-xs text-slate-500 mb-4">
+              製品×拠点のマトリクス形式（ワイド形式）のCSVを取り込みます。取り込んだ値で全拠点の在庫数を一括更新します。
+            </p>
+            <div className="flex items-center gap-2 mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <span className="text-xs text-slate-600 font-medium">テンプレートDL：</span>
+              <button
+                onClick={() => downloadCSV(
+                  generateLocationStockTemplate(products, warehouses, locationStock),
+                  `拠点別在庫_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.csv`,
+                )}
+                className="text-xs px-3 py-1.5 bg-slate-700 text-white rounded hover:bg-slate-800 transition-colors"
+              >
+                ダウンロード（現在値入り）
+              </button>
+            </div>
+            <div className="flex items-center gap-3 mb-4">
+              <input ref={locFileRef} type="file" accept=".csv,text/csv" onChange={handleLocFile} className="hidden" />
+              <button
+                onClick={() => { locFileRef.current?.click(); setLocPreview(null); setLocImported(false); }}
+                className="text-sm px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                CSVファイルを選択
+              </button>
+              {locPreview && (
+                <span className="text-xs text-slate-500">
+                  {locPreview.rows.length}製品 × {Object.keys(locPreview.rows[0]?.whQty ?? {}).length}拠点分を読み込みました
+                </span>
+              )}
+            </div>
+            {locPreview?.warnings && locPreview.warnings.length > 0 && (
+              <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 space-y-0.5">
+                {locPreview.warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
+              </div>
+            )}
+            {locPreview && locPreview.rows.length > 0 && (() => {
+              const whCodes = Object.keys(locPreview.rows[0]?.whQty ?? {});
+              return (
+                <div className="overflow-x-auto mb-4">
+                  <table className="text-xs border-collapse w-full">
+                    <thead>
+                      <tr className="bg-slate-50">
+                        <th className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 border-r border-slate-200 min-w-[160px]">製品</th>
+                        {whCodes.map((wc) => (
+                          <th key={wc} className="px-2 py-2 text-center font-semibold text-slate-400 min-w-[64px]">
+                            <div>{wc}</div>
+                            <div className="text-[10px] text-slate-400">{warehouses.find(w => w.code === wc)?.name.slice(0, 4)}</div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {locPreview.rows.map((row) => (
+                        <tr key={row.code} className={clsx('border-t border-slate-100', !row.found && 'bg-amber-50')}>
+                          <td className="px-3 py-1.5 sticky left-0 bg-white border-r border-slate-200">
+                            <div className="font-medium text-slate-700">{row.name}</div>
+                            <div className="text-[10px] text-slate-400 font-mono">{row.code}</div>
+                          </td>
+                          {whCodes.map((wc) => {
+                            const qty = row.whQty[wc] ?? 0;
+                            return (
+                              <td key={wc} className="px-2 py-1.5 text-center text-slate-600">
+                                {qty > 0 ? <span className="font-medium">{qty.toLocaleString()}</span> : <span className="text-slate-300">—</span>}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+            {locPreview && (
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => { importLocationStockBulk(locPreview.locationStock); setLocImported(true); }}
+                  disabled={locImported}
+                  className={clsx(
+                    'px-4 py-2 text-sm rounded-lg transition-colors',
+                    locImported ? 'bg-emerald-100 text-emerald-700 cursor-default' : 'bg-brand-600 text-white hover:bg-brand-700',
+                  )}
+                >
+                  {locImported ? '✓ インポート済み' : 'インポートする'}
+                </button>
+                {locImported && <span className="text-xs text-emerald-600">拠点別在庫数に反映されました</span>}
+              </div>
+            )}
+          </div>
 
           {/* インライン編集マトリクス */}
           <div className="overflow-x-auto">
@@ -430,97 +523,6 @@ export default function ProductionPage() {
             </div>
           </div>
 
-          {/* CSV インポート */}
-          <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
-            <h2 className="text-sm font-bold text-slate-700 mb-1">CSVインポート</h2>
-            <p className="text-xs text-slate-500 mb-4">
-              製品×拠点のマトリクス形式（ワイド形式）のCSVを取り込みます。取り込んだ値で全拠点の在庫数を一括更新します。
-            </p>
-            <div className="flex items-center gap-2 mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
-              <span className="text-xs text-slate-600 font-medium">テンプレートDL：</span>
-              <button
-                onClick={() => downloadCSV(
-                  generateLocationStockTemplate(products, warehouses, locationStock),
-                  `拠点別在庫_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.csv`,
-                )}
-                className="text-xs px-3 py-1.5 bg-slate-700 text-white rounded hover:bg-slate-800 transition-colors"
-              >
-                ダウンロード（現在値入り）
-              </button>
-            </div>
-            <div className="flex items-center gap-3 mb-4">
-              <input ref={locFileRef} type="file" accept=".csv,text/csv" onChange={handleLocFile} className="hidden" />
-              <button
-                onClick={() => { locFileRef.current?.click(); setLocPreview(null); setLocImported(false); }}
-                className="text-sm px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
-              >
-                CSVファイルを選択
-              </button>
-              {locPreview && (
-                <span className="text-xs text-slate-500">
-                  {locPreview.rows.length}製品 × {Object.keys(locPreview.rows[0]?.whQty ?? {}).length}拠点分を読み込みました
-                </span>
-              )}
-            </div>
-            {locPreview?.warnings && locPreview.warnings.length > 0 && (
-              <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 space-y-0.5">
-                {locPreview.warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
-              </div>
-            )}
-            {locPreview && locPreview.rows.length > 0 && (() => {
-              const whCodes = Object.keys(locPreview.rows[0]?.whQty ?? {});
-              return (
-                <div className="overflow-x-auto mb-4">
-                  <table className="text-xs border-collapse w-full">
-                    <thead>
-                      <tr className="bg-slate-50">
-                        <th className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 border-r border-slate-200 min-w-[160px]">製品</th>
-                        {whCodes.map((wc) => (
-                          <th key={wc} className="px-2 py-2 text-center font-semibold text-slate-400 min-w-[64px]">
-                            <div>{wc}</div>
-                            <div className="text-[10px] text-slate-400">{warehouses.find(w => w.code === wc)?.name.slice(0, 4)}</div>
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {locPreview.rows.map((row) => (
-                        <tr key={row.code} className={clsx('border-t border-slate-100', !row.found && 'bg-amber-50')}>
-                          <td className="px-3 py-1.5 sticky left-0 bg-white border-r border-slate-200">
-                            <div className="font-medium text-slate-700">{row.name}</div>
-                            <div className="text-[10px] text-slate-400 font-mono">{row.code}</div>
-                          </td>
-                          {whCodes.map((wc) => {
-                            const qty = row.whQty[wc] ?? 0;
-                            return (
-                              <td key={wc} className="px-2 py-1.5 text-center text-slate-600">
-                                {qty > 0 ? <span className="font-medium">{qty.toLocaleString()}</span> : <span className="text-slate-300">—</span>}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              );
-            })()}
-            {locPreview && (
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => { importLocationStockBulk(locPreview.locationStock); setLocImported(true); }}
-                  disabled={locImported}
-                  className={clsx(
-                    'px-4 py-2 text-sm rounded-lg transition-colors',
-                    locImported ? 'bg-emerald-100 text-emerald-700 cursor-default' : 'bg-brand-600 text-white hover:bg-brand-700',
-                  )}
-                >
-                  {locImported ? '✓ インポート済み' : 'インポートする'}
-                </button>
-                {locImported && <span className="text-xs text-emerald-600">拠点別在庫数に反映されました</span>}
-              </div>
-            )}
-          </div>
         </div>
       )}
 
@@ -530,54 +532,6 @@ export default function ProductionPage() {
           <p className="text-xs text-slate-500 bg-rose-50 border border-rose-200 rounded px-3 py-2">
             💡 今週、各拠点から出荷（販売）予定の数量を入力します。有効在庫 = 現在庫＋輸送中－予定出荷 として不足数を算出します。
           </p>
-
-          {/* インライン編集マトリクス */}
-          <div className="overflow-x-auto">
-            <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
-              <table className="text-xs border-collapse w-full">
-                <thead>
-                  <tr className="bg-slate-50">
-                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
-                    {activeWarehouses.map((wh) => (
-                      <th key={wh.code} className="px-2 py-2.5 text-center font-semibold text-slate-500 min-w-[80px]">
-                        <div className="font-bold text-slate-400">{wh.code}</div>
-                        <div className="text-[10px] text-slate-500 leading-tight">{wh.name.slice(0, 5)}</div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {products.map((p) => (
-                    <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
-                      <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200">
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
-                          <span className="font-medium text-slate-700">{p.name}</span>
-                        </div>
-                      </td>
-                      {activeWarehouses.map((wh) => {
-                        const ratio = distributionRatios[p.code]?.[wh.code] ?? 0;
-                        if (ratio === 0) return <td key={wh.code} className="px-1 py-1.5 text-center text-slate-300">—</td>;
-                        const qty = plannedSales[p.code]?.[wh.code] ?? 0;
-                        return (
-                          <td key={wh.code} className="px-1 py-1.5 text-center">
-                            <input
-                              type="number" min={0}
-                              value={qty === 0 ? '' : qty}
-                              onChange={(e) => setPlannedSales(p.code, wh.code, parseInt(e.target.value, 10) || 0)}
-                              placeholder="0"
-                              className="w-16 text-center border border-slate-200 rounded px-1 py-0.5 text-xs
-                                         focus:outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400 bg-white"
-                            />
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
 
           {/* CSV インポート */}
           <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
@@ -672,6 +626,55 @@ export default function ProductionPage() {
               </div>
             )}
           </div>
+
+          {/* インライン編集マトリクス */}
+          <div className="overflow-x-auto">
+            <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
+              <table className="text-xs border-collapse w-full">
+                <thead>
+                  <tr className="bg-slate-50">
+                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
+                    {activeWarehouses.map((wh) => (
+                      <th key={wh.code} className="px-2 py-2.5 text-center font-semibold text-slate-500 min-w-[80px]">
+                        <div className="font-bold text-slate-400">{wh.code}</div>
+                        <div className="text-[10px] text-slate-500 leading-tight">{wh.name.slice(0, 5)}</div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {products.map((p) => (
+                    <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
+                      <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
+                          <span className="font-medium text-slate-700">{p.name}</span>
+                        </div>
+                      </td>
+                      {activeWarehouses.map((wh) => {
+                        const ratio = distributionRatios[p.code]?.[wh.code] ?? 0;
+                        if (ratio === 0) return <td key={wh.code} className="px-1 py-1.5 text-center text-slate-300">—</td>;
+                        const qty = plannedSales[p.code]?.[wh.code] ?? 0;
+                        return (
+                          <td key={wh.code} className="px-1 py-1.5 text-center">
+                            <input
+                              type="number" min={0}
+                              value={qty === 0 ? '' : qty}
+                              onChange={(e) => setPlannedSales(p.code, wh.code, parseInt(e.target.value, 10) || 0)}
+                              placeholder="0"
+                              className="w-16 text-center border border-slate-200 rounded px-1 py-0.5 text-xs
+                                         focus:outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400 bg-white"
+                            />
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
         </div>
       )}
 
