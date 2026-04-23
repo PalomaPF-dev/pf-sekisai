@@ -61,6 +61,9 @@ export type LocationStock = Record<string, Record<string, number>>;
 /** productCode → warehouseCode → 輸送中数量（個）＝前回出荷数量 */
 export type InTransitStock = Record<string, Record<string, number>>;
 
+/** productCode → warehouseCode → 今週予定出荷数（個）＝販売・出荷予定 */
+export type PlannedSales = Record<string, Record<string, number>>;
+
 // Weekly shipping schedule: factoryCode → warehouseCode → [Mon,Tue,Wed,Thu,Fri,Sat,Sun] booleans
 export type WeeklyShippingSchedule = Record<string, Record<string, boolean[]>>;
 

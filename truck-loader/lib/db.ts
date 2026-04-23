@@ -6,7 +6,7 @@ import { supabase } from './supabase';
 import type {
   Factory, Product, Warehouse, TruckType, PalletType,
   ProductionPlan, DailyProductionPlan, DistributionRatios,
-  InventoryStock, LocationStock, WeeklyShippingSchedule, InTransitStock,
+  InventoryStock, LocationStock, WeeklyShippingSchedule, InTransitStock, PlannedSales,
 } from './types';
 
 // ─── Factories ────────────────────────────────────────────────────────────────
@@ -322,6 +322,38 @@ export async function replaceAllInTransitStock(stock: InTransitStock) {
   }
   if (rows.length > 0) {
     const { error } = await supabase.from('in_transit_stock').insert(rows);
+    if (error) throw error;
+  }
+}
+
+// ─── Planned Sales ───────────────────────────────────────────────────────────
+
+export async function loadPlannedSales(): Promise<PlannedSales> {
+  const { data, error } = await supabase.from('planned_sales').select('*');
+  if (error) throw error;
+  const sales: PlannedSales = {};
+  for (const r of data ?? []) {
+    if (!sales[r.product_code]) sales[r.product_code] = {};
+    sales[r.product_code][r.warehouse_code] = r.qty;
+  }
+  return sales;
+}
+
+export async function replaceAllPlannedSales(sales: PlannedSales) {
+  const { error: delErr } = await supabase
+    .from('planned_sales')
+    .delete()
+    .neq('product_code', '___never___');
+  if (delErr) throw delErr;
+
+  const rows: { product_code: string; warehouse_code: string; qty: number }[] = [];
+  for (const [pc, whs] of Object.entries(sales)) {
+    for (const [wc, qty] of Object.entries(whs)) {
+      if (qty > 0) rows.push({ product_code: pc, warehouse_code: wc, qty });
+    }
+  }
+  if (rows.length > 0) {
+    const { error } = await supabase.from('planned_sales').insert(rows);
     if (error) throw error;
   }
 }

@@ -7,9 +7,11 @@ import {
   parseProductionCSV,
   parseInventoryCSV,
   parseLocationStockCSV,
+  parsePlannedSalesCSV,
   generateProductionTemplate,
   generateInventoryTemplate,
   generateLocationStockTemplate,
+  generatePlannedSalesTemplate,
   downloadCSV,
 } from '@/lib/csv';
 import clsx from 'clsx';
@@ -20,10 +22,10 @@ export default function ProductionPage() {
   const {
     factories, products, warehouses, truckTypes,
     productionPlan, distributionRatios,
-    inventoryStock, locationStock, inTransitStock,
+    inventoryStock, locationStock, inTransitStock, plannedSales,
     setProductionQty, setRatio,
     setInventoryStock, setLocationStock,
-    importProductionPlan, importInventoryStockBulk, importLocationStockBulk,
+    importProductionPlan, importInventoryStockBulk, importLocationStockBulk, importPlannedSalesBulk,
   } = useAppStore();
 
   const [activeTab, setActiveTab] = useState<Tab>('production');
@@ -38,18 +40,21 @@ export default function ProductionPage() {
   const [prodPreview, setProdPreview] = useState<ReturnType<typeof parseProductionCSV> | null>(null);
   const [invPreview,  setInvPreview]  = useState<ReturnType<typeof parseInventoryCSV>  | null>(null);
   const [locPreview,  setLocPreview]  = useState<ReturnType<typeof parseLocationStockCSV> | null>(null);
+  const [salesPreview, setSalesPreview] = useState<ReturnType<typeof parsePlannedSalesCSV> | null>(null);
+  const salesFileRef = useRef<HTMLInputElement>(null);
   const [prodImported, setProdImported] = useState(false);
   const [invImported,  setInvImported]  = useState(false);
   const [locImported,  setLocImported]  = useState(false);
+  const [salesImported, setSalesImported] = useState(false);
 
   const sendQty = useMemo(
-    () => calcSendQty(products, warehouses, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock),
-    [products, warehouses, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock],
+    () => calcSendQty(products, warehouses, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock, plannedSales),
+    [products, warehouses, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock, plannedSales],
   );
 
   const plans = useMemo(
-    () => calcAllPlans(warehouses, products, truckTypes, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock),
-    [warehouses, products, truckTypes, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock],
+    () => calcAllPlans(warehouses, products, truckTypes, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock, plannedSales),
+    [warehouses, products, truckTypes, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock, plannedSales],
   );
 
   // 出荷がある拠点のみ表示
@@ -112,6 +117,24 @@ export default function ProductionPage() {
     if (!locPreview) return;
     importLocationStockBulk(locPreview.locationStock);
     setLocImported(true);
+  };
+
+  const handleSalesFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      setSalesPreview(parsePlannedSalesCSV(text, products, warehouses));
+      setSalesImported(false);
+    };
+    reader.readAsText(file, 'utf-8');
+  };
+
+  const handleSalesImport = () => {
+    if (!salesPreview) return;
+    importPlannedSalesBulk(salesPreview.plannedSales);
+    setSalesImported(true);
   };
 
   const tabs: { key: Tab; label: string }[] = [
@@ -791,6 +814,119 @@ export default function ProductionPage() {
                 </button>
                 {locImported && (
                   <span className="text-xs text-emerald-600">拠点別在庫数に反映されました</span>
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* ── 予定出荷数インポート ── */}
+          <section className="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
+            <h2 className="text-sm font-bold text-slate-700 mb-1">予定出荷数 CSVインポート</h2>
+            <p className="text-xs text-slate-500 mb-4">
+              今週、各拠点から出荷（販売）予定の数量を取り込みます。現在庫＋輸送中から予定出荷数を差し引いた値を有効在庫として積載計画を計算します。
+            </p>
+
+            {/* テンプレートDL */}
+            <div className="flex items-center gap-2 mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <span className="text-xs text-slate-600 font-medium">テンプレートDL：</span>
+              <button
+                onClick={() =>
+                  downloadCSV(
+                    generatePlannedSalesTemplate(products, warehouses, plannedSales),
+                    `予定出荷数_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.csv`,
+                  )
+                }
+                className="text-xs px-3 py-1.5 bg-slate-700 text-white rounded hover:bg-slate-800 transition-colors"
+              >
+                ダウンロード（現在値入り）
+              </button>
+            </div>
+
+            {/* ファイル選択 */}
+            <div className="flex items-center gap-3 mb-4">
+              <input
+                ref={salesFileRef}
+                type="file"
+                accept=".csv,text/csv"
+                onChange={handleSalesFile}
+                className="hidden"
+              />
+              <button
+                onClick={() => { salesFileRef.current?.click(); setSalesPreview(null); setSalesImported(false); }}
+                className="text-sm px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                CSVファイルを選択
+              </button>
+              {salesPreview && (
+                <span className="text-xs text-slate-500">
+                  {salesPreview.rows.length}製品 × {Object.keys(salesPreview.rows[0]?.whQty ?? {}).length}拠点分を読み込みました
+                </span>
+              )}
+            </div>
+
+            {/* 警告 */}
+            {salesPreview && salesPreview.warnings.length > 0 && (
+              <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 space-y-0.5">
+                {salesPreview.warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
+              </div>
+            )}
+
+            {/* プレビューテーブル */}
+            {salesPreview && salesPreview.rows.length > 0 && (() => {
+              const whCodes = Object.keys(salesPreview.rows[0]?.whQty ?? {});
+              return (
+                <div className="overflow-x-auto mb-4">
+                  <table className="text-xs border-collapse w-full">
+                    <thead>
+                      <tr className="bg-slate-50">
+                        <th className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 border-r border-slate-200 min-w-[160px]">製品</th>
+                        {whCodes.map((wc) => (
+                          <th key={wc} className="px-2 py-2 text-center font-semibold text-slate-400 min-w-[64px]">
+                            <div>{wc}</div>
+                            <div className="text-[10px] text-slate-400">{warehouses.find(w => w.code === wc)?.name.slice(0, 4)}</div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {salesPreview.rows.map((row) => (
+                        <tr key={row.code} className={clsx('border-t border-slate-100', !row.found && 'bg-amber-50')}>
+                          <td className="px-3 py-1.5 sticky left-0 bg-white border-r border-slate-200">
+                            <div className="font-medium text-slate-700">{row.name}</div>
+                            <div className="text-[10px] text-slate-400 font-mono">{row.code}</div>
+                          </td>
+                          {whCodes.map((wc) => {
+                            const qty = row.whQty[wc] ?? 0;
+                            return (
+                              <td key={wc} className="px-2 py-1.5 text-center text-slate-600">
+                                {qty > 0 ? <span className="font-medium text-rose-600">{qty.toLocaleString()}</span> : <span className="text-slate-300">—</span>}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+
+            {salesPreview && (
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleSalesImport}
+                  disabled={salesImported}
+                  className={clsx(
+                    'px-4 py-2 text-sm rounded-lg transition-colors',
+                    salesImported
+                      ? 'bg-emerald-100 text-emerald-700 cursor-default'
+                      : 'bg-brand-600 text-white hover:bg-brand-700',
+                  )}
+                >
+                  {salesImported ? '✓ インポート済み' : 'インポートする'}
+                </button>
+                {salesImported && (
+                  <span className="text-xs text-emerald-600">予定出荷数に反映されました</span>
                 )}
               </div>
             )}

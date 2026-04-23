@@ -13,7 +13,7 @@ export default function LoadingPlanInner() {
   const {
     factories, products, warehouses, truckTypes,
     productionPlan, distributionRatios, inventoryStock, locationStock,
-    weeklyShippingSchedule, inTransitStock, confirmShipment,
+    weeklyShippingSchedule, inTransitStock, plannedSales, confirmShipment,
   } = useAppStore();
 
   const productColors = Object.fromEntries(products.map((p) => [p.code, p.color]));
@@ -23,8 +23,8 @@ export default function LoadingPlanInner() {
 
   // 全製品の週間送り数（出荷確定用）
   const allSendQty = useMemo(
-    () => calcSendQty(products, warehouses, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock),
-    [products, warehouses, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock],
+    () => calcSendQty(products, warehouses, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock, plannedSales),
+    [products, warehouses, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock, plannedSales],
   );
 
   // 工場別・日別計画
@@ -41,8 +41,9 @@ export default function LoadingPlanInner() {
         locationStock,
         weeklyShippingSchedule,
         inTransitStock,
+        plannedSales,
       ),
-    [warehouses, products, truckTypes, factories, productionPlan, distributionRatios, inventoryStock, locationStock, weeklyShippingSchedule, inTransitStock],
+    [warehouses, products, truckTypes, factories, productionPlan, distributionRatios, inventoryStock, locationStock, weeklyShippingSchedule, inTransitStock, plannedSales],
   );
 
   const [confirmed, setConfirmed] = useState(false);
