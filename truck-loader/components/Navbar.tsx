@@ -28,23 +28,24 @@ export function Navbar() {
           borderBottom: '1px solid rgba(255,255,255,0.12)',
         }}
       >
-        {/* 左：Palomaロゴ */}
-        <Image
-          src="/paloma-logo.png"
-          alt="Paloma"
-          width={140}
-          height={40}
-          priority
-          style={{ height: 36, width: 'auto', objectFit: 'contain' }}
-        />
-
-        {/* 右：システム名 */}
-        <div className="flex flex-col items-end">
-          <div className="font-bold text-white" style={{ fontSize: 15, letterSpacing: '0.1em' }}>
-            積載計画管理システム
-          </div>
-          <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.18em' }}>
-            LOGISTICS PLANNING SYSTEM
+        {/* 左：Palomaロゴ ＋ システム名 */}
+        <div className="flex items-center gap-4">
+          <Image
+            src="/paloma-logo.png"
+            alt="Paloma"
+            width={140}
+            height={40}
+            priority
+            style={{ height: 36, width: 'auto', objectFit: 'contain' }}
+          />
+          <div style={{ width: 1, height: 32, background: 'rgba(255,255,255,0.25)' }} />
+          <div>
+            <div className="font-bold text-white" style={{ fontSize: 15, letterSpacing: '0.1em' }}>
+              積載計画管理システム
+            </div>
+            <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.18em' }}>
+              LOGISTICS PLANNING SYSTEM
+            </div>
           </div>
         </div>
       </div>
