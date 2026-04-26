@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ja">
-      <body className="bg-gray-100 text-slate-800 antialiased">
+      <body className="antialiased" style={{ background: '#f0f6fc', color: '#1e3a5f', minHeight: '100vh' }}>
         <Navbar />
         <SupabaseProvider>
           <main className="min-h-[calc(100vh-94px)]">{children}</main>

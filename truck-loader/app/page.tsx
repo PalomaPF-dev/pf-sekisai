@@ -210,7 +210,7 @@ export default function DashboardPage() {
               <div key={factory.code} style={{ border: '1px solid #c8d4df', borderRadius: 3, overflow: 'hidden' }}>
                 {/* 工場ヘッダ */}
                 <div className="flex items-center gap-2 px-3 py-2"
-                  style={{ background: 'linear-gradient(180deg, #1e3f60 0%, #17324e 100%)', borderBottom: '1px solid #0c1f35' }}>
+                  style={{ background: 'linear-gradient(180deg, #2e74c0 0%, #2563a8 100%)', borderBottom: '1px solid #1a4a7a' }}>
                   <span className="font-bold px-2 py-0.5 rounded"
                     style={{ fontSize: 10, background: 'rgba(255,255,255,0.15)', color: 'white', border: '1px solid rgba(255,255,255,0.2)' }}>
                     {factory.code}
