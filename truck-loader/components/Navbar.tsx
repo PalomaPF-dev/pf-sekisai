@@ -28,33 +28,15 @@ export function Navbar() {
           borderBottom: '1px solid rgba(255,255,255,0.08)',
         }}
       >
-        {/* 左：会社ロゴ */}
-        <div className="flex items-center gap-3 shrink-0">
-          <div
-            className="flex items-center justify-center rounded-md shrink-0"
-            style={{
-              width: 38,
-              height: 38,
-              background: 'rgba(255,255,255,0.10)',
-              border: '1px solid rgba(255,255,255,0.18)',
-            }}
-          >
-            {/* ロゴマーク SVG (後で実画像に差替可) */}
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <polygon points="12,2 22,7 22,17 12,22 2,17 2,7" stroke="white" strokeWidth="1.4" fill="none" />
-              <polygon points="12,6 18,9.5 18,16.5 12,20 6,16.5 6,9.5" fill="white" fillOpacity="0.15" />
-              <polygon points="12,9 16,11.5 16,16 12,18.5 8,16 8,11.5" fill="white" fillOpacity="0.7" />
-            </svg>
-          </div>
-          <div>
-            <div className="font-bold text-white text-sm leading-tight tracking-wide">
-              株式会社○○
-            </div>
-            <div className="text-[10px] leading-tight tracking-widest" style={{ color: 'rgba(255,255,255,0.45)' }}>
-              YOUR COMPANY NAME
-            </div>
-          </div>
-        </div>
+        {/* 左：public/logo.svg を表示 */}
+        <Image
+          src="/logo.svg"
+          alt="会社ロゴ"
+          width={160}
+          height={48}
+          priority
+          style={{ height: 38, width: 'auto' }}
+        />
 
         {/* 右：システム名 */}
         <div className="flex flex-col items-end">
@@ -84,9 +66,7 @@ export function Navbar() {
               href={href}
               className={clsx(
                 'relative flex items-center px-4 text-[13px] font-medium tracking-wide transition-all select-none',
-                active
-                  ? 'text-white'
-                  : 'hover:text-white',
+                active ? 'text-white' : 'hover:text-white',
               )}
               style={
                 active
