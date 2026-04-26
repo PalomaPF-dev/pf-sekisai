@@ -376,7 +376,8 @@ export default function SettingsPage() {
                   <th className="px-3 py-2.5 text-left font-semibold">色</th>
                   <th className="px-3 py-2.5 text-left font-semibold">商品コード</th>
                   <th className="px-3 py-2.5 text-left font-semibold">商品名</th>
-                  <th className="px-3 py-2.5 text-right font-semibold">パレット</th>
+                  <th className="px-3 py-2.5 text-right font-semibold">個/パレット</th>
+                  <th className="px-3 py-2.5 text-left font-semibold">パレット型</th>
                   <th className="px-3 py-2.5 text-left font-semibold">製造工場</th>
                   <th className="px-3 py-2.5 text-center font-semibold">器具区分</th>
                   <th className="px-3 py-2.5 text-left font-semibold">器具名</th>
@@ -397,6 +398,7 @@ export default function SettingsPage() {
                       <td className="px-3 py-2 font-mono text-xs text-slate-500">{p.code}</td>
                       <td className="px-3 py-2 font-medium">{p.name}</td>
                       <td className="px-3 py-2 text-right">{p.capacityPerPallet}</td>
+                      <td className="px-3 py-2 text-slate-500 text-xs">{p.palletType}</td>
                       <td className="px-3 py-2">
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">
                           {factory?.name ?? p.factoryCode ?? 'F001'}
@@ -423,6 +425,7 @@ export default function SettingsPage() {
             <ProductModal
               product={editingProduct}
               factories={factories}
+              palletTypes={palletTypes}
               onChange={setEditingProduct}
               onSave={handleSaveProduct}
               onCancel={() => setEditingProduct(null)}
@@ -653,10 +656,11 @@ function FactoryModal({
 
 // ─── 製品モーダル ──────────────────────────────────────────────────────
 function ProductModal({
-  product, factories, onChange, onSave, onCancel, isNew,
+  product, factories, palletTypes, onChange, onSave, onCancel, isNew,
 }: {
   product: Product;
   factories: Factory[];
+  palletTypes: import('@/lib/types').PalletType[];
   onChange: (p: Product) => void;
   onSave: () => void;
   onCancel: () => void;
@@ -684,7 +688,7 @@ function ProductModal({
               placeholder="例: PH-5BN"
             />
           </Field>
-          <Field label="パレット（個/枚）">
+          <Field label="個/パレット">
             <input
               type="number"
               className={INPUT_CLASS}
@@ -752,7 +756,9 @@ function ProductModal({
               value={product.palletType}
               onChange={(e) => onChange({ ...product, palletType: e.target.value })}
             >
-              {['P01', 'P02', 'P03'].map((t) => <option key={t}>{t}</option>)}
+              {palletTypes.map((pt) => (
+                <option key={pt.code} value={pt.code}>{pt.code} — {pt.name}</option>
+              ))}
             </select>
           </Field>
           <Field label="表示カラー">
