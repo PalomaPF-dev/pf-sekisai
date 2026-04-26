@@ -8,10 +8,15 @@ export interface Factory {
 export interface Product {
   code: string;
   name: string;
-  capacityPerPallet: number; // 個/枚
+  capacityPerPallet: number; // パレット（個/枚）
   palletType: string;        // P01, P02, P03
   color: string;             // hex カラー
-  factoryCode?: string;      // 出荷工場コード（省略時は F001）
+  factoryCode?: string;      // 製造工場コード（省略時は F001）
+  equipmentCategory?: string; // 器具区分
+  equipmentName?: string;     // 器具名
+  poji?: boolean;             // ポジ（○/×）
+  destination?: string;       // 仕向け（量販 / 一般 等）
+  productionMethod?: string;  // 生産方式
 }
 
 export interface Warehouse {

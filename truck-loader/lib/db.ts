@@ -39,6 +39,11 @@ export async function loadProducts(): Promise<Product[]> {
     palletType: r.pallet_type,
     color: r.color,
     factoryCode: r.factory_code ?? 'F001',
+    equipmentCategory: r.equipment_category ?? '',
+    equipmentName: r.equipment_name ?? '',
+    poji: r.poji ?? false,
+    destination: r.destination ?? '',
+    productionMethod: r.production_method ?? '',
   }));
 }
 
@@ -50,6 +55,11 @@ export async function upsertProduct(p: Product) {
     pallet_type: p.palletType,
     color: p.color,
     factory_code: p.factoryCode ?? 'F001',
+    equipment_category: p.equipmentCategory ?? '',
+    equipment_name: p.equipmentName ?? '',
+    poji: p.poji ?? false,
+    destination: p.destination ?? '',
+    production_method: p.productionMethod ?? '',
   });
   if (error) throw error;
 }
@@ -62,6 +72,11 @@ export async function upsertProducts(products: Product[]) {
     pallet_type: p.palletType,
     color: p.color,
     factory_code: p.factoryCode ?? 'F001',
+    equipment_category: p.equipmentCategory ?? '',
+    equipment_name: p.equipmentName ?? '',
+    poji: p.poji ?? false,
+    destination: p.destination ?? '',
+    production_method: p.productionMethod ?? '',
   }));
   const { error } = await supabase.from('products').upsert(rows);
   if (error) throw error;

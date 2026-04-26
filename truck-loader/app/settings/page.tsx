@@ -373,13 +373,17 @@ export default function SettingsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 text-xs text-slate-500">
-                  <th className="px-4 py-2.5 text-left font-semibold">色</th>
-                  <th className="px-4 py-2.5 text-left font-semibold">製品コード</th>
-                  <th className="px-4 py-2.5 text-left font-semibold">製品名</th>
-                  <th className="px-4 py-2.5 text-right font-semibold">個/枚</th>
-                  <th className="px-4 py-2.5 text-left font-semibold">パレット型</th>
-                  <th className="px-4 py-2.5 text-left font-semibold">工場</th>
-                  <th className="px-4 py-2.5 text-right font-semibold">操作</th>
+                  <th className="px-3 py-2.5 text-left font-semibold">色</th>
+                  <th className="px-3 py-2.5 text-left font-semibold">商品コード</th>
+                  <th className="px-3 py-2.5 text-left font-semibold">商品名</th>
+                  <th className="px-3 py-2.5 text-right font-semibold">パレット</th>
+                  <th className="px-3 py-2.5 text-left font-semibold">製造工場</th>
+                  <th className="px-3 py-2.5 text-center font-semibold">器具区分</th>
+                  <th className="px-3 py-2.5 text-left font-semibold">器具名</th>
+                  <th className="px-3 py-2.5 text-center font-semibold">ポジ</th>
+                  <th className="px-3 py-2.5 text-left font-semibold">仕向け</th>
+                  <th className="px-3 py-2.5 text-center font-semibold">生産方式</th>
+                  <th className="px-3 py-2.5 text-right font-semibold">操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -387,36 +391,25 @@ export default function SettingsPage() {
                   const factory = factories.find((f) => f.code === (p.factoryCode ?? 'F001'));
                   return (
                     <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
-                      <td className="px-4 py-2">
-                        <span
-                          className="w-5 h-5 rounded border border-black/10 block"
-                          style={{ background: p.color }}
-                        />
+                      <td className="px-3 py-2">
+                        <span className="w-5 h-5 rounded border border-black/10 block" style={{ background: p.color }} />
                       </td>
-                      <td className="px-4 py-2 font-mono text-xs text-slate-500">{p.code}</td>
-                      <td className="px-4 py-2 font-medium">{p.name}</td>
-                      <td className="px-4 py-2 text-right">{p.capacityPerPallet}</td>
-                      <td className="px-4 py-2 text-slate-500">{p.palletType}</td>
-                      <td className="px-4 py-2">
+                      <td className="px-3 py-2 font-mono text-xs text-slate-500">{p.code}</td>
+                      <td className="px-3 py-2 font-medium">{p.name}</td>
+                      <td className="px-3 py-2 text-right">{p.capacityPerPallet}</td>
+                      <td className="px-3 py-2">
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">
                           {factory?.name ?? p.factoryCode ?? 'F001'}
                         </span>
                       </td>
-                      <td className="px-4 py-2 text-right">
-                        <button
-                          onClick={() => setEditingProduct({ ...p })}
-                          className="text-xs text-brand-600 hover:underline mr-3"
-                        >
-                          編集
-                        </button>
-                        <button
-                          onClick={() => {
-                            removeProduct(p.code);
-                          }}
-                          className="text-xs text-red-400 hover:underline"
-                        >
-                          削除
-                        </button>
+                      <td className="px-3 py-2 text-center text-slate-600">{p.equipmentCategory ?? '—'}</td>
+                      <td className="px-3 py-2 text-slate-600">{p.equipmentName ?? '—'}</td>
+                      <td className="px-3 py-2 text-center">{p.poji ? <span className="text-emerald-600 font-bold">○</span> : <span className="text-slate-300">—</span>}</td>
+                      <td className="px-3 py-2 text-slate-600">{p.destination ?? '—'}</td>
+                      <td className="px-3 py-2 text-center text-slate-600">{p.productionMethod ?? '—'}</td>
+                      <td className="px-3 py-2 text-right whitespace-nowrap">
+                        <button onClick={() => setEditingProduct({ ...p })} className="text-xs text-brand-600 hover:underline mr-3">編集</button>
+                        <button onClick={() => removeProduct(p.code)} className="text-xs text-red-400 hover:underline">削除</button>
                       </td>
                     </tr>
                   );
@@ -673,8 +666,8 @@ function ProductModal({
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
       <div className="bg-white rounded-xl p-6 shadow-xl w-full max-w-md mx-4">
         <h3 className="font-bold text-slate-800 mb-4">{isNew ? '製品を追加' : '製品を編集'}</h3>
-        <div className="flex flex-col gap-3">
-          <Field label="製品コード">
+        <div className="flex flex-col gap-3 max-h-[70vh] overflow-y-auto pr-1">
+          <Field label="商品コード">
             <input
               className={INPUT_CLASS}
               value={product.code}
@@ -683,20 +676,74 @@ function ProductModal({
               placeholder="例: 1064521424"
             />
           </Field>
-          <Field label="製品名">
+          <Field label="商品名">
             <input
               className={INPUT_CLASS}
               value={product.name}
               onChange={(e) => onChange({ ...product, name: e.target.value })}
-              placeholder="例: PH-5BN (A色)"
+              placeholder="例: PH-5BN"
             />
           </Field>
-          <Field label="個/枚（パレット容量）">
+          <Field label="パレット（個/枚）">
             <input
               type="number"
               className={INPUT_CLASS}
               value={product.capacityPerPallet}
               onChange={(e) => onChange({ ...product, capacityPerPallet: parseInt(e.target.value, 10) || 1 })}
+            />
+          </Field>
+          <Field label="製造工場コード">
+            <select
+              className={INPUT_CLASS}
+              value={product.factoryCode ?? 'F001'}
+              onChange={(e) => onChange({ ...product, factoryCode: e.target.value })}
+            >
+              {factories.map((f) => (
+                <option key={f.code} value={f.code}>{f.name}（{f.code}）</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="器具区分">
+            <input
+              className={INPUT_CLASS}
+              value={product.equipmentCategory ?? ''}
+              onChange={(e) => onChange({ ...product, equipmentCategory: e.target.value })}
+              placeholder="例: 101"
+            />
+          </Field>
+          <Field label="器具名">
+            <input
+              className={INPUT_CLASS}
+              value={product.equipmentName ?? ''}
+              onChange={(e) => onChange({ ...product, equipmentName: e.target.value })}
+              placeholder="例: 元止め湯沸"
+            />
+          </Field>
+          <Field label="ポジ">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={product.poji ?? false}
+                onChange={(e) => onChange({ ...product, poji: e.target.checked })}
+                className="w-4 h-4 accent-brand-600"
+              />
+              <span className="text-sm text-slate-600">{product.poji ? '○' : '—'}</span>
+            </label>
+          </Field>
+          <Field label="仕向け">
+            <input
+              className={INPUT_CLASS}
+              value={product.destination ?? ''}
+              onChange={(e) => onChange({ ...product, destination: e.target.value })}
+              placeholder="例: 量販 / 一般"
+            />
+          </Field>
+          <Field label="生産方式">
+            <input
+              className={INPUT_CLASS}
+              value={product.productionMethod ?? ''}
+              onChange={(e) => onChange({ ...product, productionMethod: e.target.value })}
+              placeholder="例: A"
             />
           </Field>
           <Field label="パレット型">
@@ -706,17 +753,6 @@ function ProductModal({
               onChange={(e) => onChange({ ...product, palletType: e.target.value })}
             >
               {['P01', 'P02', 'P03'].map((t) => <option key={t}>{t}</option>)}
-            </select>
-          </Field>
-          <Field label="出荷工場">
-            <select
-              className={INPUT_CLASS}
-              value={product.factoryCode ?? 'F001'}
-              onChange={(e) => onChange({ ...product, factoryCode: e.target.value })}
-            >
-              {factories.map((f) => (
-                <option key={f.code} value={f.code}>{f.code} - {f.name}</option>
-              ))}
             </select>
           </Field>
           <Field label="表示カラー">
