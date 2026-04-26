@@ -68,38 +68,40 @@ export default function DashboardPage() {
     <div className="sys-page">
 
       {/* ── ページタイトル ── */}
-      <div className="sys-page-title flex items-center gap-2 mb-4">
-        <span>ダッシュボード</span>
-        <span className="text-xs font-normal text-slate-400 ml-2">今週の出荷計画サマリー</span>
+      <div className="sys-page-title">
+        ダッシュボード
+        <span style={{ fontSize: 12, fontWeight: 400, color: '#9ca3af' }}>今週の出荷計画サマリー</span>
       </div>
 
       {/* ── 1. KPIカード ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
         {[
-          { label: '使用台数',    value: totalTrucks,               unit: '台',   color: '#1a3a5c' },
-          { label: '総パレット数', value: totalPallets,              unit: '枚',   color: '#1a6645' },
-          { label: '総出荷個数',  value: totalQty.toLocaleString(),  unit: '個',   color: '#7c3a0d' },
-          { label: '出荷拠点数',  value: activePlans.length,         unit: '拠点', color: '#4a1c6b' },
-        ].map(({ label, value, unit, color }) => (
-          <div key={label}
-            className="bg-white flex items-center gap-4 px-5 py-3"
-            style={{ border: '1px solid #c8d4df', borderLeft: `4px solid ${color}`, borderRadius: 4, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
-          >
-            <div>
-              <div className="text-2xl font-bold" style={{ color }}>{value}</div>
-              <div className="text-xs" style={{ color: '#64748b' }}>{unit}</div>
+          { label: '使用台数',    value: totalTrucks,               unit: '台',   accent: '#2563eb', bg: '#eff6ff' },
+          { label: '総パレット数', value: totalPallets,              unit: '枚',   accent: '#059669', bg: '#ecfdf5' },
+          { label: '総出荷個数',  value: totalQty.toLocaleString(),  unit: '個',   accent: '#d97706', bg: '#fffbeb' },
+          { label: '出荷拠点数',  value: activePlans.length,         unit: '拠点', accent: '#7c3aed', bg: '#f5f3ff' },
+        ].map(({ label, value, unit, accent, bg }) => (
+          <div key={label} className="card px-5 py-4 flex items-center gap-4">
+            <div
+              className="flex items-center justify-center rounded-lg shrink-0"
+              style={{ width: 44, height: 44, background: bg }}
+            >
+              <span style={{ fontSize: 22, fontWeight: 800, color: accent, lineHeight: 1 }}>{value}</span>
             </div>
-            <div className="text-xs font-semibold" style={{ color: '#475569' }}>{label}</div>
+            <div>
+              <div style={{ fontSize: 11, color: '#6b7280' }}>{unit}</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>{label}</div>
+            </div>
           </div>
         ))}
       </div>
 
       {/* ── 2. 拠点別 積載計画（カードグリッド）── */}
-      <section className="mb-5">
+      <section className="mb-6">
         <div className="sys-panel">
           <div className="sys-section-header justify-between">
             <span>拠点別 積載計画</span>
-            <Link href="/loading-plan" className="font-normal text-brand-500 hover:underline" style={{ fontSize: 11 }}>
+            <Link href="/loading-plan" className="font-normal text-blue-500 hover:underline" style={{ fontSize: 11 }}>
               詳細を見る →
             </Link>
           </div>
@@ -172,11 +174,11 @@ export default function DashboardPage() {
       </section>
 
       {/* ── 3. 工場→拠点 出荷フロー（曜日×拠点テーブル）── */}
-      <section className="mb-5">
+      <section className="mb-6">
         <div className="sys-panel">
           <div className="sys-section-header justify-between">
             <span>工場 → 拠点 出荷フロー</span>
-            <Link href="/inventory" className="font-normal text-brand-500 hover:underline" style={{ fontSize: 11 }}>
+            <Link href="/inventory" className="font-normal text-blue-500 hover:underline" style={{ fontSize: 11 }}>
               在庫・積載計画を見る →
             </Link>
           </div>
@@ -325,11 +327,11 @@ export default function DashboardPage() {
       </section>
 
       {/* ── 4. 今週の生産計画（工場別タブ）── */}
-      <section className="mb-5">
+      <section className="mb-6">
         <div className="sys-panel">
           <div className="sys-section-header justify-between">
             <span>今週の生産計画</span>
-            <Link href="/production" className="font-normal text-brand-500 hover:underline" style={{ fontSize: 11 }}>
+            <Link href="/production" className="font-normal text-blue-500 hover:underline" style={{ fontSize: 11 }}>
               編集 →
             </Link>
           </div>

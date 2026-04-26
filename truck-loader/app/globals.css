@@ -2,134 +2,93 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body {
-  height: 100%;
-}
+html, body { height: 100%; }
 
-/* ─── スクロールバー細め ─── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #f1f5f9; }
-::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #64748b; }
+/* ─── スクロールバー ─── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
 
-/* ─── 数値入力フィールドの矢印非表示 ─── */
+/* ─── 数値入力 ─── */
 input[type=number]::-webkit-inner-spin-button,
 input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 input[type=number] { -moz-appearance: textfield; }
 
-/* ─── 生産管理システム共通スタイル ─── */
-
-/* カードパネル */
-.sys-panel {
+/* ─── カード ─── */
+.card {
   background: white;
-  border: 1px solid #d0dae6;
-  border-radius: 6px;
-  box-shadow: 0 1px 4px rgba(37,99,168,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
 }
 
-/* セクションヘッダー */
-.sys-section-header {
+/* ─── セクションタイトル ─── */
+.section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+  letter-spacing: 0.02em;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 16px 8px;
-  background: linear-gradient(180deg, #eef4fc 0%, #e4eef8 100%);
-  border-bottom: 1px solid #c8d8ec;
-  font-size: 12px;
-  font-weight: 700;
-  color: #1a4a7a;
-  letter-spacing: 0.05em;
-  border-radius: 6px 6px 0 0;
 }
-
-.sys-section-header::before {
+.section-title::before {
   content: '';
   display: inline-block;
   width: 3px;
   height: 14px;
-  background: #2563a8;
+  background: #2563eb;
   border-radius: 2px;
   flex-shrink: 0;
 }
 
-/* データテーブル */
-.sys-table {
+/* ─── テーブル ─── */
+.data-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 12px;
 }
-
-.sys-table th {
-  background: linear-gradient(180deg, #eef4fc 0%, #e4eef8 100%);
-  border: 1px solid #c2d4e8;
-  padding: 6px 10px;
-  text-align: center;
-  font-weight: 700;
-  color: #1a4a7a;
-  white-space: nowrap;
-}
-
-.sys-table td {
-  border: 1px solid #d8e6f2;
-  padding: 5px 10px;
-  color: #334155;
-}
-
-.sys-table tbody tr:nth-child(even) td {
-  background: #f5f9fd;
-}
-
-.sys-table tbody tr:hover td {
-  background: #eaf3fc;
-}
-
-/* ボタン系 */
-.sys-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 5px 14px;
-  font-size: 12px;
+.data-table th {
+  background: #f9fafb;
+  border-bottom: 2px solid #e5e7eb;
+  border-right: 1px solid #f3f4f6;
+  padding: 8px 12px;
+  text-align: left;
   font-weight: 600;
-  border-radius: 4px;
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: all 0.15s;
+  color: #6b7280;
   white-space: nowrap;
+  letter-spacing: 0.03em;
 }
+.data-table td {
+  border-bottom: 1px solid #f3f4f6;
+  padding: 8px 12px;
+  color: #374151;
+}
+.data-table tbody tr:hover td { background: #f9fafb; }
 
-.sys-btn-primary {
-  background: linear-gradient(180deg, #3b82c4 0%, #2563a8 100%);
-  border-color: #1a4a7a;
-  color: white;
+/* ─── sys-* 後方互換エイリアス ─── */
+.sys-panel { background: white; border-radius: 10px; border: 1px solid #e5e7eb; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+.sys-section-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 16px 10px;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 12px; font-weight: 700; color: #111827;
+  border-radius: 10px 10px 0 0;
 }
-.sys-btn-primary:hover {
-  background: linear-gradient(180deg, #2563a8 0%, #1a4a7a 100%);
+.sys-section-header::before {
+  content: ''; display: inline-block;
+  width: 3px; height: 14px;
+  background: #2563eb; border-radius: 2px; flex-shrink: 0;
 }
-
-.sys-btn-secondary {
-  background: linear-gradient(180deg, #f8fbff 0%, #edf4fb 100%);
-  border-color: #b0c8e4;
-  color: #1a4a7a;
-}
-.sys-btn-secondary:hover {
-  background: linear-gradient(180deg, #edf4fb 0%, #ddeaf8 100%);
-}
-
-/* ページラッパー */
-.sys-page {
-  padding: 16px 20px 24px;
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
-/* ページタイトル */
+.sys-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.sys-table th { background: #f9fafb; border-bottom: 2px solid #e5e7eb; border-right: 1px solid #f3f4f6; padding: 8px 12px; font-weight: 600; color: #6b7280; white-space: nowrap; }
+.sys-table td { border-bottom: 1px solid #f3f4f6; padding: 7px 12px; color: #374151; }
+.sys-table tbody tr:nth-child(even) td { background: #fafafa; }
+.sys-table tbody tr:hover td { background: #f0f7ff; }
+.sys-page { padding: 24px 28px; max-width: 1400px; margin: 0 auto; }
 .sys-page-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: #1a4a7a;
-  letter-spacing: 0.04em;
-  padding-bottom: 10px;
-  border-bottom: 2px solid #2563a8;
-  margin-bottom: 16px;
+  font-size: 18px; font-weight: 700; color: #111827;
+  padding-bottom: 12px; border-bottom: 1px solid #e5e7eb; margin-bottom: 20px;
+  display: flex; align-items: center; gap: 8px;
 }

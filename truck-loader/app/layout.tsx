@@ -11,10 +11,13 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ja">
-      <body className="antialiased" style={{ background: '#f0f6fc', color: '#1e3a5f', minHeight: '100vh' }}>
+      <body className="antialiased" style={{ background: '#f5f7fa', color: '#1f2937' }}>
         <Navbar />
         <SupabaseProvider>
-          <main className="min-h-[calc(100vh-94px)]">{children}</main>
+          {/* サイドバー分(200px)だけ右にずらす */}
+          <main style={{ marginLeft: 200, minHeight: 'calc(100vh - 56px)' }}>
+            {children}
+          </main>
         </SupabaseProvider>
       </body>
     </html>
