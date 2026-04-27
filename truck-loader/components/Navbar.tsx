@@ -75,35 +75,36 @@ export function Navbar() {
     <>
       {/* ── トップヘッダー ── */}
       <header
-        className="sticky top-0 z-50 flex items-center px-6 gap-4"
+        className="sticky top-0 z-50 flex items-center px-6"
         style={{
-          height: 56,
+          height: 68,
           background: 'white',
           borderBottom: '1px solid #e5e7eb',
           boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
         }}
       >
-        <Image
-          src="/paloma-logo-black.jpg"
-          alt="Paloma"
-          width={150}
-          height={36}
-          priority
-          style={{ height: 34, width: 'auto', objectFit: 'contain' }}
-        />
-        <div style={{ width: 1, height: 24, background: '#e5e7eb' }} />
-        <span style={{ fontSize: 14, fontWeight: 600, color: '#374151', letterSpacing: '0.04em' }}>
-          積載計画管理システム
-        </span>
+        <div className="flex flex-col justify-center gap-0.5">
+          <Image
+            src="/paloma-logo-black.jpg"
+            alt="Paloma"
+            width={150}
+            height={36}
+            priority
+            style={{ height: 28, width: 'auto', objectFit: 'contain' }}
+          />
+          <span style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', letterSpacing: '0.06em' }}>
+            積載計画管理システム
+          </span>
+        </div>
       </header>
 
       {/* ── 左サイドバー（固定） ── */}
       <aside
         className="fixed left-0 z-40 flex flex-col"
         style={{
-          top: 56,
+          top: 68,
           width: 200,
-          height: 'calc(100vh - 56px)',
+          height: 'calc(100vh - 68px)',
           background: 'white',
           borderRight: '1px solid #e5e7eb',
           paddingTop: 16,

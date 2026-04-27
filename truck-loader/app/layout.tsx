@@ -15,7 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Navbar />
         <SupabaseProvider>
           {/* サイドバー分(200px)だけ右にずらす */}
-          <main style={{ marginLeft: 200, minHeight: 'calc(100vh - 56px)' }}>
+          <main style={{ marginLeft: 200, minHeight: 'calc(100vh - 68px)' }}>
             {children}
           </main>
         </SupabaseProvider>
