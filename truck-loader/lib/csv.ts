@@ -246,15 +246,51 @@ function parsePoji(raw: string | undefined): boolean {
   return s === '○' || s === 'true' || s === '1' || s === 'yes';
 }
 
+/** ヘッダー文字列を正規化（先頭BOM除去 + 前後空白除去） */
+function normalizeHeader(raw: string): string {
+  return raw.replace(/^﻿/, '').trim();
+}
+
+/** 製品マスタ CSV のキャノニカル列キー */
+type ProductColKey =
+  | 'code'
+  | 'name'
+  | 'capacity'
+  | 'palletType'
+  | 'color'
+  | 'factoryCode'
+  | 'equipmentCategory'
+  | 'equipmentName'
+  | 'poji'
+  | 'destination'
+  | 'productionMethod';
+
+/** ヘッダー名 → キャノニカルキーへのマッピング（カラーは別名「カラー」も許容） */
+const PRODUCT_HEADER_MAP: Record<string, ProductColKey> = {
+  '製品コード': 'code',
+  '製品名': 'name',
+  '個/枚': 'capacity',
+  'パレット型': 'palletType',
+  'カラー(hex)': 'color',
+  'カラー': 'color',
+  '製造工場': 'factoryCode',
+  '器具区分': 'equipmentCategory',
+  '器具名': 'equipmentName',
+  'ポジ': 'poji',
+  '仕向け': 'destination',
+  '生産方式': 'productionMethod',
+};
+
 /**
  * 製品マスタ CSV を解析する。
  *
- * フォーマット（1行目ヘッダ・全11列）:
- *   製品コード, 製品名, 個/枚, パレット型, カラー(hex),
+ * 1行目ヘッダで列を判定する（列順は問わない・不要な列は省略可）。
+ * 認識できる列名：
+ *   製品コード, 製品名, 個/枚, パレット型, カラー(hex)（または カラー）,
  *   製造工場, 器具区分, 器具名, ポジ, 仕向け, 生産方式
  *
- * 後方互換：列が少ないCSVも受け付ける。CSVに無い列は既存値を保持する。
- * カラー列は省略可（省略時はデフォルト色を自動割り当て）。
+ * CSVに含まれない列は既存値を保持する（マージ動作）。
+ * 認識できないヘッダーは無視される（警告は出すが取り込みは継続）。
  */
 export function parseProductsCSV(
   text: string,
@@ -275,16 +311,29 @@ export function parseProductsCSV(
     return { products: [], rows: [], warnings };
   }
 
+  // ヘッダ行を読み、列名 → カラム位置のマップを作る
   const headers = parseCSVLine(lines[0]);
-  const colCount = headers.length;
-  // どの列が CSV に含まれているか（含まれない列は既存値を保持）
-  const hasColor = colCount >= 5;
-  const hasFactory = colCount >= 6;
-  const hasEquipCat = colCount >= 7;
-  const hasEquipName = colCount >= 8;
-  const hasPoji = colCount >= 9;
-  const hasDestination = colCount >= 10;
-  const hasMethod = colCount >= 11;
+  const colIdx: Partial<Record<ProductColKey, number>> = {};
+  for (let i = 0; i < headers.length; i++) {
+    const norm = normalizeHeader(headers[i]);
+    if (!norm) continue;
+    const key = PRODUCT_HEADER_MAP[norm];
+    if (key) {
+      colIdx[key] = i;
+    } else {
+      warnings.push(`ヘッダ「${norm}」は認識できませんでした（無視されます）`);
+    }
+  }
+
+  if (colIdx.code === undefined) {
+    warnings.push('「製品コード」列が見つかりませんでした');
+    return { products: [], rows: [], warnings };
+  }
+
+  const getCell = (cells: string[], key: ProductColKey): string | undefined => {
+    const i = colIdx[key];
+    return i !== undefined ? cells[i]?.trim() : undefined;
+  };
 
   const products: Product[] = [];
   const rows: { product: Product; isNew: boolean; warnings: string[] }[] = [];
@@ -292,54 +341,67 @@ export function parseProductsCSV(
 
   for (let r = 1; r < lines.length; r++) {
     const cells = parseCSVLine(lines[r]);
-    const code = cells[0]?.trim();
+    const code = getCell(cells, 'code') ?? '';
     if (!code) continue;
 
     const existing = existingMap[code];
     const rowWarnings: string[] = [];
 
-    const name = cells[1]?.trim() ?? '';
-    if (!name) rowWarnings.push('製品名が空です');
-
-    const capacity = parseInt(cells[2] ?? '', 10);
-    if (!capacity || capacity <= 0) rowWarnings.push('個/枚 は 1 以上の整数を指定してください');
-
-    const palletType = cells[3]?.trim() ?? '';
-    if (!palletCodes.has(palletType)) {
-      rowWarnings.push(`パレット型「${palletType}」はマスタに存在しません`);
+    // 必須・準必須フィールド：列があれば値を読む。空なら既存値、それも無ければデフォルト
+    const nameRaw = getCell(cells, 'name');
+    if (colIdx.name !== undefined && !nameRaw && !existing) {
+      rowWarnings.push('製品名が空です');
     }
+    const name = nameRaw || existing?.name || code;
 
-    let color = hasColor ? cells[4]?.trim() : '';
+    const capacityRaw = getCell(cells, 'capacity');
+    const capacityParsed = capacityRaw ? parseInt(capacityRaw, 10) : NaN;
+    if (colIdx.capacity !== undefined && capacityRaw !== undefined && capacityRaw !== '' &&
+        (!Number.isFinite(capacityParsed) || capacityParsed <= 0)) {
+      rowWarnings.push('個/枚 は 1 以上の整数を指定してください');
+    }
+    const capacityPerPallet =
+      Number.isFinite(capacityParsed) && capacityParsed > 0
+        ? capacityParsed
+        : existing?.capacityPerPallet || 1;
+
+    const palletTypeRaw = getCell(cells, 'palletType') ?? '';
+    if (colIdx.palletType !== undefined && palletTypeRaw && !palletCodes.has(palletTypeRaw)) {
+      rowWarnings.push(`パレット型「${palletTypeRaw}」はマスタに存在しません`);
+    }
+    const palletType = palletTypeRaw || existing?.palletType || 'P03';
+
+    let color = getCell(cells, 'color') ?? '';
     if (!color || !/^#[0-9A-Fa-f]{6}$/.test(color)) {
       color = existing?.color ?? DEFAULT_COLORS[colorIdx % DEFAULT_COLORS.length];
       colorIdx++;
     }
 
-    // オプショナル列：CSVに列があれば値を採用（空セルはクリアと解釈）、無ければ既存値を保持
-    const factoryCode = hasFactory
-      ? (cells[5]?.trim() || existing?.factoryCode || 'F001')
+    // オプショナル列：CSVに列があれば値を採用（空セルはクリア）、無ければ既存値を保持
+    const factoryCode = colIdx.factoryCode !== undefined
+      ? (getCell(cells, 'factoryCode') || existing?.factoryCode || 'F001')
       : (existing?.factoryCode ?? 'F001');
-    const equipmentCategory = hasEquipCat
-      ? (cells[6]?.trim() ?? '')
+    const equipmentCategory = colIdx.equipmentCategory !== undefined
+      ? (getCell(cells, 'equipmentCategory') ?? '')
       : (existing?.equipmentCategory ?? '');
-    const equipmentName = hasEquipName
-      ? (cells[7]?.trim() ?? '')
+    const equipmentName = colIdx.equipmentName !== undefined
+      ? (getCell(cells, 'equipmentName') ?? '')
       : (existing?.equipmentName ?? '');
-    const poji = hasPoji
-      ? parsePoji(cells[8])
+    const poji = colIdx.poji !== undefined
+      ? parsePoji(getCell(cells, 'poji'))
       : (existing?.poji ?? false);
-    const destination = hasDestination
-      ? (cells[9]?.trim() ?? '')
+    const destination = colIdx.destination !== undefined
+      ? (getCell(cells, 'destination') ?? '')
       : (existing?.destination ?? '');
-    const productionMethod = hasMethod
-      ? (cells[10]?.trim() ?? '')
+    const productionMethod = colIdx.productionMethod !== undefined
+      ? (getCell(cells, 'productionMethod') ?? '')
       : (existing?.productionMethod ?? '');
 
     const product: Product = {
       code,
-      name: name || existing?.name || code,
-      capacityPerPallet: capacity || existing?.capacityPerPallet || 1,
-      palletType: palletType || existing?.palletType || 'P03',
+      name,
+      capacityPerPallet,
+      palletType,
       color,
       factoryCode,
       equipmentCategory,
