@@ -400,7 +400,8 @@ export default function ProductionPage() {
             <h2 className="text-sm font-bold text-slate-700 mb-1">CSVインポート</h2>
             <p className="text-xs text-slate-500 mb-4">
               製品×拠点のマトリクス形式（ワイド形式）のCSVを取り込みます。
-              CSVに含まれない製品行・拠点列の既存値は保持されます。
+              拠点列のヘッダーは<strong>拠点コード（W002 等）または拠点名（札幌営業所 等）</strong>のどちらでも認識します（大文字小文字も無視）。
+              列順は問わず、認識できない列は無視されます。CSVに含まれない製品行・拠点列の既存値は保持されます。
             </p>
             <div className="flex items-center gap-2 mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
               <span className="text-xs text-slate-600 font-medium">テンプレートDL：</span>
@@ -595,6 +596,7 @@ export default function ProductionPage() {
             <h2 className="text-sm font-bold text-slate-700 mb-1">CSVインポート / ダウンロード</h2>
             <p className="text-xs text-slate-500 mb-4">
               製品×拠点のマトリクス形式（ワイド形式）で輸送中数量を一括管理できます。
+              拠点列のヘッダーは<strong>拠点コードまたは拠点名</strong>のどちらでも認識します（大文字小文字も無視・列順任意）。
               CSVに含まれない製品行・拠点列の既存値は保持されます。
             </p>
             <div className="flex items-center gap-2 mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
@@ -766,6 +768,7 @@ export default function ProductionPage() {
             <h2 className="text-sm font-bold text-slate-700 mb-1">CSVインポート</h2>
             <p className="text-xs text-slate-500 mb-4">
               製品×拠点のマトリクス形式（ワイド形式）のCSVを取り込みます。拠点別在庫CSVと同じフォーマットです。
+              拠点列のヘッダーは<strong>拠点コードまたは拠点名</strong>のどちらでも認識します（大文字小文字も無視・列順任意）。
               CSVに含まれない製品行・拠点列の既存値は保持されます。
             </p>
             <div className="flex items-center gap-2 mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
@@ -917,6 +920,7 @@ export default function ProductionPage() {
             <h2 className="text-sm font-bold text-slate-700 mb-1">CSVインポート / ダウンロード</h2>
             <p className="text-xs text-slate-500 mb-4">
               製品×拠点のマトリクス形式（ワイド形式）で配分比率を一括管理できます。各セルに0〜100の整数を入力してください。
+              拠点列のヘッダーは<strong>拠点コードまたは拠点名</strong>のどちらでも認識します（大文字小文字も無視・列順任意）。
               CSVに含まれない製品行・拠点列の既存値は保持されます。
             </p>
             <div className="flex items-center gap-2 mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">

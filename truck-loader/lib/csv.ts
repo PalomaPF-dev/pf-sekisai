@@ -464,12 +464,66 @@ function cloneMatrixStock<T extends Record<string, Record<string, number>>>(src:
 }
 
 /**
+ * ワイド形式CSV（製品コード/製品名 + 拠点列）のヘッダ行を解析し、
+ * 各列のキャノニカルな意味を特定する。
+ *
+ * 拠点列は以下の順で照合：
+ *   1. 拠点コード（大文字小文字区別なし）
+ *   2. 拠点名
+ *
+ * 認識できない列は無視され、警告として記録される（phantomデータは作らない）。
+ */
+function findWarehouseColumns(
+  headers: string[],
+  warehouses: Warehouse[],
+): {
+  codeColIdx: number;       // -1 = 「製品コード」ヘッダが見つからない
+  nameColIdx: number;       // -1 = 製品名列なし
+  validWarehouses: { wc: string; colIdx: number }[];
+  warnings: string[];
+} {
+  const wcByCodeUpper = new Map<string, string>();
+  const wcByName = new Map<string, string>();
+  for (const wh of warehouses) {
+    wcByCodeUpper.set(wh.code.toUpperCase(), wh.code);
+    wcByName.set(wh.name, wh.code);
+  }
+
+  let codeColIdx = -1;
+  let nameColIdx = -1;
+  const validWarehouses: { wc: string; colIdx: number }[] = [];
+  const warnings: string[] = [];
+
+  for (let i = 0; i < headers.length; i++) {
+    const norm = normalizeHeader(headers[i]);
+    if (!norm) continue;
+    if (norm === '製品コード') {
+      codeColIdx = i;
+      continue;
+    }
+    if (norm === '製品名') {
+      nameColIdx = i;
+      continue;
+    }
+    const wc = wcByCodeUpper.get(norm.toUpperCase()) ?? wcByName.get(norm);
+    if (wc) {
+      validWarehouses.push({ wc, colIdx: i });
+    } else {
+      warnings.push(`ヘッダ「${norm}」は拠点コード/拠点名として認識できませんでした（無視されます）`);
+    }
+  }
+
+  return { codeColIdx, nameColIdx, validWarehouses, warnings };
+}
+
+/**
  * 拠点別在庫 CSV を解析する（ワイド形式）。
  *
- * フォーマット（1行目ヘッダ）:
- *   製品コード, 製品名, 拠点コード1, 拠点コード2, ...
+ * 1行目ヘッダで列を判定する（列順は問わない）：
+ *   - 「製品コード」「製品名」をヘッダ名で検出
+ *   - 残りの列を拠点コード（大小無視）または拠点名でマッチ
  *
- * 拠点名列は省略可（2列目が拠点コードに一致しなければ製品名として扱う）。
+ * 認識できない列は無視され警告のみ。
  * マージ動作：CSVに含まれない拠点列・製品行は既存値を保持する。
  */
 export function parseLocationStockCSV(
@@ -483,7 +537,6 @@ export function parseLocationStockCSV(
   warnings: string[];
 } {
   const productMap = Object.fromEntries(products.map((p) => [p.code, p]));
-  const warehouseCodes = new Set(warehouses.map((w) => w.code));
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
 
   const warnings: string[] = [];
@@ -493,26 +546,16 @@ export function parseLocationStockCSV(
   }
 
   const headers = parseCSVLine(lines[0]);
+  const { codeColIdx, nameColIdx, validWarehouses, warnings: headerWarnings } =
+    findWarehouseColumns(headers, warehouses);
+  warnings.push(...headerWarnings);
 
-  // 2列目が拠点コードかどうかで「製品名列あり」を判定
-  let whStartIdx = 1;
-  if (headers.length > 1 && !warehouseCodes.has(headers[1])) {
-    whStartIdx = 2; // 製品コード, 製品名, 拠点1, 拠点2...
+  if (codeColIdx === -1) {
+    warnings.push('「製品コード」列が見つかりませんでした');
+    return { locationStock: cloneMatrixStock(existingStock), rows: [], warnings };
   }
-
-  // ヘッダから拠点コードを収集
-  const headerWarehouses: string[] = [];
-  for (let i = whStartIdx; i < headers.length; i++) {
-    const wc = headers[i]?.trim();
-    if (!wc) continue;
-    if (!warehouseCodes.has(wc)) {
-      warnings.push(`ヘッダ「${wc}」は拠点コードとして認識できませんでした（スキップ）`);
-    }
-    headerWarehouses.push(wc);
-  }
-
-  if (headerWarehouses.length === 0) {
-    warnings.push('拠点コード列が見つかりませんでした');
+  if (validWarehouses.length === 0) {
+    warnings.push('拠点コード/拠点名の列が見つかりませんでした');
     return { locationStock: cloneMatrixStock(existingStock), rows: [], warnings };
   }
 
@@ -522,7 +565,7 @@ export function parseLocationStockCSV(
 
   for (let r = 1; r < lines.length; r++) {
     const cells = parseCSVLine(lines[r]);
-    const code = cells[0]?.trim();
+    const code = cells[codeColIdx]?.trim();
     if (!code) continue;
 
     const found = !!productMap[code];
@@ -534,14 +577,15 @@ export function parseLocationStockCSV(
     locationStock[code] = { ...(locationStock[code] ?? {}) };
     const whQty: Record<string, number> = {};
 
-    for (let c = 0; c < headerWarehouses.length; c++) {
-      const wc = headerWarehouses[c];
-      const qty = parseInt(cells[whStartIdx + c] ?? '', 10) || 0;
+    for (const { wc, colIdx } of validWarehouses) {
+      const qty = parseInt(cells[colIdx] ?? '', 10) || 0;
       locationStock[code][wc] = qty;
       whQty[wc] = qty;
     }
 
-    const name = whStartIdx === 2 ? (cells[1]?.trim() ?? '') : (productMap[code]?.name ?? code);
+    const name = nameColIdx !== -1
+      ? (cells[nameColIdx]?.trim() ?? '')
+      : (productMap[code]?.name ?? code);
     rows.push({ code, name, whQty, found });
   }
 
@@ -568,9 +612,8 @@ export function generateLocationStockTemplate(
 /**
  * 予定出荷数 CSV を解析する（location stock と同形式のワイド形式）。
  *
- * フォーマット（1行目ヘッダ）:
- *   製品コード, 製品名, 拠点コード1, 拠点コード2, ...
- *
+ * 1行目ヘッダで列を判定（列順は問わない）。
+ * 拠点列は拠点コード（大小無視）または拠点名でマッチ。
  * マージ動作：CSVに含まれない拠点列・製品行は既存値を保持する。
  */
 export function parsePlannedSalesCSV(
@@ -584,7 +627,6 @@ export function parsePlannedSalesCSV(
   warnings: string[];
 } {
   const productMap = Object.fromEntries(products.map((p) => [p.code, p]));
-  const warehouseCodes = new Set(warehouses.map((w) => w.code));
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
 
   const warnings: string[] = [];
@@ -594,23 +636,16 @@ export function parsePlannedSalesCSV(
   }
 
   const headers = parseCSVLine(lines[0]);
-  let whStartIdx = 1;
-  if (headers.length > 1 && !warehouseCodes.has(headers[1])) {
-    whStartIdx = 2;
-  }
+  const { codeColIdx, nameColIdx, validWarehouses, warnings: headerWarnings } =
+    findWarehouseColumns(headers, warehouses);
+  warnings.push(...headerWarnings);
 
-  const headerWarehouses: string[] = [];
-  for (let i = whStartIdx; i < headers.length; i++) {
-    const wc = headers[i]?.trim();
-    if (!wc) continue;
-    if (!warehouseCodes.has(wc)) {
-      warnings.push(`ヘッダ「${wc}」は拠点コードとして認識できませんでした（スキップ）`);
-    }
-    headerWarehouses.push(wc);
+  if (codeColIdx === -1) {
+    warnings.push('「製品コード」列が見つかりませんでした');
+    return { plannedSales: cloneMatrixStock(existingSales), rows: [], warnings };
   }
-
-  if (headerWarehouses.length === 0) {
-    warnings.push('拠点コード列が見つかりませんでした');
+  if (validWarehouses.length === 0) {
+    warnings.push('拠点コード/拠点名の列が見つかりませんでした');
     return { plannedSales: cloneMatrixStock(existingSales), rows: [], warnings };
   }
 
@@ -620,7 +655,7 @@ export function parsePlannedSalesCSV(
 
   for (let r = 1; r < lines.length; r++) {
     const cells = parseCSVLine(lines[r]);
-    const code = cells[0]?.trim();
+    const code = cells[codeColIdx]?.trim();
     if (!code) continue;
 
     const found = !!productMap[code];
@@ -631,14 +666,15 @@ export function parsePlannedSalesCSV(
     plannedSales[code] = { ...(plannedSales[code] ?? {}) };
     const whQty: Record<string, number> = {};
 
-    for (let c = 0; c < headerWarehouses.length; c++) {
-      const wc = headerWarehouses[c];
-      const qty = parseInt(cells[whStartIdx + c] ?? '', 10) || 0;
+    for (const { wc, colIdx } of validWarehouses) {
+      const qty = parseInt(cells[colIdx] ?? '', 10) || 0;
       plannedSales[code][wc] = qty;
       whQty[wc] = qty;
     }
 
-    const name = whStartIdx === 2 ? (cells[1]?.trim() ?? '') : (productMap[code]?.name ?? code);
+    const name = nameColIdx !== -1
+      ? (cells[nameColIdx]?.trim() ?? '')
+      : (productMap[code]?.name ?? code);
     rows.push({ code, name, whQty, found });
   }
 
@@ -663,10 +699,8 @@ export function generatePlannedSalesTemplate(
 /**
  * 輸送中在庫 CSV を解析（製品 × 拠点のマトリクス形式）。
  *
- * フォーマット（1行目ヘッダ）:
- *   製品コード, 製品名, 拠点コード1, 拠点コード2, ...
- *
- * 製品名列は省略可（2列目が拠点コードに一致しなければ製品名として扱う）。
+ * 1行目ヘッダで列を判定（列順は問わない）。
+ * 拠点列は拠点コード（大小無視）または拠点名でマッチ。
  * マージ動作：CSVに含まれない拠点列・製品行は既存値を保持する。
  */
 export function parseInTransitStockCSV(
@@ -680,7 +714,6 @@ export function parseInTransitStockCSV(
   warnings: string[];
 } {
   const productMap = Object.fromEntries(products.map((p) => [p.code, p]));
-  const warehouseCodes = new Set(warehouses.map((w) => w.code));
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
 
   const warnings: string[] = [];
@@ -690,25 +723,16 @@ export function parseInTransitStockCSV(
   }
 
   const headers = parseCSVLine(lines[0]);
+  const { codeColIdx, nameColIdx, validWarehouses, warnings: headerWarnings } =
+    findWarehouseColumns(headers, warehouses);
+  warnings.push(...headerWarnings);
 
-  // 2列目が拠点コードかどうかで「製品名列あり」を判定
-  let whStartIdx = 1;
-  if (headers.length > 1 && !warehouseCodes.has(headers[1])) {
-    whStartIdx = 2;
+  if (codeColIdx === -1) {
+    warnings.push('「製品コード」列が見つかりませんでした');
+    return { inTransitStock: cloneMatrixStock(existingStock), rows: [], warnings };
   }
-
-  const headerWarehouses: string[] = [];
-  for (let i = whStartIdx; i < headers.length; i++) {
-    const wc = headers[i]?.trim();
-    if (!wc) continue;
-    if (!warehouseCodes.has(wc)) {
-      warnings.push(`ヘッダ「${wc}」は拠点コードとして認識できませんでした（スキップ）`);
-    }
-    headerWarehouses.push(wc);
-  }
-
-  if (headerWarehouses.length === 0) {
-    warnings.push('拠点コード列が見つかりませんでした');
+  if (validWarehouses.length === 0) {
+    warnings.push('拠点コード/拠点名の列が見つかりませんでした');
     return { inTransitStock: cloneMatrixStock(existingStock), rows: [], warnings };
   }
 
@@ -717,7 +741,7 @@ export function parseInTransitStockCSV(
 
   for (let r = 1; r < lines.length; r++) {
     const cells = parseCSVLine(lines[r]);
-    const code = cells[0]?.trim();
+    const code = cells[codeColIdx]?.trim();
     if (!code) continue;
 
     const found = !!productMap[code];
@@ -728,14 +752,15 @@ export function parseInTransitStockCSV(
     inTransitStock[code] = { ...(inTransitStock[code] ?? {}) };
     const whQty: Record<string, number> = {};
 
-    for (let c = 0; c < headerWarehouses.length; c++) {
-      const wc = headerWarehouses[c];
-      const qty = parseInt(cells[whStartIdx + c] ?? '', 10) || 0;
+    for (const { wc, colIdx } of validWarehouses) {
+      const qty = parseInt(cells[colIdx] ?? '', 10) || 0;
       inTransitStock[code][wc] = qty;
       whQty[wc] = qty;
     }
 
-    const name = whStartIdx === 2 ? (cells[1]?.trim() ?? '') : (productMap[code]?.name ?? code);
+    const name = nameColIdx !== -1
+      ? (cells[nameColIdx]?.trim() ?? '')
+      : (productMap[code]?.name ?? code);
     rows.push({ code, name, whQty, found });
   }
 
@@ -760,10 +785,8 @@ export function generateInTransitStockTemplate(
 /**
  * 配分比率 CSV を解析（製品 × 拠点のマトリクス形式）。
  *
- * フォーマット（1行目ヘッダ）:
- *   製品コード, 製品名, 拠点コード1, 拠点コード2, ...
- *
- * 製品名列は省略可（2列目が拠点コードに一致しなければ製品名として扱う）。
+ * 1行目ヘッダで列を判定（列順は問わない）。
+ * 拠点列は拠点コード（大小無視）または拠点名でマッチ。
  * マージ動作：CSVに含まれない拠点列・製品行は既存値を保持する。
  * 値は 0〜100 の整数（%）。
  */
@@ -778,7 +801,6 @@ export function parseDistributionRatiosCSV(
   warnings: string[];
 } {
   const productMap = Object.fromEntries(products.map((p) => [p.code, p]));
-  const warehouseCodes = new Set(warehouses.map((w) => w.code));
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
 
   const warnings: string[] = [];
@@ -788,24 +810,16 @@ export function parseDistributionRatiosCSV(
   }
 
   const headers = parseCSVLine(lines[0]);
+  const { codeColIdx, nameColIdx, validWarehouses, warnings: headerWarnings } =
+    findWarehouseColumns(headers, warehouses);
+  warnings.push(...headerWarnings);
 
-  let whStartIdx = 1;
-  if (headers.length > 1 && !warehouseCodes.has(headers[1])) {
-    whStartIdx = 2;
+  if (codeColIdx === -1) {
+    warnings.push('「製品コード」列が見つかりませんでした');
+    return { ratios: cloneMatrixStock(existingRatios), rows: [], warnings };
   }
-
-  const headerWarehouses: string[] = [];
-  for (let i = whStartIdx; i < headers.length; i++) {
-    const wc = headers[i]?.trim();
-    if (!wc) continue;
-    if (!warehouseCodes.has(wc)) {
-      warnings.push(`ヘッダ「${wc}」は拠点コードとして認識できませんでした（スキップ）`);
-    }
-    headerWarehouses.push(wc);
-  }
-
-  if (headerWarehouses.length === 0) {
-    warnings.push('拠点コード列が見つかりませんでした');
+  if (validWarehouses.length === 0) {
+    warnings.push('拠点コード/拠点名の列が見つかりませんでした');
     return { ratios: cloneMatrixStock(existingRatios), rows: [], warnings };
   }
 
@@ -814,7 +828,7 @@ export function parseDistributionRatiosCSV(
 
   for (let r = 1; r < lines.length; r++) {
     const cells = parseCSVLine(lines[r]);
-    const code = cells[0]?.trim();
+    const code = cells[codeColIdx]?.trim();
     if (!code) continue;
 
     const found = !!productMap[code];
@@ -825,14 +839,15 @@ export function parseDistributionRatiosCSV(
     ratios[code] = { ...(ratios[code] ?? {}) };
     const whRatio: Record<string, number> = {};
 
-    for (let c = 0; c < headerWarehouses.length; c++) {
-      const wc = headerWarehouses[c];
-      const val = parseInt(cells[whStartIdx + c] ?? '', 10) || 0;
+    for (const { wc, colIdx } of validWarehouses) {
+      const val = parseInt(cells[colIdx] ?? '', 10) || 0;
       ratios[code][wc] = val;
       whRatio[wc] = val;
     }
 
-    const name = whStartIdx === 2 ? (cells[1]?.trim() ?? '') : (productMap[code]?.name ?? code);
+    const name = nameColIdx !== -1
+      ? (cells[nameColIdx]?.trim() ?? '')
+      : (productMap[code]?.name ?? code);
     rows.push({ code, name, whRatio, found });
   }
 
