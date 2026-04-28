@@ -42,12 +42,35 @@ function normalizeProductCode(s: string): string {
   return v;
 }
 
-/** 日付文字列を YYYY-MM-DD に正規化。非日付なら null */
+/**
+ * 日付文字列を YYYY-MM-DD に正規化。非日付なら null。
+ *
+ * 受け付ける形式：
+ *   - YYYY-MM-DD / YYYY-M-D   (例: 2026-04-01, 2026-4-1)
+ *   - YYYY/MM/DD / YYYY/M/D   (例: 2026/04/11, 2026/4/11)
+ *   - YYYY年M月D日             (例: 2026年4月1日)
+ *   - M/D / M/D/YY / M/D/YYYY (例: 4/1, 4/1/26, 4/1/2026)
+ *
+ * 全角数字・全角スラッシュは NFKC で半角に正規化されてから判定される。
+ */
 function normalizeDate(raw: string, defaultYear?: number): string | null {
-  const s = raw.trim();
-  // 既に YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  // M/D, M/D/YY, M/D/YYYY
+  const s = raw.normalize('NFKC').trim();
+  // YYYY年M月D日 (漢字形式)
+  const jp = s.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日?$/);
+  if (jp) {
+    return `${jp[1]}-${jp[2].padStart(2, '0')}-${jp[3].padStart(2, '0')}`;
+  }
+  // YYYY-MM-DD / YYYY-M-D (年先頭・ハイフン)
+  const dash = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (dash) {
+    return `${dash[1]}-${dash[2].padStart(2, '0')}-${dash[3].padStart(2, '0')}`;
+  }
+  // YYYY/MM/DD / YYYY/M/D (年先頭・スラッシュ)
+  const slashY = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
+  if (slashY) {
+    return `${slashY[1]}-${slashY[2].padStart(2, '0')}-${slashY[3].padStart(2, '0')}`;
+  }
+  // M/D / M/D/YY / M/D/YYYY (月先頭・スラッシュ)
   const m = s.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
   if (m) {
     const mo = m[1].padStart(2, '0');
