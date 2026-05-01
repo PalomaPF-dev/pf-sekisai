@@ -1283,10 +1283,10 @@ export default function ProductionPage() {
             )}
           </div>
 
-          {/* インライン編集マトリクス */}
+          {/* インライン編集マトリクス（工場別） */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <h2 className="text-sm font-semibold text-slate-600">拠点別 送り数（個）</h2>
+              <h2 className="text-sm font-semibold text-slate-600">工場別 送り数（個）</h2>
               <button
                 onClick={() => handleClear('sendqty')}
                 className="text-xs text-slate-400 hover:text-red-500 transition-colors"
@@ -1299,7 +1299,8 @@ export default function ProductionPage() {
                 <table className="text-xs border-collapse w-full">
                   <thead>
                     <tr className="bg-slate-50">
-                      <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
+                      <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 w-32">製品コード</th>
+                      <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-32 bg-slate-50 z-10 border-r border-slate-200 min-w-[160px]">製品名</th>
                       {warehouses.map((wh) => (
                         <th key={wh.code} className="px-1 py-2.5 text-center font-semibold text-slate-500 min-w-[90px]">
                           <div className="font-bold text-slate-400 text-[10px]">{wh.code}</div>
@@ -1310,66 +1311,107 @@ export default function ProductionPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {products.map((p) => {
-                      const rowTotal = warehouses.reduce((s, wh) => s + (sendQty[p.code]?.[wh.code] ?? 0), 0);
-                      const hasManual = warehouses.some((wh) => (sendQtyManual[p.code]?.[wh.code] ?? 0) > 0);
+                    {factories.map((factory) => {
+                      const factoryProducts = products.filter(
+                        (p) => (p.factoryCode ?? 'F001') === factory.code,
+                      );
+                      if (factoryProducts.length === 0) return null;
+                      const factoryTotal = warehouses.reduce(
+                        (s, wh) => s + factoryProducts.reduce((ss, p) => ss + (sendQty[p.code]?.[wh.code] ?? 0), 0), 0,
+                      );
                       return (
-                        <tr key={p.code} className={clsx('border-t border-slate-100 hover:bg-slate-50', hasManual && 'bg-blue-50/30')}>
-                          <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200">
-                            <div className="flex items-center gap-1.5">
-                              <span className="w-2.5 h-2.5 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
-                              <span className="font-medium text-slate-700">{p.name}</span>
-                            </div>
-                          </td>
-                          {warehouses.map((wh) => {
-                            const calcVal = sendQtyCalc[p.code]?.[wh.code] ?? 0;
-                            const manualVal = sendQtyManual[p.code]?.[wh.code];
-                            const isManual = manualVal !== undefined && manualVal > 0;
+                        <>
+                          {/* 工場ヘッダー行 */}
+                          <tr key={`hdr-${factory.code}`} className="bg-indigo-50 border-t-2 border-indigo-100">
+                            <td colSpan={2 + warehouses.length + 1} className="px-4 py-2 sticky left-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-700">{factory.code}</span>
+                                <span className="text-sm font-semibold text-indigo-800">{factory.name}</span>
+                                <span className="text-xs text-indigo-400">配送元</span>
+                              </div>
+                            </td>
+                          </tr>
+                          {/* 製品行 */}
+                          {factoryProducts.map((p) => {
+                            const rowTotal = warehouses.reduce((s, wh) => s + (sendQty[p.code]?.[wh.code] ?? 0), 0);
+                            const hasManual = warehouses.some((wh) => (sendQtyManual[p.code]?.[wh.code] ?? 0) > 0);
                             return (
-                              <td key={wh.code} className="px-1 py-1 text-center">
-                                <div className="flex flex-col gap-0.5 items-center">
-                                  {/* 自動計算値（参照表示） */}
-                                  <div style={{ fontSize: 9, color: '#9ca3af' }}>
-                                    自動: {calcVal > 0 ? calcVal.toLocaleString() : '—'}
+                              <tr key={p.code} className={clsx('border-t border-slate-100 hover:bg-slate-50', hasManual && 'bg-blue-50/30')}>
+                                <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200 font-mono text-[11px] text-slate-500">{p.code}</td>
+                                <td className="px-3 py-1.5 sticky left-32 bg-white z-10 border-r border-slate-200">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="w-2.5 h-2.5 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
+                                    <span className="font-medium text-slate-700">{p.name}</span>
                                   </div>
-                                  {/* 手動入力フィールド */}
-                                  <input
-                                    type="number" min={0}
-                                    value={isManual ? manualVal : ''}
-                                    onChange={(e) => {
-                                      const v = parseInt(e.target.value, 10);
-                                      if (isNaN(v) || e.target.value === '') {
-                                        clearSendQtyManualCell(p.code, wh.code);
-                                      } else {
-                                        setSendQtyManual(p.code, wh.code, v);
-                                      }
-                                    }}
-                                    placeholder={calcVal > 0 ? String(calcVal) : '0'}
-                                    className={clsx(
-                                      'w-16 text-center border rounded px-1 py-0.5 text-xs focus:outline-none',
-                                      isManual
-                                        ? 'border-blue-400 bg-blue-50 text-blue-700 font-semibold focus:ring-1 focus:ring-blue-400'
-                                        : 'border-slate-200 bg-white text-slate-600 focus:border-blue-400 focus:ring-1 focus:ring-blue-300',
-                                    )}
-                                  />
-                                </div>
-                              </td>
+                                </td>
+                                {warehouses.map((wh) => {
+                                  const calcVal = sendQtyCalc[p.code]?.[wh.code] ?? 0;
+                                  const manualVal = sendQtyManual[p.code]?.[wh.code];
+                                  const isManual = manualVal !== undefined && manualVal > 0;
+                                  return (
+                                    <td key={wh.code} className="px-1 py-1 text-center">
+                                      <div className="flex flex-col gap-0.5 items-center">
+                                        <div style={{ fontSize: 9, color: '#9ca3af' }}>
+                                          自動: {calcVal > 0 ? calcVal.toLocaleString() : '—'}
+                                        </div>
+                                        <input
+                                          type="number" min={0}
+                                          value={isManual ? manualVal : ''}
+                                          onChange={(e) => {
+                                            const v = parseInt(e.target.value, 10);
+                                            if (isNaN(v) || e.target.value === '') {
+                                              clearSendQtyManualCell(p.code, wh.code);
+                                            } else {
+                                              setSendQtyManual(p.code, wh.code, v);
+                                            }
+                                          }}
+                                          placeholder={calcVal > 0 ? String(calcVal) : '0'}
+                                          className={clsx(
+                                            'w-16 text-center border rounded px-1 py-0.5 text-xs focus:outline-none',
+                                            isManual
+                                              ? 'border-blue-400 bg-blue-50 text-blue-700 font-semibold focus:ring-1 focus:ring-blue-400'
+                                              : 'border-slate-200 bg-white text-slate-600 focus:border-blue-400 focus:ring-1 focus:ring-blue-300',
+                                          )}
+                                        />
+                                      </div>
+                                    </td>
+                                  );
+                                })}
+                                <td className="px-3 py-1.5 text-right font-semibold">
+                                  {rowTotal > 0
+                                    ? <span className={hasManual ? 'text-blue-600' : 'text-slate-700'}>{rowTotal.toLocaleString()}個</span>
+                                    : <span className="text-slate-300">—</span>}
+                                </td>
+                              </tr>
                             );
                           })}
-                          <td className="px-3 py-1.5 text-right font-semibold">
-                            {rowTotal > 0
-                              ? <span className={hasManual ? 'text-blue-600' : 'text-slate-700'}>{rowTotal.toLocaleString()}個</span>
-                              : <span className="text-slate-300">—</span>}
-                          </td>
-                        </tr>
+                          {/* 工場小計行 */}
+                          <tr key={`sub-${factory.code}`} className="border-t border-indigo-100 bg-indigo-50/60">
+                            <td colSpan={2} className="px-4 py-1.5 sticky left-0 bg-indigo-50/60 z-10 border-r border-slate-200 text-xs text-indigo-500 font-semibold">
+                              {factory.name} 小計
+                            </td>
+                            {warehouses.map((wh) => {
+                              const subtotal = factoryProducts.reduce((s, p) => s + (sendQty[p.code]?.[wh.code] ?? 0), 0);
+                              const hasM = factoryProducts.some((p) => (sendQtyManual[p.code]?.[wh.code] ?? 0) > 0);
+                              return (
+                                <td key={wh.code} className={clsx('px-2 py-1.5 text-center text-xs font-bold', hasM ? 'text-blue-600' : 'text-indigo-600')}>
+                                  {subtotal > 0 ? `${subtotal.toLocaleString()}個` : '—'}
+                                </td>
+                              );
+                            })}
+                            <td className="px-3 py-1.5 text-right text-xs font-bold text-indigo-600">
+                              {factoryTotal > 0 ? `${factoryTotal.toLocaleString()}個` : '—'}
+                            </td>
+                          </tr>
+                        </>
                       );
                     })}
-                    {/* 合計行 */}
+                    {/* 総合計行 */}
                     <tr className="border-t-2 border-slate-200 bg-slate-50 font-semibold">
-                      <td className="px-3 py-2 sticky left-0 bg-slate-50 border-r border-slate-200 text-slate-600">合計</td>
+                      <td colSpan={2} className="px-3 py-2 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 text-slate-600">総合計</td>
                       {warehouses.map((wh) => {
                         const total = products.reduce((s, p) => s + (sendQty[p.code]?.[wh.code] ?? 0), 0);
-                        const hasM   = products.some((p) => (sendQtyManual[p.code]?.[wh.code] ?? 0) > 0);
+                        const hasM  = products.some((p) => (sendQtyManual[p.code]?.[wh.code] ?? 0) > 0);
                         return (
                           <td key={wh.code} className={clsx('px-2 py-2 text-center', hasM ? 'text-blue-600' : 'text-slate-600')}>
                             {total > 0 ? `${total.toLocaleString()}個` : '—'}
@@ -1377,9 +1419,10 @@ export default function ProductionPage() {
                         );
                       })}
                       <td className="px-3 py-2 text-right text-slate-700">
-                        {products.reduce((s, p) => s + warehouses.reduce((ss, wh) => ss + (sendQty[p.code]?.[wh.code] ?? 0), 0), 0) > 0
-                          ? `${products.reduce((s, p) => s + warehouses.reduce((ss, wh) => ss + (sendQty[p.code]?.[wh.code] ?? 0), 0), 0).toLocaleString()}個`
-                          : '—'}
+                        {(() => {
+                          const grand = products.reduce((s, p) => s + warehouses.reduce((ss, wh) => ss + (sendQty[p.code]?.[wh.code] ?? 0), 0), 0);
+                          return grand > 0 ? `${grand.toLocaleString()}個` : '—';
+                        })()}
                       </td>
                     </tr>
                   </tbody>
