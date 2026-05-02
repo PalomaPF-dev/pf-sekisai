@@ -19,8 +19,18 @@ import {
   generateSendQtyCSV,
   downloadCSV,
 } from '@/lib/csv';
-import type { OperatingDays } from '@/lib/types';
+import type { OperatingDays, Warehouse } from '@/lib/types';
 import clsx from 'clsx';
+
+/** 名前で重複排除（最初の出現を残す） */
+function dedupeByName<T extends { name: string }>(arr: T[]): T[] {
+  const seen = new Set<string>();
+  return arr.filter((x) => {
+    if (seen.has(x.name)) return false;
+    seen.add(x.name);
+    return true;
+  });
+}
 
 // ─── 週別カレンダー計算ユーティリティ (module level) ──────────────────
 function _jsDayToOdIdx(jsDay: number): number { return jsDay === 0 ? 6 : jsDay - 1; }
@@ -185,17 +195,27 @@ export default function ProductionPage() {
     [warehouses, products, truckTypes, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock, plannedSales, sendQtyManual],
   );
 
-  const activeWarehouses = warehouses.filter((wh) =>
-    products.some((p) => (distributionRatios[p.code]?.[wh.code] ?? 0) > 0),
-  );
+  // Map from warehouse name → all warehouse objects with that name
+  const warehousesByName = useMemo(() => {
+    const map = new Map<string, Warehouse[]>();
+    for (const wh of warehouses) {
+      if (!map.has(wh.name)) map.set(wh.name, []);
+      map.get(wh.name)!.push(wh);
+    }
+    return map;
+  }, [warehouses]);
 
   const displayWarehouses = useMemo(
-    () => warehouseGroupFilter === 'all' ? warehouses : warehouses.filter(wh => wh.group === warehouseGroupFilter),
+    () => dedupeByName(warehouseGroupFilter === 'all' ? warehouses : warehouses.filter(wh => wh.group === warehouseGroupFilter)),
     [warehouses, warehouseGroupFilter],
   );
   const displayActiveWarehouses = useMemo(
-    () => displayWarehouses.filter(wh => products.some(p => (distributionRatios[p.code]?.[wh.code] ?? 0) > 0)),
-    [displayWarehouses, products, distributionRatios],
+    () => displayWarehouses.filter(wh =>
+      products.some(p =>
+        (warehousesByName.get(wh.name) ?? [wh]).some(w => (distributionRatios[p.code]?.[w.code] ?? 0) > 0)
+      )
+    ),
+    [displayWarehouses, products, distributionRatios, warehousesByName],
   );
 
   // フィルター済み製品リスト
@@ -899,12 +919,11 @@ export default function ProductionPage() {
                   {/* Row 2: individual warehouse columns */}
                   <tr className="bg-slate-50">
                     {displayWarehouses.map((wh) => (
-                      <th key={wh.code} className={clsx(
+                      <th key={wh.name} className={clsx(
                         'px-2 py-1.5 text-center font-semibold text-slate-500 min-w-[72px]',
                         wh.group === '東' ? 'bg-blue-50/50' : 'bg-orange-50/50',
                       )}>
-                        <div className="font-bold text-slate-500 text-[10px]">{wh.code}</div>
-                        <div className="text-[9px] text-slate-400 leading-tight">{wh.name.slice(0, 4)}</div>
+                        <div className="font-bold text-slate-500 text-[10px]">{wh.name.slice(0, 6)}</div>
                       </th>
                     ))}
                   </tr>
@@ -917,31 +936,47 @@ export default function ProductionPage() {
                     if (rows.length === 0) return (
                       <tr><td colSpan={2 + displayWarehouses.length} className="px-4 py-8 text-center text-slate-400 text-sm">在庫データがありません。CSVからインポートするか、値を入力してください。</td></tr>
                     );
-                    return rows.map((p) => (
-                      <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
-                        <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200 font-mono text-[11px] text-slate-500">{p.code}</td>
-                        <td className="px-3 py-1.5 sticky left-32 bg-white z-10 border-r border-slate-200">
-                          <div className="flex items-center gap-1.5">
-                            <span className="w-2.5 h-2.5 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
-                            <span className="font-medium text-slate-700">{p.name}</span>
-                          </div>
-                        </td>
-                        {displayWarehouses.map((wh) => {
-                          const stock = locationStock[p.code]?.[wh.code] ?? 0;
-                          return (
-                            <td key={wh.code} className="px-1 py-1.5 text-center">
-                              <input
-                                type="number" min={0}
-                                value={stock === 0 ? '' : stock}
-                                onChange={(e) => setLocationStock(p.code, wh.code, parseInt(e.target.value, 10) || 0)}
-                                placeholder="0"
-                                className="w-16 text-center border border-slate-200 rounded px-1 py-0.5 text-xs
-                                           focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 bg-white"
-                              />
+                    return _groupByEquipment(rows).map(({ equipmentName, products: eqProducts }) => (
+                      <React.Fragment key={`loc-eq-${equipmentName}`}>
+                        <tr className="bg-teal-50 border-t border-teal-100">
+                          <td colSpan={2 + displayWarehouses.length} className="px-4 py-1.5 sticky left-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-teal-100 text-teal-700">器具名</span>
+                              <span className="text-xs font-semibold text-teal-800">{equipmentName}</span>
+                              <span className="text-[10px] text-teal-400">{eqProducts.length}製品</span>
+                            </div>
+                          </td>
+                        </tr>
+                        {eqProducts.map((p) => (
+                          <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
+                            <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200 font-mono text-[11px] text-slate-500">{p.code}</td>
+                            <td className="px-3 py-1.5 sticky left-32 bg-white z-10 border-r border-slate-200">
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2.5 h-2.5 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
+                                <span className="font-medium text-slate-700">{p.name}</span>
+                              </div>
                             </td>
-                          );
-                        })}
-                      </tr>
+                            {displayWarehouses.map((wh) => {
+                              const stock = (warehousesByName.get(wh.name) ?? [wh]).reduce(
+                                (s, w) => s + (locationStock[p.code]?.[w.code] ?? 0), 0
+                              );
+                              const targetCode = (warehousesByName.get(wh.name) ?? [wh])[0].code;
+                              return (
+                                <td key={wh.name} className="px-1 py-1.5 text-center">
+                                  <input
+                                    type="number" min={0}
+                                    value={stock === 0 ? '' : stock}
+                                    onChange={(e) => setLocationStock(p.code, targetCode, parseInt(e.target.value, 10) || 0)}
+                                    placeholder="0"
+                                    className="w-16 text-center border border-slate-200 rounded px-1 py-0.5 text-xs
+                                               focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 bg-white"
+                                  />
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </React.Fragment>
                     ));
                   })()}
                 </tbody>
@@ -959,14 +994,15 @@ export default function ProductionPage() {
                     <tr className="bg-slate-50">
                       <th className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 border-r border-slate-200 min-w-[180px]">製品</th>
                       {displayActiveWarehouses.map((wh) => (
-                        <th key={wh.code} className="px-2 py-2 text-center font-semibold text-slate-500 min-w-[64px]">{wh.code}</th>
+                        <th key={wh.name} className="px-2 py-2 text-center font-semibold text-slate-500 min-w-[64px]">{wh.name}</th>
                       ))}
                       <th className="px-3 py-2 text-right font-semibold text-slate-500 min-w-[80px]">合計送り数</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredProducts.map((p) => {
-                      const total = displayActiveWarehouses.reduce((s, wh) => s + (sendQty[p.code]?.[wh.code] ?? 0), 0);
+                      const total = displayActiveWarehouses.reduce((s, wh) =>
+                        s + (warehousesByName.get(wh.name) ?? [wh]).reduce((ss, w) => ss + (sendQty[p.code]?.[w.code] ?? 0), 0), 0);
                       return (
                         <tr key={p.code} className="border-t border-slate-100">
                           <td className="px-3 py-1.5 sticky left-0 bg-white border-r border-slate-200">
@@ -976,9 +1012,11 @@ export default function ProductionPage() {
                             </div>
                           </td>
                           {displayActiveWarehouses.map((wh) => {
-                            const qty = sendQty[p.code]?.[wh.code] ?? 0;
+                            const qty = (warehousesByName.get(wh.name) ?? [wh]).reduce(
+                              (s, w) => s + (sendQty[p.code]?.[w.code] ?? 0), 0
+                            );
                             return (
-                              <td key={wh.code} className="px-2 py-1.5 text-center text-slate-600">
+                              <td key={wh.name} className="px-2 py-1.5 text-center text-slate-600">
                                 {qty > 0 ? <span className="font-medium">{qty}個</span> : <span className="text-slate-300">—</span>}
                               </td>
                             );
@@ -1126,12 +1164,11 @@ export default function ProductionPage() {
                   {/* Row 2: individual warehouse columns */}
                   <tr className="bg-slate-50">
                     {displayWarehouses.map((wh) => (
-                      <th key={wh.code} className={clsx(
+                      <th key={wh.name} className={clsx(
                         'px-2 py-1.5 text-center font-semibold text-slate-500 min-w-[72px]',
                         wh.group === '東' ? 'bg-blue-50/50' : 'bg-orange-50/50',
                       )}>
-                        <div className="font-bold text-slate-500 text-[10px]">{wh.code}</div>
-                        <div className="text-[9px] text-slate-400 leading-tight">{wh.name.slice(0, 4)}</div>
+                        <div className="font-bold text-slate-500 text-[10px]">{wh.name.slice(0, 6)}</div>
                       </th>
                     ))}
                   </tr>
@@ -1144,52 +1181,71 @@ export default function ProductionPage() {
                     if (rows.length === 0) return (
                       <tr><td colSpan={2 + displayWarehouses.length + 1} className="px-4 py-8 text-center text-slate-400 text-sm">輸送中データがありません。CSVからインポートするか、値を入力してください。</td></tr>
                     );
-                    return rows.map((p) => {
-                      const rowTotal = displayWarehouses.reduce((s, wh) => s + (inTransitStock[p.code]?.[wh.code] ?? 0), 0);
-                      return (
-                        <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
-                          <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200 font-mono text-[11px] text-slate-500">{p.code}</td>
-                          <td className="px-3 py-1.5 sticky left-32 bg-white z-10 border-r border-slate-200">
-                            <div className="flex items-center gap-1.5">
-                              <span className="w-2.5 h-2.5 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
-                              <span className="font-medium text-slate-700">{p.name}</span>
+                    return _groupByEquipment(rows).map(({ equipmentName, products: eqProducts }) => (
+                      <React.Fragment key={`transit-eq-${equipmentName}`}>
+                        <tr className="bg-teal-50 border-t border-teal-100">
+                          <td colSpan={2 + displayWarehouses.length + 1} className="px-4 py-1.5 sticky left-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-teal-100 text-teal-700">器具名</span>
+                              <span className="text-xs font-semibold text-teal-800">{equipmentName}</span>
+                              <span className="text-[10px] text-teal-400">{eqProducts.length}製品</span>
                             </div>
                           </td>
-                          {displayWarehouses.map((wh) => {
-                            const qty = inTransitStock[p.code]?.[wh.code] ?? 0;
-                            return (
-                              <td key={wh.code} className="px-1 py-1.5 text-center">
-                                <input
-                                  type="number" min={0}
-                                  value={qty === 0 ? '' : qty}
-                                  onChange={(e) => setInTransitStock(p.code, wh.code, parseInt(e.target.value, 10) || 0)}
-                                  placeholder="0"
-                                  className="w-16 text-center border border-slate-200 rounded px-1 py-0.5 text-xs
-                                             focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 bg-white"
-                                />
-                              </td>
-                            );
-                          })}
-                          <td className="px-3 py-1.5 text-right font-semibold text-amber-600">
-                            {rowTotal > 0 ? `${rowTotal.toLocaleString()}個` : <span className="text-slate-300">—</span>}
-                          </td>
                         </tr>
-                      );
-                    });
+                        {eqProducts.map((p) => {
+                          const rowTotal = displayWarehouses.reduce((s, wh) =>
+                            s + (warehousesByName.get(wh.name) ?? [wh]).reduce((ss, w) => ss + (inTransitStock[p.code]?.[w.code] ?? 0), 0), 0);
+                          return (
+                            <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
+                              <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200 font-mono text-[11px] text-slate-500">{p.code}</td>
+                              <td className="px-3 py-1.5 sticky left-32 bg-white z-10 border-r border-slate-200">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="w-2.5 h-2.5 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
+                                  <span className="font-medium text-slate-700">{p.name}</span>
+                                </div>
+                              </td>
+                              {displayWarehouses.map((wh) => {
+                                const qty = (warehousesByName.get(wh.name) ?? [wh]).reduce(
+                                  (s, w) => s + (inTransitStock[p.code]?.[w.code] ?? 0), 0
+                                );
+                                const targetCode = (warehousesByName.get(wh.name) ?? [wh])[0].code;
+                                return (
+                                  <td key={wh.name} className="px-1 py-1.5 text-center">
+                                    <input
+                                      type="number" min={0}
+                                      value={qty === 0 ? '' : qty}
+                                      onChange={(e) => setInTransitStock(p.code, targetCode, parseInt(e.target.value, 10) || 0)}
+                                      placeholder="0"
+                                      className="w-16 text-center border border-slate-200 rounded px-1 py-0.5 text-xs
+                                                 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 bg-white"
+                                    />
+                                  </td>
+                                );
+                              })}
+                              <td className="px-3 py-1.5 text-right font-semibold text-amber-600">
+                                {rowTotal > 0 ? `${rowTotal.toLocaleString()}個` : <span className="text-slate-300">—</span>}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </React.Fragment>
+                    ));
                   })()}
                   <tr className="border-t-2 border-slate-200 bg-slate-50 font-semibold">
                     <td className="px-3 py-2 sticky left-0 bg-slate-50 border-r border-slate-200 text-slate-600">合計</td>
                     {displayWarehouses.map((wh) => {
-                      const total = filteredProducts.reduce((s, p) => s + (inTransitStock[p.code]?.[wh.code] ?? 0), 0);
+                      const total = filteredProducts.reduce((s, p) =>
+                        s + (warehousesByName.get(wh.name) ?? [wh]).reduce((ss, w) => ss + (inTransitStock[p.code]?.[w.code] ?? 0), 0), 0);
                       return (
-                        <td key={wh.code} className="px-2 py-2 text-center text-amber-600">
+                        <td key={wh.name} className="px-2 py-2 text-center text-amber-600">
                           {total > 0 ? `${total.toLocaleString()}個` : '—'}
                         </td>
                       );
                     })}
                     <td className="px-3 py-2 text-right text-amber-600">
                       {(() => {
-                        const grand = filteredProducts.reduce((s, p) => s + displayWarehouses.reduce((ss, wh) => ss + (inTransitStock[p.code]?.[wh.code] ?? 0), 0), 0);
+                        const grand = filteredProducts.reduce((s, p) => s + displayWarehouses.reduce((ss, wh) =>
+                          ss + (warehousesByName.get(wh.name) ?? [wh]).reduce((sss, w) => sss + (inTransitStock[p.code]?.[w.code] ?? 0), 0), 0), 0);
                         return grand > 0 ? `${grand.toLocaleString()}個` : '—';
                       })()}
                     </td>
@@ -1330,12 +1386,11 @@ export default function ProductionPage() {
                   {/* Row 2: individual warehouse columns */}
                   <tr className="bg-slate-50">
                     {displayWarehouses.map((wh) => (
-                      <th key={wh.code} className={clsx(
+                      <th key={wh.name} className={clsx(
                         'px-2 py-1.5 text-center font-semibold text-slate-500 min-w-[72px]',
                         wh.group === '東' ? 'bg-blue-50/50' : 'bg-orange-50/50',
                       )}>
-                        <div className="font-bold text-slate-500 text-[10px]">{wh.code}</div>
-                        <div className="text-[9px] text-slate-400 leading-tight">{wh.name.slice(0, 4)}</div>
+                        <div className="font-bold text-slate-500 text-[10px]">{wh.name.slice(0, 6)}</div>
                       </th>
                     ))}
                   </tr>
@@ -1348,31 +1403,47 @@ export default function ProductionPage() {
                     if (rows.length === 0) return (
                       <tr><td colSpan={2 + displayWarehouses.length} className="px-4 py-8 text-center text-slate-400 text-sm">予定出荷データがありません。CSVからインポートするか、値を入力してください。</td></tr>
                     );
-                    return rows.map((p) => (
-                      <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
-                        <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200 font-mono text-[11px] text-slate-500">{p.code}</td>
-                        <td className="px-3 py-1.5 sticky left-32 bg-white z-10 border-r border-slate-200">
-                          <div className="flex items-center gap-1.5">
-                            <span className="w-2.5 h-2.5 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
-                            <span className="font-medium text-slate-700">{p.name}</span>
-                          </div>
-                        </td>
-                        {displayWarehouses.map((wh) => {
-                          const qty = plannedSales[p.code]?.[wh.code] ?? 0;
-                          return (
-                            <td key={wh.code} className="px-1 py-1.5 text-center">
-                              <input
-                                type="number" min={0}
-                                value={qty === 0 ? '' : qty}
-                                onChange={(e) => setPlannedSales(p.code, wh.code, parseInt(e.target.value, 10) || 0)}
-                                placeholder="0"
-                                className="w-16 text-center border border-slate-200 rounded px-1 py-0.5 text-xs
-                                           focus:outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400 bg-white"
-                              />
+                    return _groupByEquipment(rows).map(({ equipmentName, products: eqProducts }) => (
+                      <React.Fragment key={`sales-eq-${equipmentName}`}>
+                        <tr className="bg-teal-50 border-t border-teal-100">
+                          <td colSpan={2 + displayWarehouses.length} className="px-4 py-1.5 sticky left-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-teal-100 text-teal-700">器具名</span>
+                              <span className="text-xs font-semibold text-teal-800">{equipmentName}</span>
+                              <span className="text-[10px] text-teal-400">{eqProducts.length}製品</span>
+                            </div>
+                          </td>
+                        </tr>
+                        {eqProducts.map((p) => (
+                          <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
+                            <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200 font-mono text-[11px] text-slate-500">{p.code}</td>
+                            <td className="px-3 py-1.5 sticky left-32 bg-white z-10 border-r border-slate-200">
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2.5 h-2.5 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
+                                <span className="font-medium text-slate-700">{p.name}</span>
+                              </div>
                             </td>
-                          );
-                        })}
-                      </tr>
+                            {displayWarehouses.map((wh) => {
+                              const qty = (warehousesByName.get(wh.name) ?? [wh]).reduce(
+                                (s, w) => s + (plannedSales[p.code]?.[w.code] ?? 0), 0
+                              );
+                              const targetCode = (warehousesByName.get(wh.name) ?? [wh])[0].code;
+                              return (
+                                <td key={wh.name} className="px-1 py-1.5 text-center">
+                                  <input
+                                    type="number" min={0}
+                                    value={qty === 0 ? '' : qty}
+                                    onChange={(e) => setPlannedSales(p.code, targetCode, parseInt(e.target.value, 10) || 0)}
+                                    placeholder="0"
+                                    className="w-16 text-center border border-slate-200 rounded px-1 py-0.5 text-xs
+                                               focus:outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400 bg-white"
+                                  />
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </React.Fragment>
                     ));
                   })()}
                 </tbody>
@@ -1594,7 +1665,7 @@ export default function ProductionPage() {
                     <tr className="bg-slate-50">
                       <th className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 border-r border-slate-200">製品</th>
                       {displayActiveWarehouses.map((wh) => (
-                        <th key={wh.code} className="px-2 py-2 text-center font-semibold text-slate-500 min-w-[64px]">{wh.code}</th>
+                        <th key={wh.name} className="px-2 py-2 text-center font-semibold text-slate-500 min-w-[64px]">{wh.name}</th>
                       ))}
                     </tr>
                   </thead>
@@ -1608,10 +1679,12 @@ export default function ProductionPage() {
                           </div>
                         </td>
                         {displayActiveWarehouses.map((wh) => {
-                          const qty     = sendQty[p.code]?.[wh.code] ?? 0;
+                          const qty = (warehousesByName.get(wh.name) ?? [wh]).reduce(
+                            (s, w) => s + (sendQty[p.code]?.[w.code] ?? 0), 0
+                          );
                           const pallets = qty > 0 ? Math.ceil(qty / p.capacityPerPallet) : 0;
                           return (
-                            <td key={wh.code} className="px-2 py-1.5 text-center text-slate-600">
+                            <td key={wh.name} className="px-2 py-1.5 text-center text-slate-600">
                               {pallets > 0 ? <span className="font-medium">{pallets}枚</span> : <span className="text-slate-300">—</span>}
                             </td>
                           );
@@ -1621,9 +1694,9 @@ export default function ProductionPage() {
                     <tr className="border-t-2 border-slate-200 bg-slate-50 font-semibold">
                       <td className="px-3 py-2 sticky left-0 bg-slate-50 border-r border-slate-200 text-slate-600">合計パレット</td>
                       {displayActiveWarehouses.map((wh) => {
-                        const plan = plans[wh.code];
+                        const plan = plans[wh.name];
                         return (
-                          <td key={wh.code} className="px-2 py-2 text-center text-brand-600">
+                          <td key={wh.name} className="px-2 py-2 text-center text-brand-600">
                             {plan?.totalPallets > 0 ? `${plan.totalPallets}枚` : '—'}
                           </td>
                         );
@@ -1632,9 +1705,9 @@ export default function ProductionPage() {
                     <tr className="border-t border-slate-200 bg-slate-50">
                       <td className="px-3 py-2 sticky left-0 bg-slate-50 border-r border-slate-200 text-slate-600 font-semibold">必要台数</td>
                       {displayActiveWarehouses.map((wh) => {
-                        const plan = plans[wh.code];
+                        const plan = plans[wh.name];
                         return (
-                          <td key={wh.code} className="px-2 py-2 text-center text-slate-700 font-semibold">
+                          <td key={wh.name} className="px-2 py-2 text-center text-slate-700 font-semibold">
                             {plan?.trucks.length > 0 ? `${plan.trucks.length}台` : '—'}
                           </td>
                         );
@@ -1782,12 +1855,11 @@ export default function ProductionPage() {
                   {/* Row 2: individual warehouse columns */}
                   <tr className="bg-slate-50">
                     {displayWarehouses.map((wh) => (
-                      <th key={wh.code} className={clsx(
+                      <th key={wh.name} className={clsx(
                         'px-2 py-1.5 text-center font-semibold text-slate-500 min-w-[72px]',
                         wh.group === '東' ? 'bg-blue-50/50' : 'bg-orange-50/50',
                       )}>
-                        <div className="font-bold text-slate-500 text-[10px]">{wh.code}</div>
-                        <div className="text-[9px] text-slate-400 leading-tight">{wh.name.slice(0, 4)}</div>
+                        <div className="font-bold text-slate-500 text-[10px]">{wh.name.slice(0, 6)}</div>
                       </th>
                     ))}
                   </tr>
@@ -1802,7 +1874,8 @@ export default function ProductionPage() {
                         );
                       if (factoryProducts.length === 0) return null;
                       const factoryTotal = displayWarehouses.reduce(
-                        (s, wh) => s + factoryProducts.reduce((ss, p) => ss + (sendQty[p.code]?.[wh.code] ?? 0), 0), 0,
+                        (s, wh) => s + factoryProducts.reduce((ss, p) =>
+                          ss + (warehousesByName.get(wh.name) ?? [wh]).reduce((sss, w) => sss + (sendQty[p.code]?.[w.code] ?? 0), 0), 0), 0,
                       );
                       return (
                         <React.Fragment key={factory.code}>
@@ -1816,70 +1889,90 @@ export default function ProductionPage() {
                               </div>
                             </td>
                           </tr>
-                          {/* 製品行 */}
-                          {factoryProducts.map((p) => {
-                            const rowTotal = displayWarehouses.reduce((s, wh) => s + (sendQty[p.code]?.[wh.code] ?? 0), 0);
-                            const hasManual = displayWarehouses.some((wh) => (sendQtyManual[p.code]?.[wh.code] ?? 0) > 0);
-                            return (
-                              <tr key={p.code} className={clsx('border-t border-slate-100 hover:bg-slate-50', hasManual && 'bg-blue-50/30')}>
-                                <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200 font-mono text-[11px] text-slate-500">{p.code}</td>
-                                <td className="px-3 py-1.5 sticky left-32 bg-white z-10 border-r border-slate-200">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="w-2.5 h-2.5 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
-                                    <span className="font-medium text-slate-700">{p.name}</span>
+                          {/* 製品行（器具名グループ） */}
+                          {_groupByEquipment(factoryProducts).map(({ equipmentName, products: eqProducts }) => (
+                            <React.Fragment key={`sq-eq-${factory.code}-${equipmentName}`}>
+                              <tr className="bg-teal-50 border-t border-teal-100">
+                                <td colSpan={2 + displayWarehouses.length + 1} className="px-6 py-1.5 sticky left-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-teal-100 text-teal-700">器具名</span>
+                                    <span className="text-xs font-semibold text-teal-800">{equipmentName}</span>
+                                    <span className="text-[10px] text-teal-400">{eqProducts.length}製品</span>
                                   </div>
                                 </td>
-                                {displayWarehouses.map((wh) => {
-                                  const calcVal = sendQtyCalc[p.code]?.[wh.code] ?? 0;
-                                  const manualVal = sendQtyManual[p.code]?.[wh.code];
-                                  const isManual = manualVal !== undefined && manualVal > 0;
-                                  return (
-                                    <td key={wh.code} className="px-1 py-1 text-center">
-                                      <div className="flex flex-col gap-0.5 items-center">
-                                        <div style={{ fontSize: 9, color: '#9ca3af' }}>
-                                          自動: {calcVal > 0 ? calcVal.toLocaleString() : '—'}
-                                        </div>
-                                        <input
-                                          type="number" min={0}
-                                          value={isManual ? manualVal : ''}
-                                          onChange={(e) => {
-                                            const v = parseInt(e.target.value, 10);
-                                            if (isNaN(v) || e.target.value === '') {
-                                              clearSendQtyManualCell(p.code, wh.code);
-                                            } else {
-                                              setSendQtyManual(p.code, wh.code, v);
-                                            }
-                                          }}
-                                          placeholder={calcVal > 0 ? String(calcVal) : '0'}
-                                          className={clsx(
-                                            'w-16 text-center border rounded px-1 py-0.5 text-xs focus:outline-none',
-                                            isManual
-                                              ? 'border-blue-400 bg-blue-50 text-blue-700 font-semibold focus:ring-1 focus:ring-blue-400'
-                                              : 'border-slate-200 bg-white text-slate-600 focus:border-blue-400 focus:ring-1 focus:ring-blue-300',
-                                          )}
-                                        />
+                              </tr>
+                              {eqProducts.map((p) => {
+                                const rowTotal = displayWarehouses.reduce((s, wh) =>
+                                  s + (warehousesByName.get(wh.name) ?? [wh]).reduce((ss, w) => ss + (sendQty[p.code]?.[w.code] ?? 0), 0), 0);
+                                const hasManual = displayWarehouses.some((wh) =>
+                                  (warehousesByName.get(wh.name) ?? [wh]).some(w => (sendQtyManual[p.code]?.[w.code] ?? 0) > 0));
+                                return (
+                                  <tr key={p.code} className={clsx('border-t border-slate-100 hover:bg-slate-50', hasManual && 'bg-blue-50/30')}>
+                                    <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200 font-mono text-[11px] text-slate-500">{p.code}</td>
+                                    <td className="px-3 py-1.5 sticky left-32 bg-white z-10 border-r border-slate-200">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="w-2.5 h-2.5 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
+                                        <span className="font-medium text-slate-700">{p.name}</span>
                                       </div>
                                     </td>
-                                  );
-                                })}
-                                <td className="px-3 py-1.5 text-right font-semibold">
-                                  {rowTotal > 0
-                                    ? <span className={hasManual ? 'text-blue-600' : 'text-slate-700'}>{rowTotal.toLocaleString()}個</span>
-                                    : <span className="text-slate-300">—</span>}
-                                </td>
-                              </tr>
-                            );
-                          })}
+                                    {displayWarehouses.map((wh) => {
+                                      const whCodes = warehousesByName.get(wh.name) ?? [wh];
+                                      const firstCode = whCodes[0].code;
+                                      const calcVal = whCodes.reduce((s, w) => s + (sendQtyCalc[p.code]?.[w.code] ?? 0), 0);
+                                      const manualVal = whCodes.map(w => sendQtyManual[p.code]?.[w.code]).find(v => v !== undefined && v > 0);
+                                      const isManual = manualVal !== undefined;
+                                      return (
+                                        <td key={wh.name} className="px-1 py-1 text-center">
+                                          <div className="flex flex-col gap-0.5 items-center">
+                                            <div style={{ fontSize: 9, color: '#9ca3af' }}>
+                                              自動: {calcVal > 0 ? calcVal.toLocaleString() : '—'}
+                                            </div>
+                                            <input
+                                              type="number" min={0}
+                                              value={isManual ? manualVal : ''}
+                                              onChange={(e) => {
+                                                const v = parseInt(e.target.value, 10);
+                                                if (isNaN(v) || e.target.value === '') {
+                                                  whCodes.forEach(w => clearSendQtyManualCell(p.code, w.code));
+                                                } else {
+                                                  setSendQtyManual(p.code, firstCode, v);
+                                                }
+                                              }}
+                                              placeholder={calcVal > 0 ? String(calcVal) : '0'}
+                                              className={clsx(
+                                                'w-16 text-center border rounded px-1 py-0.5 text-xs focus:outline-none',
+                                                isManual
+                                                  ? 'border-blue-400 bg-blue-50 text-blue-700 font-semibold focus:ring-1 focus:ring-blue-400'
+                                                  : 'border-slate-200 bg-white text-slate-600 focus:border-blue-400 focus:ring-1 focus:ring-blue-300',
+                                              )}
+                                            />
+                                          </div>
+                                        </td>
+                                      );
+                                    })}
+                                    <td className="px-3 py-1.5 text-right font-semibold">
+                                      {rowTotal > 0
+                                        ? <span className={hasManual ? 'text-blue-600' : 'text-slate-700'}>{rowTotal.toLocaleString()}個</span>
+                                        : <span className="text-slate-300">—</span>}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </React.Fragment>
+                          ))}
                           {/* 工場小計行 */}
                           <tr key={`sub-${factory.code}`} className="border-t border-indigo-100 bg-indigo-50/60">
                             <td colSpan={2} className="px-4 py-1.5 sticky left-0 bg-indigo-50/60 z-10 border-r border-slate-200 text-xs text-indigo-500 font-semibold">
                               {factory.name} 小計
                             </td>
                             {displayWarehouses.map((wh) => {
-                              const subtotal = factoryProducts.reduce((s, p) => s + (sendQty[p.code]?.[wh.code] ?? 0), 0);
-                              const hasM = factoryProducts.some((p) => (sendQtyManual[p.code]?.[wh.code] ?? 0) > 0);
+                              const whCodes = warehousesByName.get(wh.name) ?? [wh];
+                              const subtotal = factoryProducts.reduce((s, p) =>
+                                s + whCodes.reduce((ss, w) => ss + (sendQty[p.code]?.[w.code] ?? 0), 0), 0);
+                              const hasM = factoryProducts.some((p) =>
+                                whCodes.some(w => (sendQtyManual[p.code]?.[w.code] ?? 0) > 0));
                               return (
-                                <td key={wh.code} className={clsx('px-2 py-1.5 text-center text-xs font-bold', hasM ? 'text-blue-600' : 'text-indigo-600')}>
+                                <td key={wh.name} className={clsx('px-2 py-1.5 text-center text-xs font-bold', hasM ? 'text-blue-600' : 'text-indigo-600')}>
                                   {subtotal > 0 ? `${subtotal.toLocaleString()}個` : '—'}
                                 </td>
                               );
@@ -1910,17 +2003,21 @@ export default function ProductionPage() {
                     <tr className="border-t-2 border-slate-200 bg-slate-50 font-semibold">
                       <td colSpan={2} className="px-3 py-2 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 text-slate-600">総合計</td>
                       {displayWarehouses.map((wh) => {
-                        const total = filteredProducts.reduce((s, p) => s + (sendQty[p.code]?.[wh.code] ?? 0), 0);
-                        const hasM  = filteredProducts.some((p) => (sendQtyManual[p.code]?.[wh.code] ?? 0) > 0);
+                        const whCodes = warehousesByName.get(wh.name) ?? [wh];
+                        const total = filteredProducts.reduce((s, p) =>
+                          s + whCodes.reduce((ss, w) => ss + (sendQty[p.code]?.[w.code] ?? 0), 0), 0);
+                        const hasM = filteredProducts.some((p) =>
+                          whCodes.some(w => (sendQtyManual[p.code]?.[w.code] ?? 0) > 0));
                         return (
-                          <td key={wh.code} className={clsx('px-2 py-2 text-center', hasM ? 'text-blue-600' : 'text-slate-600')}>
+                          <td key={wh.name} className={clsx('px-2 py-2 text-center', hasM ? 'text-blue-600' : 'text-slate-600')}>
                             {total > 0 ? `${total.toLocaleString()}個` : '—'}
                           </td>
                         );
                       })}
                       <td className="px-3 py-2 text-right text-slate-700">
                         {(() => {
-                          const grand = filteredProducts.reduce((s, p) => s + displayWarehouses.reduce((ss, wh) => ss + (sendQty[p.code]?.[wh.code] ?? 0), 0), 0);
+                          const grand = filteredProducts.reduce((s, p) => s + displayWarehouses.reduce((ss, wh) =>
+                            ss + (warehousesByName.get(wh.name) ?? [wh]).reduce((sss, w) => sss + (sendQty[p.code]?.[w.code] ?? 0), 0), 0), 0);
                           return grand > 0 ? `${grand.toLocaleString()}個` : '—';
                         })()}
                       </td>
