@@ -16,9 +16,54 @@ import {
   generateInTransitStockTemplate,
   generateDistributionRatiosTemplate,
   generateSendQtyCSV,
+  generateWeeklyProductionCSV,
+  parseWeeklyProductionCSV,
   downloadCSV,
 } from '@/lib/csv';
+import type { OperatingDays } from '@/lib/types';
 import clsx from 'clsx';
+
+// ─── 週別カレンダー計算ユーティリティ (module level) ──────────────────
+function _jsDayToOdIdx(jsDay: number): number { return jsDay === 0 ? 6 : jsDay - 1; }
+function _isWorkingDate(dateStr: string, factoryCode: string, od: OperatingDays): boolean {
+  const d = new Date(dateStr + 'T12:00:00');
+  return (od[factoryCode] ?? [true,true,true,true,true,false,false])[_jsDayToOdIdx(d.getDay())] ?? false;
+}
+function _monthDates(year: number, month: number): string[] {
+  const days = new Date(year, month, 0).getDate();
+  return Array.from({ length: days }, (_, i) => {
+    const d = i + 1;
+    return `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  });
+}
+interface WeekGroup { label: string; range: string; dates: string[] }
+function _buildWeeks(dates: string[]): WeekGroup[] {
+  const groups: WeekGroup[] = [];
+  for (let i = 0; i < dates.length; i += 7) {
+    const wd = dates.slice(i, i + 7);
+    const fmt = (s: string) => `${parseInt(s.slice(5,7))}/${parseInt(s.slice(8,10))}`;
+    groups.push({ label: `第${groups.length + 1}週`, range: `${fmt(wd[0])}～${fmt(wd[wd.length-1])}`, dates: wd });
+  }
+  return groups;
+}
+function _weekTotal(code: string, weekDates: string[], dailyPlan: Record<string, Record<string, number>>): number {
+  return weekDates.reduce((s, d) => s + (dailyPlan[code]?.[d] ?? 0), 0);
+}
+function _distributeToWorkDays(
+  total: number, weekDates: string[], factoryCode: string, od: OperatingDays
+): Record<string, number> {
+  const workDates = weekDates.filter(d => _isWorkingDate(d, factoryCode, od));
+  const result: Record<string, number> = {};
+  for (const d of weekDates) result[d] = 0;
+  if (total > 0 && workDates.length > 0) {
+    const perDay = Math.floor(total / workDates.length);
+    const rem = total % workDates.length;
+    for (let i = 0; i < workDates.length; i++) {
+      result[workDates[i]] = perDay + (i === workDates.length - 1 ? rem : 0);
+    }
+  }
+  return result;
+}
 
 type Tab = 'production' | 'location' | 'transit' | 'sales' | 'ratio' | 'sendqty';
 
@@ -27,8 +72,9 @@ export default function ProductionPage() {
     factories, products, warehouses, truckTypes,
     productionPlan, dailyProductionPlan, distributionRatios,
     locationStock, inTransitStock, plannedSales, inventoryStock,
+    operatingDays,
     sendQtyManual,
-    setProductionQty, setRatio, setLocationStock, setPlannedSales, setInTransitStock,
+    setProductionQty, setProductionDays, setRatio, setLocationStock, setPlannedSales, setInTransitStock,
     setSendQtyManual, clearSendQtyManualCell, importSendQtyManualBulk, clearSendQtyManual,
     importProductionPlan, importLocationStockBulk, importPlannedSalesBulk, importInTransitStockBulk, importDistributionRatiosBulk,
     clearProductionPlan, clearLocationStock, clearPlannedSales, clearInTransitStock,
@@ -43,6 +89,11 @@ export default function ProductionPage() {
   const [templateMonth, setTemplateMonth] = useState(now.getMonth() + 1);
   const [prodPreview,   setProdPreview]   = useState<ReturnType<typeof parseProductionCSV> | null>(null);
   const [prodImported,  setProdImported]  = useState(false);
+
+  // 週別生産計画 CSV
+  const weeklyProdFileRef = useRef<HTMLInputElement>(null);
+  const [weeklyProdPreview, setWeeklyProdPreview] = useState<ReturnType<typeof parseWeeklyProductionCSV> | null>(null);
+  const [weeklyProdImported, setWeeklyProdImported] = useState(false);
 
   // 拠点別現在庫 CSV
   const locFileRef = useRef<HTMLInputElement>(null);
@@ -123,6 +174,11 @@ export default function ProductionPage() {
       return true;
     });
   }, [products, filters, activeTab]);
+
+  const weeks = useMemo(
+    () => _buildWeeks(_monthDates(templateYear, templateMonth)),
+    [templateYear, templateMonth],
+  );
 
   // ─── 一括クリア ──────────────────────────────────────────────────────
   const handleClear = (tab: Tab) => {
@@ -325,6 +381,15 @@ export default function ProductionPage() {
               >
                 ダウンロード
               </button>
+              <button
+                onClick={() => downloadCSV(
+                  generateWeeklyProductionCSV(filteredProducts, factories, templateYear, templateMonth, dailyProductionPlan),
+                  `週別生産計画_${templateYear}-${String(templateMonth).padStart(2,'0')}.csv`,
+                )}
+                className="text-xs px-3 py-1.5 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
+              >
+                週別CSVダウンロード
+              </button>
             </div>
             <div className="flex items-center gap-3 mb-4">
               <input ref={prodFileRef} type="file" accept=".csv,text/csv" onChange={handleProdFile} className="hidden" />
@@ -397,16 +462,103 @@ export default function ProductionPage() {
             )}
           </div>
 
-          {/* 入力テーブル */}
-          <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-            <table className="w-full text-sm">
+          {/* 週別CSV インポート */}
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4">
+            <h3 className="text-xs font-bold text-slate-700 mb-2">週別CSVインポート</h3>
+            <div className="flex items-center gap-3 mb-3">
+              <input ref={weeklyProdFileRef} type="file" accept=".csv,text/csv"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = (ev) => {
+                    setWeeklyProdPreview(parseWeeklyProductionCSV(
+                      ev.target?.result as string, products, templateYear, templateMonth,
+                      operatingDays, dailyProductionPlan, productionPlan
+                    ));
+                    setWeeklyProdImported(false);
+                  };
+                  reader.readAsText(file, 'utf-8');
+                }}
+                className="hidden"
+              />
+              <button
+                onClick={() => { weeklyProdFileRef.current?.click(); setWeeklyProdPreview(null); setWeeklyProdImported(false); }}
+                className="text-sm px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                週別CSVファイルを選択
+              </button>
+              {weeklyProdPreview && (
+                <span className="text-xs text-slate-500">
+                  {weeklyProdPreview.rows.length}製品 × {weeklyProdPreview.weekLabels.length}週分を読み込みました
+                </span>
+              )}
+            </div>
+            {(weeklyProdPreview?.warnings?.length ?? 0) > 0 && (
+              <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700 space-y-0.5">
+                {weeklyProdPreview?.warnings?.map((w, i) => <div key={i}>⚠ {w}</div>)}
+              </div>
+            )}
+            {weeklyProdPreview && weeklyProdPreview.rows.length > 0 && (
+              <div className="overflow-x-auto mb-3">
+                <table className="text-xs border-collapse w-full">
+                  <thead>
+                    <tr className="bg-slate-50">
+                      <th className="px-3 py-2 text-left sticky left-0 bg-slate-50 border-r border-slate-200 min-w-[140px]">製品</th>
+                      {weeklyProdPreview.weekLabels.map((wl, wi) => (
+                        <th key={wi} className="px-2 py-2 text-center text-slate-400 min-w-[80px]">{wl}</th>
+                      ))}
+                      <th className="px-3 py-2 text-right text-slate-500 min-w-[70px]">月合計</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {weeklyProdPreview.rows.map((row) => (
+                      <tr key={row.code} className={clsx('border-t border-slate-100', !row.found && 'bg-amber-50')}>
+                        <td className="px-3 py-1.5 sticky left-0 bg-white border-r border-slate-200">
+                          <div className="font-medium text-slate-700">{row.name}</div>
+                          <div className="text-[10px] text-slate-400 font-mono">{row.code}</div>
+                        </td>
+                        {row.weekTotals.map((wt, wi) => (
+                          <td key={wi} className="px-2 py-1.5 text-center text-slate-600">
+                            {wt > 0 ? wt.toLocaleString() : <span className="text-slate-300">—</span>}
+                          </td>
+                        ))}
+                        <td className="px-3 py-1.5 text-right font-bold text-slate-800">{row.monthTotal.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {weeklyProdPreview && (
+              <button
+                onClick={() => { importProductionPlan(weeklyProdPreview.dailyPlan, weeklyProdPreview.productionPlan); setWeeklyProdImported(true); }}
+                disabled={weeklyProdImported}
+                className={clsx(
+                  'px-4 py-2 text-sm rounded-lg transition-colors',
+                  weeklyProdImported ? 'bg-emerald-100 text-emerald-700 cursor-default' : 'bg-indigo-600 text-white hover:bg-indigo-700',
+                )}
+              >
+                {weeklyProdImported ? '✓ インポート済み' : 'インポートする'}
+              </button>
+            )}
+          </div>
+
+          {/* 週別入力テーブル */}
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-x-auto">
+            <table className="text-sm border-collapse w-full">
               <thead>
                 <tr className="bg-slate-50 text-slate-500 text-xs">
-                  <th className="px-4 py-2.5 text-left font-semibold">工場</th>
-                  <th className="px-4 py-2.5 text-left font-semibold">製品コード</th>
-                  <th className="px-4 py-2.5 text-left font-semibold">製品名</th>
-                  <th className="px-4 py-2.5 text-right font-semibold w-44">週間生産数（個）</th>
-                  <th className="px-4 py-2.5 text-right font-semibold">週パレット数</th>
+                  <th className="px-3 py-2.5 text-left font-semibold sticky left-0 bg-slate-50 z-10 border-r border-slate-200 w-28">製品コード</th>
+                  <th className="px-3 py-2.5 text-left font-semibold sticky left-28 bg-slate-50 z-10 border-r border-slate-200 min-w-[140px]">製品名</th>
+                  {weeks.map((w) => (
+                    <th key={w.label} className="px-2 py-2.5 text-center font-semibold min-w-[90px]">
+                      <div>{w.label}</div>
+                      <div className="text-[10px] font-normal text-slate-400">{w.range}</div>
+                    </th>
+                  ))}
+                  <th className="px-3 py-2.5 text-right font-semibold min-w-[80px]">月合計(個)</th>
+                  <th className="px-3 py-2.5 text-right font-semibold min-w-[70px]">月パレット</th>
                 </tr>
               </thead>
               <tbody>
@@ -415,76 +567,116 @@ export default function ProductionPage() {
                     (p) => (p.factoryCode ?? 'F001') === factory.code,
                   );
                   if (factoryProducts.length === 0) return null;
-                  const subtotalQty  = factoryProducts.reduce((s, p) => s + (productionPlan[p.code] ?? 0), 0);
-                  const subtotalPals = factoryProducts.reduce((s, p) => {
+                  // factory subtotals per week
+                  const factoryWeekTotals = weeks.map(w =>
+                    factoryProducts.reduce((s, p) => s + _weekTotal(p.code, w.dates, dailyProductionPlan), 0)
+                  );
+                  const factoryMonthTotal = factoryWeekTotals.reduce((s, v) => s + v, 0);
+                  const factoryPallets = factoryProducts.reduce((s, p) => {
                     const qty = productionPlan[p.code] ?? 0;
                     return s + (qty > 0 ? Math.ceil(qty / p.capacityPerPallet) : 0);
                   }, 0);
                   return (
                     <>
+                      {/* 工場ヘッダー */}
                       <tr key={`hdr-${factory.code}`} className="bg-indigo-50 border-t-2 border-indigo-100">
-                        <td colSpan={5} className="px-4 py-2">
+                        <td colSpan={2 + weeks.length + 2} className="px-4 py-2 sticky left-0">
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-700">{factory.code}</span>
                             <span className="text-sm font-semibold text-indigo-800">{factory.name}</span>
                           </div>
                         </td>
                       </tr>
+                      {/* 製品行 */}
                       {factoryProducts.map((p) => {
-                        const qty  = productionPlan[p.code] ?? 0;
-                        const pals = qty > 0 ? Math.ceil(qty / p.capacityPerPallet) : 0;
+                        const monthTotal = productionPlan[p.code] ?? 0;
+                        const monthPallets = monthTotal > 0 ? Math.ceil(monthTotal / p.capacityPerPallet) : 0;
                         return (
                           <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
-                            <td className="px-4 py-2 text-slate-400 text-xs" />
-                            <td className="px-4 py-2">
-                              <div className="flex items-center gap-2">
-                                <span className="w-3 h-3 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
-                                <span className="font-mono text-xs text-slate-600">{p.code}</span>
+                            <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200 font-mono text-[11px] text-slate-500">{p.code}</td>
+                            <td className="px-3 py-1.5 sticky left-28 bg-white z-10 border-r border-slate-200">
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2.5 h-2.5 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
+                                <span className="font-medium text-slate-700 text-xs">{p.name}</span>
                               </div>
                             </td>
-                            <td className="px-4 py-2 font-medium text-slate-700">{p.name}</td>
-                            <td className="px-4 py-2">
-                              <input
-                                type="number" min={0}
-                                value={qty === 0 ? '' : qty}
-                                onChange={(e) => setProductionQty(p.code, parseInt(e.target.value, 10) || 0)}
-                                placeholder="0"
-                                className="w-full text-right border border-slate-200 rounded px-2 py-1 text-sm
-                                           focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 bg-white"
-                              />
+                            {weeks.map((w) => {
+                              const wTotal = _weekTotal(p.code, w.dates, dailyProductionPlan);
+                              const workCount = w.dates.filter(d => _isWorkingDate(d, p.factoryCode ?? 'F001', operatingDays)).length;
+                              return (
+                                <td key={w.label} className="px-1 py-1.5 text-center">
+                                  {workCount === 0 ? (
+                                    <span className="text-slate-300 text-xs">—</span>
+                                  ) : (
+                                    <div className="flex flex-col items-center gap-0.5">
+                                      <div className="text-[9px] text-slate-400">稼働{workCount}日</div>
+                                      <input
+                                        type="number" min={0}
+                                        value={wTotal === 0 ? '' : wTotal}
+                                        onChange={(e) => {
+                                          const qty = parseInt(e.target.value, 10) || 0;
+                                          const dateQtyMap = _distributeToWorkDays(qty, w.dates, p.factoryCode ?? 'F001', operatingDays);
+                                          setProductionDays(p.code, dateQtyMap);
+                                        }}
+                                        placeholder="0"
+                                        className="w-16 text-right border border-slate-200 rounded px-1 py-0.5 text-xs
+                                                   focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 bg-white"
+                                      />
+                                    </div>
+                                  )}
+                                </td>
+                              );
+                            })}
+                            <td className="px-3 py-1.5 text-right font-medium text-slate-700">
+                              {monthTotal > 0 ? monthTotal.toLocaleString() : <span className="text-slate-300">—</span>}
                             </td>
-                            <td className="px-4 py-2 text-right font-medium text-slate-700">
-                              {pals > 0 ? `${pals}枚` : <span className="text-slate-300">—</span>}
+                            <td className="px-3 py-1.5 text-right font-medium text-slate-500">
+                              {monthPallets > 0 ? `${monthPallets}枚` : <span className="text-slate-300">—</span>}
                             </td>
                           </tr>
                         );
                       })}
+                      {/* 工場小計 */}
                       <tr key={`sub-${factory.code}`} className="border-t border-indigo-100 bg-indigo-50/60">
-                        <td colSpan={3} className="px-4 py-1.5 text-xs text-indigo-500 font-semibold">{factory.name} 小計</td>
-                        <td className="px-4 py-1.5 text-right text-xs font-bold text-indigo-600">
-                          {subtotalQty > 0 ? `${subtotalQty.toLocaleString()}個` : '—'}
+                        <td colSpan={2} className="px-4 py-1.5 sticky left-0 bg-indigo-50/60 z-10 border-r border-slate-200 text-xs text-indigo-500 font-semibold">{factory.name} 小計</td>
+                        {factoryWeekTotals.map((wt, wi) => (
+                          <td key={wi} className="px-2 py-1.5 text-right text-xs font-bold text-indigo-600">
+                            {wt > 0 ? wt.toLocaleString() : '—'}
+                          </td>
+                        ))}
+                        <td className="px-3 py-1.5 text-right text-xs font-bold text-indigo-600">
+                          {factoryMonthTotal > 0 ? factoryMonthTotal.toLocaleString() : '—'}
                         </td>
-                        <td className="px-4 py-1.5 text-right text-xs font-bold text-indigo-500">
-                          {subtotalPals > 0 ? `${subtotalPals}枚` : '—'}
+                        <td className="px-3 py-1.5 text-right text-xs font-bold text-indigo-500">
+                          {factoryPallets > 0 ? `${factoryPallets}枚` : '—'}
                         </td>
                       </tr>
                     </>
                   );
                 })}
+                {/* 総合計 */}
                 {(() => {
-                  const totalQty  = filteredProducts.reduce((s, p) => s + (productionPlan[p.code] ?? 0), 0);
-                  const totalPals = filteredProducts.reduce((s, p) => {
+                  const grandWeekTotals = weeks.map(w =>
+                    filteredProducts.reduce((s, p) => s + _weekTotal(p.code, w.dates, dailyProductionPlan), 0)
+                  );
+                  const grandTotal = filteredProducts.reduce((s, p) => s + (productionPlan[p.code] ?? 0), 0);
+                  const grandPallets = filteredProducts.reduce((s, p) => {
                     const qty = productionPlan[p.code] ?? 0;
                     return s + (qty > 0 ? Math.ceil(qty / p.capacityPerPallet) : 0);
                   }, 0);
                   return (
                     <tr className="border-t-2 border-slate-300 bg-slate-50 font-semibold">
-                      <td colSpan={3} className="px-4 py-2 text-slate-600">総合計</td>
-                      <td className="px-4 py-2 text-right text-brand-600">
-                        {totalQty > 0 ? `${totalQty.toLocaleString()}個` : '—'}
+                      <td colSpan={2} className="px-4 py-2 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 text-slate-600">総合計</td>
+                      {grandWeekTotals.map((wt, wi) => (
+                        <td key={wi} className="px-2 py-2 text-right text-brand-600">
+                          {wt > 0 ? wt.toLocaleString() : '—'}
+                        </td>
+                      ))}
+                      <td className="px-3 py-2 text-right text-brand-600">
+                        {grandTotal > 0 ? grandTotal.toLocaleString() : '—'}
                       </td>
-                      <td className="px-4 py-2 text-right text-slate-500">
-                        {totalPals > 0 ? `${totalPals}枚` : '—'}
+                      <td className="px-3 py-2 text-right text-slate-500">
+                        {grandPallets > 0 ? `${grandPallets}枚` : '—'}
                       </td>
                     </tr>
                   );

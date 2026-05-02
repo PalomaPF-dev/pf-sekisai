@@ -57,6 +57,7 @@ interface AppState {
   importDistributionRatiosBulk: (ratios: DistributionRatios) => void;
   setInventoryStock: (productCode: string, qty: number) => void;
   setLocationStock: (productCode: string, warehouseCode: string, qty: number) => void;
+  setProductionDays: (productCode: string, dateQtyMap: Record<string, number>) => void;
   importProductionPlan: (dailyPlan: DailyProductionPlan, plan: ProductionPlan) => void;
   clearProductionPlan: () => void;
   importInventoryStockBulk: (stock: InventoryStock) => void;
@@ -232,6 +233,28 @@ export const useAppStore = create<AppState>()((set, get) => ({
   },
 
   // ─── 生産計画 ─────────────────────────────────────────────
+  setProductionDays: (productCode, dateQtyMap) => {
+    let newTotal = 0;
+    set((s) => {
+      const productDates = { ...(s.dailyProductionPlan[productCode] ?? {}) };
+      for (const [date, qty] of Object.entries(dateQtyMap)) {
+        if (qty > 0) productDates[date] = qty;
+        else delete productDates[date];
+      }
+      newTotal = Object.values(productDates).reduce((sum, v) => sum + v, 0);
+      return {
+        dailyProductionPlan: { ...s.dailyProductionPlan, [productCode]: productDates },
+        productionPlan: { ...s.productionPlan, [productCode]: newTotal },
+      };
+    });
+    Promise.all([
+      ...Object.entries(dateQtyMap).map(([date, qty]) =>
+        db.upsertDailyProductionQty(productCode, date, qty)
+      ),
+      db.upsertProductionQty(productCode, newTotal),
+    ]).catch(console.error);
+  },
+
   setProductionQty: (productCode, qty) => {
     set((s) => ({ productionPlan: { ...s.productionPlan, [productCode]: qty } }));
     db.upsertProductionQty(productCode, qty).catch(console.error);

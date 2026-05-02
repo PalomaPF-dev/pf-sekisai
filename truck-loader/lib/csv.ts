@@ -1000,6 +1000,161 @@ export function generateSendQtyCSV(
   return '﻿' + [header, ...rows].join('\r\n');
 }
 
+// ─── 週別生産計画 CSV ─────────────────────────────────────────────────
+
+/** JS getDay() → OperatingDays インデックス (0=月..5=土,6=日) */
+function jsDayToOdIdx(jsDay: number): number { return jsDay === 0 ? 6 : jsDay - 1; }
+
+/** 指定日が稼働日かどうか */
+function isWorkingDate(dateStr: string, factoryCode: string, operatingDays: Record<string, boolean[]>): boolean {
+  const d = new Date(dateStr + 'T12:00:00');
+  return (operatingDays[factoryCode] ?? [true,true,true,true,true,false,false])[jsDayToOdIdx(d.getDay())] ?? false;
+}
+
+/** 年月の全日付リスト */
+function monthDateList(year: number, month: number): string[] {
+  const days = new Date(year, month, 0).getDate();
+  return Array.from({ length: days }, (_, i) => {
+    const d = i + 1;
+    return `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  });
+}
+
+interface CsvWeekGroup { label: string; range: string; dates: string[] }
+
+function buildWeekGroups(dates: string[]): CsvWeekGroup[] {
+  const groups: CsvWeekGroup[] = [];
+  for (let i = 0; i < dates.length; i += 7) {
+    const wd = dates.slice(i, i + 7);
+    const fmt = (s: string) => `${parseInt(s.slice(5,7))}/${parseInt(s.slice(8,10))}`;
+    groups.push({ label: `第${groups.length + 1}週`, range: `${fmt(wd[0])}~${fmt(wd[wd.length-1])}`, dates: wd });
+  }
+  return groups;
+}
+
+/**
+ * 週別生産計画 CSV を生成。
+ * 列構成: 配送元コード, 配送元名, 製品コード, 製品名, 第1週(M/D~M/D), ..., 月合計
+ */
+export function generateWeeklyProductionCSV(
+  products: Product[],
+  factories: { code: string; name: string }[],
+  year: number,
+  month: number,
+  dailyPlan: DailyProductionPlan,
+): string {
+  const dates = monthDateList(year, month);
+  const weeks = buildWeekGroups(dates);
+  const factoryMap = Object.fromEntries(factories.map(f => [f.code, f.name]));
+
+  const weekHeaders = weeks.map(w => `"${w.label}(${w.range})"`);
+  const header = ['配送元コード', '配送元名', '製品コード', '製品名', ...weekHeaders, '月合計'].join(',');
+
+  const rows = products.map((p) => {
+    const fc = p.factoryCode ?? 'F001';
+    const fn = factoryMap[fc] ?? fc;
+    const weekTotals = weeks.map(w =>
+      w.dates.reduce((s, d) => s + (dailyPlan[p.code]?.[d] ?? 0), 0)
+    );
+    const monthTotal = weekTotals.reduce((s, v) => s + v, 0);
+    return [fc, `"${fn}"`, p.code, `"${p.name}"`, ...weekTotals, monthTotal].join(',');
+  });
+
+  return '﻿' + [header, ...rows].join('\r\n');
+}
+
+/**
+ * 週別生産計画 CSV を解析し、weeklyTotals を稼働日に均等配分した dailyPlan を返す。
+ * 列構成（flexible）: 製品コード 必須。第N週列を認識。配送元・製品名列は無視。
+ */
+export function parseWeeklyProductionCSV(
+  text: string,
+  products: Product[],
+  year: number,
+  month: number,
+  operatingDays: Record<string, boolean[]>,
+  existingDailyPlan: DailyProductionPlan = {},
+  existingProductionPlan: ProductionPlan = {},
+): {
+  dailyPlan: DailyProductionPlan;
+  productionPlan: ProductionPlan;
+  rows: { code: string; name: string; weekTotals: number[]; monthTotal: number; found: boolean }[];
+  weekLabels: string[];
+  warnings: string[];
+} {
+  const productMap = Object.fromEntries(products.map(p => [normalizeProductCode(p.code), p]));
+  const dates = monthDateList(year, month);
+  const weeks = buildWeekGroups(dates);
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  const warnings: string[] = [];
+
+  if (lines.length < 2) {
+    warnings.push('データが不足しています（ヘッダ行 + 1行以上のデータが必要です）');
+    return { dailyPlan: cloneDailyPlan(existingDailyPlan), productionPlan: { ...existingProductionPlan }, rows: [], weekLabels: [], warnings };
+  }
+
+  const headers = parseCSVLine(lines[0]).map(h => h.normalize('NFKC').trim().replace(/^﻿/, ''));
+
+  // 製品コード列を探す（0列目固定 or ヘッダーで判断）
+  let codeColIdx = 0;
+  for (let i = 0; i < headers.length; i++) {
+    if (headers[i] === '製品コード') { codeColIdx = i; break; }
+  }
+
+  // 第N週 列のインデックスを探す（週番号順に並んでいなくてもよい）
+  const weekColIndices: number[] = weeks.map((w) => {
+    const weekNum = weeks.indexOf(w) + 1;
+    for (let i = 0; i < headers.length; i++) {
+      if (headers[i].includes(`第${weekNum}週`)) return i;
+    }
+    return -1;
+  });
+
+  const dailyPlan: DailyProductionPlan = cloneDailyPlan(existingDailyPlan);
+  const productionPlan: ProductionPlan = { ...existingProductionPlan };
+  const rows: { code: string; name: string; weekTotals: number[]; monthTotal: number; found: boolean }[] = [];
+
+  for (let r = 1; r < lines.length; r++) {
+    const cells = parseCSVLine(lines[r]);
+    const code = normalizeProductCode(cells[codeColIdx] ?? '');
+    if (!code) continue;
+
+    const product = productMap[code];
+    const found = !!product;
+    if (!found) warnings.push(`行${r+1}: 製品コード「${code}」はマスタに存在しません`);
+
+    const factoryCode = product?.factoryCode ?? 'F001';
+    const weekTotals: number[] = [];
+    let monthTotal = 0;
+
+    dailyPlan[code] = { ...(dailyPlan[code] ?? {}) };
+
+    for (let wi = 0; wi < weeks.length; wi++) {
+      const colIdx = weekColIndices[wi];
+      const weekQty = colIdx >= 0 ? (parseInt(cells[colIdx] ?? '', 10) || 0) : 0;
+      weekTotals.push(weekQty);
+      monthTotal += weekQty;
+
+      // 稼働日に均等配分
+      const workDates = weeks[wi].dates.filter(d => isWorkingDate(d, factoryCode, operatingDays));
+      // その週の全日を0にリセット
+      for (const d of weeks[wi].dates) dailyPlan[code][d] = 0;
+      if (weekQty > 0 && workDates.length > 0) {
+        const perDay = Math.floor(weekQty / workDates.length);
+        const rem = weekQty % workDates.length;
+        for (let i = 0; i < workDates.length; i++) {
+          dailyPlan[code][workDates[i]] = perDay + (i === workDates.length - 1 ? rem : 0);
+        }
+      }
+    }
+
+    productionPlan[code] = monthTotal;
+    rows.push({ code, name: product?.name ?? code, weekTotals, monthTotal, found });
+  }
+
+  return { dailyPlan, productionPlan, rows, weekLabels: weeks.map(w => `${w.label}(${w.range})`), warnings };
+}
+
 /** CSV テキストをファイルとしてダウンロード */
 export function downloadCSV(content: string, filename: string): void {
   const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });

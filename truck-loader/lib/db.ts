@@ -216,6 +216,23 @@ export async function replaceAllDailyProductionPlan(dailyPlan: DailyProductionPl
   }
 }
 
+/** 日別生産計画を1件upsert（qty=0なら削除） */
+export async function upsertDailyProductionQty(productCode: string, date: string, qty: number) {
+  if (qty > 0) {
+    const { error } = await supabase
+      .from('daily_production_plan')
+      .upsert({ product_code: productCode, date, qty });
+    if (error) throw error;
+  } else {
+    const { error } = await supabase
+      .from('daily_production_plan')
+      .delete()
+      .eq('product_code', productCode)
+      .eq('date', date);
+    if (error) throw error;
+  }
+}
+
 // ─── Distribution Ratios ─────────────────────────────────────────────────────
 
 export async function loadDistributionRatios(): Promise<DistributionRatios> {
