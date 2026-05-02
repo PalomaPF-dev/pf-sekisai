@@ -1,16 +1,11 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { useAppStore } from '@/lib/store';
 import type { Factory, Product, Warehouse, PalletType } from '@/lib/types';
 import { parseProductsCSV, generateProductsTemplate, downloadCSV } from '@/lib/csv';
+import { buildEquipmentColorMap, buildProductColors, PRODUCT_PALETTE } from '@/lib/productColors';
 import clsx from 'clsx';
-
-const PRESET_COLORS = [
-  '#4A90D9','#2ECC71','#E67E22','#9B59B6',
-  '#E74C3C','#1ABC9C','#F39C12','#C0392B',
-  '#3498DB','#27AE60','#D35400','#8E44AD',
-];
 
 type Tab = 'products' | 'warehouses' | 'pallets' | 'factories' | 'operating';
 
@@ -25,6 +20,10 @@ export default function SettingsPage() {
     upsertProducts,
     resetToDefaults,
   } = useAppStore();
+
+  // 器具名ごとの色マップ・製品コードごとの色マップ（描画用）
+  const equipmentColorMap = useMemo(() => buildEquipmentColorMap(products), [products]);
+  const productColors     = useMemo(() => buildProductColors(products), [products]);
 
   const [tab, setTab] = useState<Tab>('products');
   const [editingFactory, setEditingFactory] = useState<Factory | null>(null);
@@ -42,7 +41,7 @@ export default function SettingsPage() {
 
   // 製品の新規追加用空テンプレート
   const newProduct = (): Product => ({
-    code: '', name: '', capacityPerPallet: 40, palletType: 'P03', color: PRESET_COLORS[0],
+    code: '', name: '', capacityPerPallet: 40, palletType: 'P03', color: PRODUCT_PALETTE[0],
     factoryCode: factories[0]?.code ?? 'F001',
   });
 
@@ -70,10 +69,21 @@ export default function SettingsPage() {
   const handleSaveProduct = async () => {
     if (!editingProduct || !editingProduct.code.trim() || !editingProduct.name.trim()) return;
     setProductOpError(null);
+
+    // 器具名から色を自動計算（新規器具名はパレット末尾の次の色を割り当て）
+    const eqKey = editingProduct.equipmentName?.trim() ?? '';
+    const currentEqMap = buildEquipmentColorMap(products);
+    let autoColor = eqKey ? (currentEqMap[eqKey] ?? undefined) : undefined;
+    if (!autoColor && eqKey) {
+      const nextIdx = Object.keys(currentEqMap).length;
+      autoColor = PRODUCT_PALETTE[nextIdx % PRODUCT_PALETTE.length];
+    }
+    const productToSave = { ...editingProduct, color: autoColor ?? '#94a3b8' };
+
     const exists = products.some((p) => p.code === editingProduct.code);
     try {
-      if (exists) await updateProduct(editingProduct);
-      else await addProduct(editingProduct);
+      if (exists) await updateProduct(productToSave);
+      else await addProduct(productToSave);
       setEditingProduct(null);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -445,7 +455,7 @@ export default function SettingsPage() {
             </button>
           </div>
 
-          <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 text-xs text-slate-500">
@@ -454,9 +464,7 @@ export default function SettingsPage() {
                   <th className="px-3 py-2.5 text-left font-semibold">商品名</th>
                   <th className="px-3 py-2.5 text-right font-semibold">個/パレット</th>
                   <th className="px-3 py-2.5 text-left font-semibold">パレット型</th>
-                  <th className="px-3 py-2.5 text-left font-semibold">製造工場</th>
                   <th className="px-3 py-2.5 text-center font-semibold">器具区分</th>
-                  <th className="px-3 py-2.5 text-left font-semibold">器具名</th>
                   <th className="px-3 py-2.5 text-center font-semibold">ポジ</th>
                   <th className="px-3 py-2.5 text-left font-semibold">仕向け</th>
                   <th className="px-3 py-2.5 text-center font-semibold">生産方式</th>
@@ -464,32 +472,93 @@ export default function SettingsPage() {
                 </tr>
               </thead>
               <tbody>
-                {products.map((p) => {
-                  const factory = factories.find((f) => f.code === (p.factoryCode ?? 'F001'));
+                {factories.map((factory) => {
+                  const fProducts = products.filter(
+                    (p) => (p.factoryCode ?? 'F001') === factory.code,
+                  );
+                  if (fProducts.length === 0) return null;
+
+                  // 器具名ごとにグループ化
+                  const eqMap = new Map<string, Product[]>();
+                  for (const p of fProducts) {
+                    const key = p.equipmentName?.trim() || '（器具名未設定）';
+                    if (!eqMap.has(key)) eqMap.set(key, []);
+                    eqMap.get(key)!.push(p);
+                  }
+
                   return (
-                    <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
-                      <td className="px-3 py-2">
-                        <span className="w-5 h-5 rounded border border-black/10 block" style={{ background: p.color }} />
-                      </td>
-                      <td className="px-3 py-2 font-mono text-xs text-slate-500">{p.code}</td>
-                      <td className="px-3 py-2 font-medium">{p.name}</td>
-                      <td className="px-3 py-2 text-right">{p.capacityPerPallet}</td>
-                      <td className="px-3 py-2 text-slate-500 text-xs">{p.palletType}</td>
-                      <td className="px-3 py-2">
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">
-                          {factory?.name ?? p.factoryCode ?? 'F001'}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 text-center text-slate-600">{p.equipmentCategory ?? '—'}</td>
-                      <td className="px-3 py-2 text-slate-600">{p.equipmentName ?? '—'}</td>
-                      <td className="px-3 py-2 text-center">{p.poji ? <span className="text-emerald-600 font-bold">○</span> : <span className="text-slate-300">—</span>}</td>
-                      <td className="px-3 py-2 text-slate-600">{p.destination ?? '—'}</td>
-                      <td className="px-3 py-2 text-center text-slate-600">{p.productionMethod ?? '—'}</td>
-                      <td className="px-3 py-2 text-right whitespace-nowrap">
-                        <button onClick={() => setEditingProduct({ ...p })} className="text-xs text-brand-600 hover:underline mr-3">編集</button>
-                        <button onClick={() => handleRemoveProduct(p.code)} className="text-xs text-red-400 hover:underline">削除</button>
-                      </td>
-                    </tr>
+                    <React.Fragment key={factory.code}>
+                      {/* 工場ヘッダー */}
+                      <tr className="bg-indigo-50 border-t-2 border-indigo-200">
+                        <td colSpan={10} className="px-4 py-2">
+                          <div className="flex items-center gap-2">
+                            <span className="bg-indigo-600 text-white text-[10px] font-bold px-2 py-0.5 rounded">
+                              {factory.code}
+                            </span>
+                            <span className="font-bold text-sm text-indigo-800">{factory.name}</span>
+                            <span className="text-xs text-indigo-400">{fProducts.length}製品</span>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {Array.from(eqMap.entries()).map(([eqName, eqProducts]) => {
+                        const eqColor = equipmentColorMap[eqName] ?? '#94a3b8';
+                        const isUnset = eqName === '（器具名未設定）';
+                        return (
+                          <React.Fragment key={eqName}>
+                            {/* 器具名ヘッダー */}
+                            <tr className={clsx(
+                              'border-t',
+                              isUnset ? 'bg-slate-50 border-slate-200' : 'bg-teal-50/60 border-teal-100',
+                            )}>
+                              <td colSpan={10} className="px-6 py-1.5">
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className="w-3 h-3 rounded-full border border-black/10 shrink-0"
+                                    style={{ background: eqColor }}
+                                  />
+                                  <span className={clsx(
+                                    'text-xs font-semibold',
+                                    isUnset ? 'text-slate-400 italic' : 'text-teal-700',
+                                  )}>
+                                    {eqName}
+                                  </span>
+                                  <span className="text-[10px] text-teal-400">{eqProducts.length}製品</span>
+                                </div>
+                              </td>
+                            </tr>
+
+                            {/* 製品行 */}
+                            {eqProducts.map((p) => (
+                              <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
+                                <td className="px-3 py-2">
+                                  <span
+                                    className="w-5 h-5 rounded border border-black/10 block"
+                                    style={{ background: productColors[p.code] ?? '#94a3b8' }}
+                                  />
+                                </td>
+                                <td className="px-3 py-2 font-mono text-xs text-slate-500">{p.code}</td>
+                                <td className="px-3 py-2 font-medium">{p.name}</td>
+                                <td className="px-3 py-2 text-right">{p.capacityPerPallet}</td>
+                                <td className="px-3 py-2 text-slate-500 text-xs">{p.palletType}</td>
+                                <td className="px-3 py-2 text-center text-slate-600 text-xs">{p.equipmentCategory ?? '—'}</td>
+                                <td className="px-3 py-2 text-center">
+                                  {p.poji
+                                    ? <span className="text-emerald-600 font-bold">○</span>
+                                    : <span className="text-slate-300">—</span>}
+                                </td>
+                                <td className="px-3 py-2 text-slate-600 text-xs">{p.destination ?? '—'}</td>
+                                <td className="px-3 py-2 text-center text-slate-600 text-xs">{p.productionMethod ?? '—'}</td>
+                                <td className="px-3 py-2 text-right whitespace-nowrap">
+                                  <button onClick={() => setEditingProduct({ ...p })} className="text-xs text-brand-600 hover:underline mr-3">編集</button>
+                                  <button onClick={() => handleRemoveProduct(p.code)} className="text-xs text-red-400 hover:underline">削除</button>
+                                </td>
+                              </tr>
+                            ))}
+                          </React.Fragment>
+                        );
+                      })}
+                    </React.Fragment>
                   );
                 })}
               </tbody>
@@ -502,6 +571,7 @@ export default function SettingsPage() {
               product={editingProduct}
               factories={factories}
               palletTypes={palletTypes}
+              equipmentColorMap={equipmentColorMap}
               onChange={setEditingProduct}
               onSave={handleSaveProduct}
               onCancel={() => setEditingProduct(null)}
@@ -802,16 +872,23 @@ function FactoryModal({
 
 // ─── 製品モーダル ──────────────────────────────────────────────────────
 function ProductModal({
-  product, factories, palletTypes, onChange, onSave, onCancel, isNew,
+  product, factories, palletTypes, equipmentColorMap, onChange, onSave, onCancel, isNew,
 }: {
   product: Product;
   factories: Factory[];
   palletTypes: import('@/lib/types').PalletType[];
+  equipmentColorMap: Record<string, string>;
   onChange: (p: Product) => void;
   onSave: () => void;
   onCancel: () => void;
   isNew: boolean;
 }) {
+  // 器具名から自動導出した色（新規器具名は次のパレット色）
+  const eqKey = product.equipmentName?.trim() ?? '';
+  const derivedColor = eqKey
+    ? (equipmentColorMap[eqKey] ?? PRODUCT_PALETTE[Object.keys(equipmentColorMap).length % PRODUCT_PALETTE.length])
+    : '#94a3b8';
+
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
       <div className="bg-white rounded-xl p-6 shadow-xl w-full max-w-md mx-4">
@@ -861,7 +938,7 @@ function ProductModal({
               placeholder="例: 101"
             />
           </Field>
-          <Field label="器具名">
+          <Field label="器具名" hint="同じ器具名の製品は同じ色で表示されます">
             <input
               className={INPUT_CLASS}
               value={product.equipmentName ?? ''}
@@ -916,21 +993,22 @@ function ProductModal({
               placeholder="1200"
             />
           </Field>
-          <Field label="表示カラー">
-            <div className="flex gap-2 flex-wrap">
-              {PRESET_COLORS.map((c) => (
-                <button
-                  key={c}
-                  onClick={() => onChange({ ...product, color: c })}
-                  className={clsx(
-                    'w-7 h-7 rounded border-2 transition-transform',
-                    product.color === c ? 'border-brand-600 scale-110' : 'border-transparent',
-                  )}
-                  style={{ background: c }}
-                />
-              ))}
+
+          {/* 表示カラー（器具名から自動設定） */}
+          <div className="bg-slate-50 rounded-lg px-3 py-2.5 text-xs text-slate-600 flex items-center gap-3">
+            <span
+              className="w-7 h-7 rounded border border-black/10 shrink-0"
+              style={{ background: derivedColor }}
+            />
+            <div>
+              <div className="font-medium text-slate-700 mb-0.5">表示カラー（自動設定）</div>
+              <div className="text-[10px] text-slate-400">
+                {eqKey
+                  ? `器具名「${eqKey}」に割り当てられた色です。同じ器具名の製品はすべて同色で表示されます。`
+                  : '器具名を入力すると、その器具名グループの色が自動設定されます。'}
+              </div>
             </div>
-          </Field>
+          </div>
         </div>
         <div className="flex gap-2 justify-end mt-6">
           <button onClick={onCancel} className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">

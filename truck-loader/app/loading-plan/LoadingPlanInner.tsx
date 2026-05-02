@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import { calcWeeklyPlans, calcSendQty, fillRate } from '@/lib/calculations';
+import { buildProductColors } from '@/lib/productColors';
 import { TruckDiagram } from '@/components/TruckDiagram';
 import { LoadingTable } from '@/components/LoadingTable';
 import type { DayWarehousePlan } from '@/lib/types';
@@ -27,7 +28,7 @@ export default function LoadingPlanInner() {
     confirmShipment, setShippingDay,
   } = useAppStore();
 
-  const productColors = Object.fromEntries(products.map((p) => [p.code, p.color]));
+  const productColors = buildProductColors(products);
   const productNames  = Object.fromEntries(products.map((p) => [p.code, p.name]));
   const truckMap      = Object.fromEntries(truckTypes.map((t) => [t.code, t]));
   const warehouseMap  = Object.fromEntries(warehouses.map((w) => [w.code, w]));
