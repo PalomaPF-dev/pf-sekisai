@@ -55,6 +55,7 @@ interface AppState {
   setProductionQty: (productCode: string, qty: number) => void;
   setRatio: (productCode: string, warehouseCode: string, ratio: number) => void;
   importDistributionRatiosBulk: (ratios: DistributionRatios) => void;
+  clearDistributionRatios: () => void;
   setInventoryStock: (productCode: string, qty: number) => void;
   setLocationStock: (productCode: string, warehouseCode: string, qty: number) => void;
   setProductionDays: (productCode: string, dateQtyMap: Record<string, number>) => void;
@@ -291,6 +292,11 @@ export const useAppStore = create<AppState>()((set, get) => ({
   importDistributionRatiosBulk: (ratios) => {
     set(() => ({ distributionRatios: ratios }));
     db.replaceAllDistributionRatios(ratios).catch(console.error);
+  },
+
+  clearDistributionRatios: () => {
+    set(() => ({ distributionRatios: {} }));
+    db.replaceAllDistributionRatios({}).catch(console.error);
   },
 
   // ─── 在庫 ─────────────────────────────────────────────────

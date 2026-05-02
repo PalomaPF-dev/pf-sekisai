@@ -101,7 +101,7 @@ export default function ProductionPage() {
     setProductionQty, setProductionDays, setRatio, setLocationStock, setPlannedSales, setInTransitStock,
     setSendQtyManual, clearSendQtyManualCell, importSendQtyManualBulk, clearSendQtyManual,
     importProductionPlan, importLocationStockBulk, importPlannedSalesBulk, importInTransitStockBulk, importDistributionRatiosBulk,
-    clearProductionPlan, clearLocationStock, clearPlannedSales, clearInTransitStock,
+    clearProductionPlan, clearLocationStock, clearPlannedSales, clearInTransitStock, clearDistributionRatios,
   } = useAppStore();
 
   const [activeTab, setActiveTab] = useState<Tab>('production');
@@ -234,6 +234,7 @@ export default function ProductionPage() {
     if (tab === 'location')   clearLocationStock();
     if (tab === 'transit')    clearInTransitStock();
     if (tab === 'sales')      clearPlannedSales();
+    if (tab === 'ratio')      clearDistributionRatios();
     if (tab === 'sendqty')    clearSendQtyManual();
     setClearFlash(`「${label}」をクリアしました`);
     setTimeout(() => setClearFlash(null), 3000);
@@ -347,9 +348,8 @@ export default function ProductionPage() {
             {label}
           </button>
         ))}
-        {/* 一括クリアボタン（ratioタブ以外） */}
-        {activeTab !== 'ratio' && (
-          <div className="ml-auto pb-1">
+        {/* 一括クリアボタン（全タブ） */}
+        <div className="ml-auto pb-1">
             <button
               onClick={() => handleClear(activeTab)}
               className="text-xs px-3 py-1.5 rounded border border-slate-300 text-slate-500 hover:border-red-400 hover:text-red-500 hover:bg-red-50 transition-colors"
@@ -357,7 +357,6 @@ export default function ProductionPage() {
               🗑 一括クリア
             </button>
           </div>
-        )}
       </div>
 
       {/* ─── フィルターバー（全タブ共通） ─── */}
@@ -1531,7 +1530,17 @@ export default function ProductionPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredProducts.map((p) => {
+                  {(() => {
+                    // 週間生産数に入力がある製品のみ表示
+                    const ratioProducts = filteredProducts.filter(
+                      (p) => (productionPlan[p.code] ?? 0) > 0,
+                    );
+                    if (ratioProducts.length === 0) return (
+                      <tr><td colSpan={2 + displayWarehouses.length + 1} className="px-4 py-8 text-center text-slate-400 text-sm">
+                        週間生産数が入力されている製品がありません。先に週間生産数タブで数量を入力してください。
+                      </td></tr>
+                    );
+                    return ratioProducts.map((p) => {
                     const rowTotal = displayWarehouses.reduce(
                       (s, wh) => s + (distributionRatios[p.code]?.[wh.code] ?? 0), 0,
                     );
@@ -1568,7 +1577,8 @@ export default function ProductionPage() {
                         </td>
                       </tr>
                     );
-                  })}
+                  });
+                  })()}
                 </tbody>
               </table>
             </div>
@@ -1786,7 +1796,10 @@ export default function ProductionPage() {
                     {factories.map((factory) => {
                       const factoryProducts = filteredProducts
                         .filter((p) => (p.factoryCode ?? 'F001') === factory.code)
-                        .filter((p) => warehouses.some((wh) => (sendQtyManual[p.code]?.[wh.code] ?? 0) > 0));
+                        .filter((p) =>
+                          warehouses.some((wh) => (sendQtyManual[p.code]?.[wh.code] ?? 0) > 0) ||
+                          warehouses.some((wh) => (sendQtyCalc[p.code]?.[wh.code] ?? 0) > 0)
+                        );
                       if (factoryProducts.length === 0) return null;
                       const factoryTotal = displayWarehouses.reduce(
                         (s, wh) => s + factoryProducts.reduce((ss, p) => ss + (sendQty[p.code]?.[wh.code] ?? 0), 0), 0,
@@ -1878,15 +1891,18 @@ export default function ProductionPage() {
                         </React.Fragment>
                       );
                     })}
-                    {/* 手動送り数ゼロ時の空表示 */}
+                    {/* 送り数ゼロ時の空表示 */}
                     {!factories.some((factory) =>
                       filteredProducts
                         .filter((p) => (p.factoryCode ?? 'F001') === factory.code)
-                        .some((p) => warehouses.some((wh) => (sendQtyManual[p.code]?.[wh.code] ?? 0) > 0))
+                        .some((p) =>
+                          warehouses.some((wh) => (sendQtyManual[p.code]?.[wh.code] ?? 0) > 0) ||
+                          warehouses.some((wh) => (sendQtyCalc[p.code]?.[wh.code] ?? 0) > 0)
+                        )
                     ) && (
                       <tr>
                         <td colSpan={2 + displayWarehouses.length + 1} className="px-4 py-8 text-center text-slate-400 text-sm">
-                          手動送り数が設定されていません。下の入力フォームで値を入力してください。
+                          送り数データがありません。配分比率と生産計画を設定してください。
                         </td>
                       </tr>
                     )}
