@@ -13,9 +13,9 @@ export const DEFAULT_PRODUCTS: Product[] = [
 ];
 
 export const DEFAULT_PALLET_TYPES: PalletType[] = [
-  { code: 'P01', name: '標準パレット(1100)',  widthMM: 1100, depthMM: 1100, heightMM: 144, maxWeightKg: 1000 },
-  { code: 'P02', name: '大型パレット(1200)',  widthMM: 1200, depthMM: 1000, heightMM: 144, maxWeightKg: 1000 },
-  { code: 'P03', name: '軽量パレット(800)',   widthMM:  800, depthMM: 1100, heightMM: 120, maxWeightKg:  500 },
+  { code: 'P01', name: '標準パレット(1100)',  widthMM: 1100, depthMM: 1100, heightMM: 144, maxWeightKg: 1000, loadedHeightMM: 1200 },
+  { code: 'P02', name: '大型パレット(1200)',  widthMM: 1200, depthMM: 1000, heightMM: 144, maxWeightKg: 1000, loadedHeightMM: 1200 },
+  { code: 'P03', name: '軽量パレット(800)',   widthMM:  800, depthMM: 1100, heightMM: 120, maxWeightKg:  500, loadedHeightMM: 1200 },
 ];
 
 export const DEFAULT_TRUCK_TYPES: TruckType[] = [

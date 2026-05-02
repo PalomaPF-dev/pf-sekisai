@@ -22,7 +22,7 @@ interface MergedDestination {
 
 export default function LoadingPlanInner() {
   const {
-    factories, products, warehouses, truckTypes,
+    factories, products, warehouses, truckTypes, palletTypes,
     productionPlan, distributionRatios, inventoryStock, locationStock,
     weeklyShippingSchedule, inTransitStock, plannedSales, sendQtyManual,
     confirmShipment, setShippingDay,
@@ -585,6 +585,7 @@ export default function LoadingPlanInner() {
                       load={load}
                       truckType={activeTruckType}
                       products={products}
+                      palletTypes={palletTypes}
                       productColors={productColors}
                       productNames={productNames}
                     />

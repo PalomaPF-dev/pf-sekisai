@@ -1,13 +1,14 @@
 'use client';
 
 import clsx from 'clsx';
-import type { TruckLoad, TruckType, TruckSlotItem, Product } from '@/lib/types';
+import type { TruckLoad, TruckType, TruckSlotItem, Product, PalletType } from '@/lib/types';
 import { calcStackingLayout } from '@/lib/calculations';
 
 interface Props {
   load: TruckLoad;
   truckType: TruckType;
   products: Product[];
+  palletTypes: PalletType[];
   productColors: Record<string, string>;
   productNames: Record<string, string>;
 }
@@ -59,8 +60,8 @@ function PalletCell({
   );
 }
 
-export function TruckDiagram({ load, truckType, products, productColors, productNames }: Props) {
-  const layout = calcStackingLayout(load, truckType, products);
+export function TruckDiagram({ load, truckType, products, palletTypes, productColors, productNames }: Props) {
+  const layout = calcStackingLayout(load, truckType, products, palletTypes);
   const { cols, rows, floor, upper, truckHeightMM } = layout;
 
   const floorCount = floor.flat().filter(Boolean).length;
@@ -68,9 +69,10 @@ export function TruckDiagram({ load, truckType, products, productColors, product
   const floorMax = rows * cols;
   const floorFillPct = Math.round((floorCount / (floorMax || 1)) * 100);
 
-  // 理論的に上段が使えるか（いずれかの床面パレットが上段を許容するか）
+  // 理論的に上段が使えるか（パレット型の loadedHeightMM から最小高さを算出）
+  const palletTypeMap = Object.fromEntries(palletTypes.map((pt) => [pt.code, pt]));
   const minProductH = products.length > 0
-    ? Math.min(...products.map((p) => p.loadedHeightMM ?? 1200))
+    ? Math.min(...products.map((p) => palletTypeMap[p.palletType]?.loadedHeightMM ?? 1200))
     : 1200;
   const hasStackable = floor.some((rowArr) =>
     rowArr.some((fp) => fp !== null && fp.loadedHeightMM + minProductH <= truckHeightMM)

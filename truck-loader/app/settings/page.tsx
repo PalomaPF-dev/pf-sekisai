@@ -681,7 +681,8 @@ export default function SettingsPage() {
                   <th className="px-4 py-2.5 text-left font-semibold">名称</th>
                   <th className="px-4 py-2.5 text-right font-semibold">幅（mm）</th>
                   <th className="px-4 py-2.5 text-right font-semibold">奥行き（mm）</th>
-                  <th className="px-4 py-2.5 text-right font-semibold">高さ（mm）</th>
+                  <th className="px-4 py-2.5 text-right font-semibold">板高さ（mm）</th>
+                  <th className="px-4 py-2.5 text-right font-semibold">積載総高さ（mm）</th>
                   <th className="px-4 py-2.5 text-right font-semibold">最大荷重（kg）</th>
                   <th className="px-4 py-2.5 text-left font-semibold">使用製品数</th>
                   <th className="px-4 py-2.5 text-right font-semibold">操作</th>
@@ -697,6 +698,9 @@ export default function SettingsPage() {
                       <td className="px-4 py-2 text-right text-slate-600">{pt.widthMM.toLocaleString()}</td>
                       <td className="px-4 py-2 text-right text-slate-600">{pt.depthMM.toLocaleString()}</td>
                       <td className="px-4 py-2 text-right text-slate-600">{pt.heightMM.toLocaleString()}</td>
+                      <td className="px-4 py-2 text-right font-semibold text-sky-700">
+                        {(pt.loadedHeightMM ?? 1200).toLocaleString()}
+                      </td>
                       <td className="px-4 py-2 text-right text-slate-600">{pt.maxWeightKg.toLocaleString()}</td>
                       <td className="px-4 py-2">
                         {usedCount > 0 ? (
@@ -984,16 +988,6 @@ function ProductModal({
               ))}
             </select>
           </Field>
-          <Field label="積載高さ (mm)" hint="パレット込みの総高さ。2段積み判定に使用します（例: 1200mm）">
-            <input
-              type="number" min={100} max={3000} step={10}
-              className={INPUT_CLASS}
-              value={product.loadedHeightMM ?? 1200}
-              onChange={(e) => onChange({ ...product, loadedHeightMM: parseInt(e.target.value, 10) || 1200 })}
-              placeholder="1200"
-            />
-          </Field>
-
           {/* 表示カラー（器具名から自動設定） */}
           <div className="bg-slate-50 rounded-lg px-3 py-2.5 text-xs text-slate-600 flex items-center gap-3">
             <span
@@ -1161,9 +1155,18 @@ function PalletModal({
               />
             </Field>
           </div>
+          <Field label="積載総高さ (mm)" hint="製品込みのパレット全体の高さ。2段積み判定に使用します（パレット板＋製品高さの合計）">
+            <input
+              type="number" min={100} max={3000} step={10}
+              className={INPUT_CLASS}
+              value={pallet.loadedHeightMM ?? 1200}
+              onChange={(e) => onChange({ ...pallet, loadedHeightMM: parseInt(e.target.value, 10) || 1200 })}
+              placeholder="1200"
+            />
+          </Field>
           <div className="bg-slate-50 rounded-lg px-3 py-2 text-xs text-slate-500">
-            サイズ: {pallet.widthMM} × {pallet.depthMM} mm　高さ: {pallet.heightMM} mm
-            最大荷重: {pallet.maxWeightKg.toLocaleString()} kg
+            サイズ: {pallet.widthMM} × {pallet.depthMM} mm　板高さ: {pallet.heightMM} mm
+            最大荷重: {pallet.maxWeightKg.toLocaleString()} kg　積載総高さ: {(pallet.loadedHeightMM ?? 1200).toLocaleString()} mm
           </div>
         </div>
         <div className="flex gap-2 justify-end mt-6">

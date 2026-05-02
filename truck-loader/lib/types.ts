@@ -17,7 +17,6 @@ export interface Product {
   poji?: boolean;             // ポジ（○/×）
   destination?: string;       // 仕向け（量販 / 一般 等）
   productionMethod?: string;  // 生産方式
-  loadedHeightMM?: number;   // パレット込み積載総高さ（mm）デフォルト1200
 }
 
 export interface Warehouse {
@@ -44,8 +43,9 @@ export interface PalletType {
   name: string;    // 表示名
   widthMM: number; // 幅（mm）
   depthMM: number; // 奥行き（mm）
-  heightMM: number; // 高さ（mm）
+  heightMM: number; // パレット板高さ（mm）
   maxWeightKg: number; // 最大積載重量（kg）
+  loadedHeightMM?: number; // 製品込み積載総高さ（mm）：2段積み判定に使用
 }
 
 // ─── 入力データ型 ────────────────────────────────────────────────────

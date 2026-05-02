@@ -1,5 +1,5 @@
 import type {
-  Factory, Product, Warehouse, TruckType,
+  Factory, Product, Warehouse, TruckType, PalletType,
   ProductionPlan, DistributionRatios,
   InventoryStock, LocationStock, InTransitStock, PlannedSales, SendQtyManual,
   PalletItem, TruckLoad, TruckLayout, TruckSlotItem, WarehousePlan,
@@ -339,18 +339,26 @@ export function fillRate(plan: WarehousePlan, maxPallets: number): number {
  * - 前方（row=0）から後方（row=rows-1）へ順に床を埋める
  * - 床パレットの高さ + 上段パレットの高さ ≤ 荷室高さ の場合に上段配置
  * - orderNum は床面を先に振り、その後上段に連番
+ * - 積載高さはパレット型の loadedHeightMM を優先し、未設定時は 1200mm
  */
 export function calcStackingLayout(
   load: TruckLoad,
   truckType: TruckType,
   products: Product[],
+  palletTypes: PalletType[] = [],
 ): TruckLayout {
   const { cols, rows, heightMM: truckH } = truckType;
   const TRUCK_H = truckH ?? 2300;
 
-  // 製品コード → 積載高さ マップ
+  // パレット型コード → loadedHeightMM マップ
+  const palletTypeMap = Object.fromEntries(palletTypes.map((pt) => [pt.code, pt]));
+
+  // 製品コード → 積載高さ マップ（パレット型の loadedHeightMM を優先）
   const heightMap: Record<string, number> = {};
-  for (const p of products) heightMap[p.code] = p.loadedHeightMM ?? 1200;
+  for (const p of products) {
+    const pt = palletTypeMap[p.palletType];
+    heightMap[p.code] = pt?.loadedHeightMM ?? 1200;
+  }
 
   // 展開キュー（パレット1枚ずつ）
   const queue: TruckSlotItem[] = [];
