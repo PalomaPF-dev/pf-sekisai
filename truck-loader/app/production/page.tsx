@@ -143,8 +143,8 @@ export default function ProductionPage() {
   const [sendQtyImported, setSendQtyImported] = useState(false);
 
   // ─── フィルター（タブごと） ──────────────────────────────────────────
-  type FilterState = { factory: string; code: string; name: string };
-  const emptyFilter = (): FilterState => ({ factory: '', code: '', name: '' });
+  type FilterState = { factory: string; equipment: string; code: string; name: string };
+  const emptyFilter = (): FilterState => ({ factory: '', equipment: '', code: '', name: '' });
   const [filters, setFilters] = useState<Record<Tab, FilterState>>({
     production: emptyFilter(),
     location:   emptyFilter(),
@@ -187,10 +187,16 @@ export default function ProductionPage() {
   );
 
   // フィルター済み製品リスト
+  const allEquipmentNames = useMemo(
+    () => [...new Set(products.map((p) => p.equipmentName?.trim() ?? '').filter(Boolean))].sort(),
+    [products],
+  );
+
   const filteredProducts = useMemo(() => {
     const f = filters[activeTab];
     return products.filter((p) => {
       if (f.factory && (p.factoryCode ?? 'F001') !== f.factory) return false;
+      if (f.equipment && (p.equipmentName?.trim() ?? '') !== f.equipment) return false;
       if (f.code && !p.code.toLowerCase().includes(f.code.toLowerCase())) return false;
       if (f.name && !p.name.toLowerCase().includes(f.name.toLowerCase())) return false;
       return true;
@@ -337,6 +343,17 @@ export default function ProductionPage() {
             <option key={f.code} value={f.code}>{f.code}　{f.name}</option>
           ))}
         </select>
+        {/* 器具名 */}
+        <select
+          value={filters[activeTab].equipment}
+          onChange={(e) => setFilter({ equipment: e.target.value })}
+          className="text-xs border border-slate-200 rounded px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+        >
+          <option value="">器具名：すべて</option>
+          {allEquipmentNames.map((eq) => (
+            <option key={eq} value={eq}>{eq}</option>
+          ))}
+        </select>
         {/* 製品コード */}
         <input
           type="text"
@@ -353,7 +370,7 @@ export default function ProductionPage() {
           placeholder="製品名で絞込"
           className="text-xs border border-slate-200 rounded px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 w-36"
         />
-        {(filters[activeTab].factory || filters[activeTab].code || filters[activeTab].name) && (
+        {(filters[activeTab].factory || filters[activeTab].equipment || filters[activeTab].code || filters[activeTab].name) && (
           <button
             onClick={() => setFilter(emptyFilter())}
             className="text-xs px-2 py-1.5 text-slate-400 hover:text-red-500 transition-colors"
