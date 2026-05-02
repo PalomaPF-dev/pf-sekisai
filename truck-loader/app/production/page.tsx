@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import { useMemo, useState, useRef } from 'react';
 import { useAppStore } from '@/lib/store';
 import { calcAllPlans, calcSendQty } from '@/lib/calculations';
@@ -60,6 +61,19 @@ function _weekLabel(dates: string[]): string {
   const d0 = new Date(dates[0] + 'T12:00:00');
   const weekNum = Math.ceil(d0.getDate() / 7);
   return `${d0.getFullYear()}年${d0.getMonth()+1}月第${weekNum}週　${_fmtMD(dates[0])}(月)〜${_fmtMD(dates[6])}(日)`;
+}
+
+// ─── 器具名グループ化ヘルパー ─────────────────────────────────────
+interface EquipmentGroup { equipmentName: string; products: import('@/lib/types').Product[] }
+
+function _groupByEquipment(products: import('@/lib/types').Product[]): EquipmentGroup[] {
+  const map = new Map<string, import('@/lib/types').Product[]>();
+  for (const p of products) {
+    const key = p.equipmentName?.trim() || '（未設定）';
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(p);
+  }
+  return Array.from(map.entries()).map(([equipmentName, products]) => ({ equipmentName, products }));
 }
 
 /** 今週CSVを生成 */
@@ -527,9 +541,9 @@ export default function ProductionPage() {
                     return s + (wTotal > 0 ? Math.ceil(wTotal / p.capacityPerPallet) : 0);
                   }, 0);
                   return (
-                    <>
+                    <React.Fragment key={`factory-${factory.code}`}>
                       {/* 工場ヘッダー */}
-                      <tr key={`hdr-${factory.code}`} className="bg-indigo-50 border-t-2 border-indigo-100">
+                      <tr className="bg-indigo-50 border-t-2 border-indigo-100">
                         <td colSpan={2 + 7 + 2} className="px-4 py-2 sticky left-0">
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-700">{factory.code}</span>
@@ -537,53 +551,100 @@ export default function ProductionPage() {
                           </div>
                         </td>
                       </tr>
-                      {/* 製品行 */}
-                      {factoryProducts.map((p) => {
-                        const wTotal = weekDays.reduce((s, d) => s + (dailyProductionPlan[p.code]?.[d] ?? 0), 0);
-                        const wPallets = wTotal > 0 ? Math.ceil(wTotal / p.capacityPerPallet) : 0;
+                      {/* 器具名グループ */}
+                      {_groupByEquipment(factoryProducts).map(({ equipmentName, products: eqProducts }) => {
+                        const eqDayTotals = weekDays.map(d =>
+                          eqProducts.reduce((s, p) => s + (dailyProductionPlan[p.code]?.[d] ?? 0), 0)
+                        );
+                        const eqWeekTotal = eqDayTotals.reduce((s, v) => s + v, 0);
+                        const eqPalletsCount = eqProducts.reduce((s, p) => {
+                          const qty = weekDays.reduce((ss, d) => ss + (dailyProductionPlan[p.code]?.[d] ?? 0), 0);
+                          return s + (qty > 0 ? Math.ceil(qty / p.capacityPerPallet) : 0);
+                        }, 0);
+
                         return (
-                          <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
-                            <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200 font-mono text-[11px] text-slate-500">{p.code}</td>
-                            <td className="px-3 py-1.5 sticky left-28 bg-white z-10 border-r border-slate-200">
-                              <div className="flex items-center gap-1.5">
-                                <span className="w-2.5 h-2.5 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
-                                <span className="font-medium text-slate-700 text-xs">{p.name}</span>
-                              </div>
-                            </td>
-                            {weekDays.map((dateStr) => {
-                              const isWorking = _isWorkingDate(dateStr, p.factoryCode ?? 'F001', operatingDays);
-                              const qty = dailyProductionPlan[p.code]?.[dateStr] ?? 0;
+                          <React.Fragment key={`eq-${factory.code}-${equipmentName}`}>
+                            {/* 器具名サブヘッダー */}
+                            <tr className="bg-teal-50 border-t border-teal-100">
+                              <td colSpan={2 + 7 + 2} className="px-6 py-1.5 sticky left-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-teal-100 text-teal-700">器具名</span>
+                                  <span className="text-xs font-semibold text-teal-800">{equipmentName}</span>
+                                  <span className="text-[10px] text-teal-400">{eqProducts.length}製品</span>
+                                </div>
+                              </td>
+                            </tr>
+
+                            {/* 製品行 */}
+                            {eqProducts.map((p) => {
+                              const wTotal = weekDays.reduce((s, d) => s + (dailyProductionPlan[p.code]?.[d] ?? 0), 0);
+                              const wPallets = wTotal > 0 ? Math.ceil(wTotal / p.capacityPerPallet) : 0;
                               return (
-                                <td key={dateStr} className="px-1 py-1.5 text-center">
-                                  {isWorking ? (
-                                    <input
-                                      type="number" min={0}
-                                      value={qty === 0 ? '' : qty}
-                                      onChange={(e) => {
-                                        const v = parseInt(e.target.value, 10) || 0;
-                                        setProductionDays(p.code, { [dateStr]: v });
-                                      }}
-                                      placeholder="0"
-                                      className="w-14 text-right border border-slate-200 rounded px-1 py-0.5 text-xs
-                                                 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 bg-white"
-                                    />
-                                  ) : (
-                                    <span className="text-slate-300 text-xs">—</span>
-                                  )}
-                                </td>
+                                <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
+                                  <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200 font-mono text-[11px] text-slate-500">{p.code}</td>
+                                  <td className="px-3 py-1.5 sticky left-28 bg-white z-10 border-r border-slate-200">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="w-2.5 h-2.5 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
+                                      <span className="font-medium text-slate-700 text-xs">{p.name}</span>
+                                    </div>
+                                  </td>
+                                  {weekDays.map((dateStr) => {
+                                    const isWorking = _isWorkingDate(dateStr, p.factoryCode ?? 'F001', operatingDays);
+                                    const qty = dailyProductionPlan[p.code]?.[dateStr] ?? 0;
+                                    return (
+                                      <td key={dateStr} className="px-1 py-1.5 text-center">
+                                        {isWorking ? (
+                                          <input
+                                            type="number" min={0}
+                                            value={qty === 0 ? '' : qty}
+                                            onChange={(e) => {
+                                              const v = parseInt(e.target.value, 10) || 0;
+                                              setProductionDays(p.code, { [dateStr]: v });
+                                            }}
+                                            placeholder="0"
+                                            className="w-14 text-right border border-slate-200 rounded px-1 py-0.5 text-xs
+                                                       focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 bg-white"
+                                          />
+                                        ) : (
+                                          <span className="text-slate-300 text-xs">—</span>
+                                        )}
+                                      </td>
+                                    );
+                                  })}
+                                  <td className="px-3 py-1.5 text-right font-medium text-slate-700 text-xs">
+                                    {wTotal > 0 ? wTotal.toLocaleString() : <span className="text-slate-300">—</span>}
+                                  </td>
+                                  <td className="px-3 py-1.5 text-right font-medium text-slate-500 text-xs">
+                                    {wPallets > 0 ? `${wPallets}枚` : <span className="text-slate-300">—</span>}
+                                  </td>
+                                </tr>
                               );
                             })}
-                            <td className="px-3 py-1.5 text-right font-medium text-slate-700">
-                              {wTotal > 0 ? wTotal.toLocaleString() : <span className="text-slate-300">—</span>}
-                            </td>
-                            <td className="px-3 py-1.5 text-right font-medium text-slate-500">
-                              {wPallets > 0 ? `${wPallets}枚` : <span className="text-slate-300">—</span>}
-                            </td>
-                          </tr>
+
+                            {/* 器具名小計 (製品が2個以上の場合のみ) */}
+                            {eqProducts.length > 1 && (
+                              <tr className="border-t border-teal-100 bg-teal-50/60">
+                                <td colSpan={2} className="px-6 py-1 sticky left-0 bg-teal-50/60 z-10 border-r border-slate-200 text-[10px] text-teal-600 font-semibold">
+                                  {equipmentName} 小計
+                                </td>
+                                {eqDayTotals.map((dt, di) => (
+                                  <td key={di} className="px-2 py-1 text-right text-[10px] font-bold text-teal-600">
+                                    {dt > 0 ? dt.toLocaleString() : '—'}
+                                  </td>
+                                ))}
+                                <td className="px-3 py-1 text-right text-[10px] font-bold text-teal-600">
+                                  {eqWeekTotal > 0 ? eqWeekTotal.toLocaleString() : '—'}
+                                </td>
+                                <td className="px-3 py-1 text-right text-[10px] font-bold text-teal-500">
+                                  {eqPalletsCount > 0 ? `${eqPalletsCount}枚` : '—'}
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
                         );
                       })}
                       {/* 工場小計 */}
-                      <tr key={`sub-${factory.code}`} className="border-t border-indigo-100 bg-indigo-50/60">
+                      <tr className="border-t border-indigo-100 bg-indigo-50/60">
                         <td colSpan={2} className="px-4 py-1.5 sticky left-0 bg-indigo-50/60 z-10 border-r border-slate-200 text-xs text-indigo-500 font-semibold">{factory.name} 小計</td>
                         {factoryDayTotals.map((dt, di) => (
                           <td key={di} className="px-2 py-1.5 text-right text-xs font-bold text-indigo-600">
@@ -597,7 +658,7 @@ export default function ProductionPage() {
                           {factoryPallets > 0 ? `${factoryPallets}枚` : '—'}
                         </td>
                       </tr>
-                    </>
+                    </React.Fragment>
                   );
                 })}
                 {/* 総合計 */}
