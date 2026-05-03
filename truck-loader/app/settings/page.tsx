@@ -27,6 +27,11 @@ export default function SettingsPage() {
   const productColors     = useMemo(() => buildProductColors(products), [products]);
 
   const [tab, setTab] = useState<Tab>('products');
+
+  // 製品フィルター
+  const [filterEquipmentName, setFilterEquipmentName] = useState<string | null>(null);
+  const [filterText, setFilterText] = useState('');
+
   const [editingFactory, setEditingFactory] = useState<Factory | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(null);
@@ -465,14 +470,98 @@ export default function SettingsPage() {
             </div>
           </details>
 
-          <div className="flex justify-end mb-3">
-            <button
-              onClick={() => setEditingProduct(newProduct())}
-              className="text-sm px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors"
-            >
-              + 製品を追加
-            </button>
-          </div>
+          {/* フィルターバー */}
+          {(() => {
+            // 全器具名リスト（工場順・器具名順）
+            const allEqNames = Array.from(new Set(
+              products.map((p) => p.equipmentName?.trim() || '（器具名未設定）')
+            ));
+            const filteredCount = products.filter((p) => {
+              const eq = p.equipmentName?.trim() || '（器具名未設定）';
+              if (filterEquipmentName && eq !== filterEquipmentName) return false;
+              if (filterText) {
+                const q = filterText.toLowerCase();
+                return p.code.toLowerCase().includes(q) || p.name.toLowerCase().includes(q) || eq.toLowerCase().includes(q);
+              }
+              return true;
+            }).length;
+            return (
+              <div className="mb-3 flex flex-col gap-2">
+                {/* テキスト検索 + 追加ボタン */}
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
+                    <input
+                      type="text"
+                      placeholder="製品名・コード・器具名で検索…"
+                      value={filterText}
+                      onChange={(e) => setFilterText(e.target.value)}
+                      className="w-full pl-7 pr-8 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400"
+                    />
+                    {filterText && (
+                      <button
+                        onClick={() => setFilterText('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                      >✕</button>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setEditingProduct(newProduct())}
+                    className="text-sm px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors shrink-0"
+                  >
+                    + 製品を追加
+                  </button>
+                </div>
+                {/* 器具名チップ */}
+                <div className="flex flex-wrap gap-1.5 items-center">
+                  <button
+                    onClick={() => setFilterEquipmentName(null)}
+                    className={clsx(
+                      'px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
+                      filterEquipmentName === null
+                        ? 'bg-brand-600 text-white border-brand-600'
+                        : 'bg-white text-slate-600 border-slate-300 hover:border-brand-400',
+                    )}
+                  >
+                    すべて
+                    <span className="ml-1 opacity-70">{products.length}</span>
+                  </button>
+                  {allEqNames.map((eqName) => {
+                    const color = equipmentColorMap[eqName] ?? '#94a3b8';
+                    const count = products.filter(
+                      (p) => (p.equipmentName?.trim() || '（器具名未設定）') === eqName,
+                    ).length;
+                    const isActive = filterEquipmentName === eqName;
+                    return (
+                      <button
+                        key={eqName}
+                        onClick={() => setFilterEquipmentName(isActive ? null : eqName)}
+                        className={clsx(
+                          'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
+                          isActive
+                            ? 'text-white border-transparent shadow-sm'
+                            : 'bg-white text-slate-600 border-slate-300 hover:border-slate-400',
+                        )}
+                        style={isActive ? { background: color, borderColor: color } : {}}
+                      >
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{ background: isActive ? 'rgba(255,255,255,0.7)' : color }}
+                        />
+                        {eqName}
+                        <span className="opacity-70">{count}</span>
+                      </button>
+                    );
+                  })}
+                  {(filterEquipmentName || filterText) && (
+                    <span className="text-xs text-slate-500 ml-1">
+                      {filteredCount}件を表示中
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-x-auto">
             <table className="w-full text-sm">
@@ -493,9 +582,17 @@ export default function SettingsPage() {
               </thead>
               <tbody>
                 {factories.map((factory) => {
-                  const fProducts = products.filter(
-                    (p) => (p.factoryCode ?? 'F001') === factory.code,
-                  );
+                  // フィルター適用後の製品リスト
+                  const fProducts = products.filter((p) => {
+                    if ((p.factoryCode ?? 'F001') !== factory.code) return false;
+                    const eq = p.equipmentName?.trim() || '（器具名未設定）';
+                    if (filterEquipmentName && eq !== filterEquipmentName) return false;
+                    if (filterText) {
+                      const q = filterText.toLowerCase();
+                      return p.code.toLowerCase().includes(q) || p.name.toLowerCase().includes(q) || eq.toLowerCase().includes(q);
+                    }
+                    return true;
+                  });
                   if (fProducts.length === 0) return null;
 
                   // 器具名ごとにグループ化
