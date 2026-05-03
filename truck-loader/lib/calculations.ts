@@ -95,7 +95,10 @@ export function calcWarehousePlan(
   const minLoadedH = shippedProds.length > 0
     ? Math.min(...shippedProds.map((p) => palletTypeMap[p.palletType]?.loadedHeightMM ?? 1200))
     : 1200;
-  const canStack = minLoadedH * 2 <= truckH;
+  // 2段積み条件: 高さ制約 + 上段に積める製品が存在 + 上積み許可の製品が存在
+  const hasUpperStackable  = shippedProds.some((p) => p.stackable !== false);
+  const hasBottomStackable = shippedProds.some((p) => p.allowStackOnTop !== false);
+  const canStack = hasUpperStackable && hasBottomStackable && minLoadedH * 2 <= truckH;
   const effectiveCap = canStack ? floorCap * 2 : floorCap;
   const maxPal = Math.max(truckType.maxPallets, effectiveCap);
 
@@ -373,6 +376,9 @@ export function calcStackingLayout(
     heightMap[p.code] = pt?.loadedHeightMM ?? 1200;
   }
 
+  // 製品コード → スタッキングフラグ マップ
+  const productMap = Object.fromEntries(products.map((p) => [p.code, p]));
+
   // 展開キュー（パレット1枚ずつ）
   const queue: TruckSlotItem[] = [];
   let orderNum = 1;
@@ -408,11 +414,23 @@ export function calcStackingLayout(
       if (queue.length === 0) break outer2;
       const fp = floor[row][col];
       if (!fp) continue; // 床が空 → 上段も不可
-      const nextH = queue[0].loadedHeightMM;
-      if (fp.loadedHeightMM + nextH <= TRUCK_H) {
-        // 上段に積める → orderNum は後段連番
-        upper[row][col] = { ...queue.shift()!, orderNum: orderNum++ };
+      // 下段製品の「上積み許可」チェック
+      const floorProd = productMap[fp.productCode];
+      if (floorProd?.allowStackOnTop === false) continue;
+      // 上段候補製品の「上段積み可」チェック（スキップして次の候補を探す）
+      let placed = false;
+      for (let qi = 0; qi < queue.length; qi++) {
+        const candidate = queue[qi];
+        const candidateProd = productMap[candidate.productCode];
+        if (candidateProd?.stackable === false) continue;
+        if (fp.loadedHeightMM + candidate.loadedHeightMM > TRUCK_H) continue;
+        // 条件を満たす候補を上段に配置
+        upper[row][col] = { ...candidate, orderNum: orderNum++ };
+        queue.splice(qi, 1);
+        placed = true;
+        break;
       }
+      if (!placed && queue.length === 0) break outer2;
     }
   }
 

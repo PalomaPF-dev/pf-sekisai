@@ -46,6 +46,8 @@ export default function SettingsPage() {
   const newProduct = (): Product => ({
     code: '', name: '', capacityPerPallet: 40, palletType: 'P03', color: PRODUCT_PALETTE[0],
     factoryCode: factories[0]?.code ?? 'F001',
+    stackable: true,
+    allowStackOnTop: true,
   });
 
   // 工場の新規追加用空テンプレート
@@ -485,6 +487,7 @@ export default function SettingsPage() {
                   <th className="px-3 py-2.5 text-center font-semibold">ポジ</th>
                   <th className="px-3 py-2.5 text-left font-semibold">仕向け</th>
                   <th className="px-3 py-2.5 text-center font-semibold">生産方式</th>
+                  <th className="px-3 py-2.5 text-center font-semibold" title="上段積み可 / 上積み許可">2段積み</th>
                   <th className="px-3 py-2.5 text-right font-semibold">操作</th>
                 </tr>
               </thead>
@@ -507,7 +510,7 @@ export default function SettingsPage() {
                     <React.Fragment key={factory.code}>
                       {/* 工場ヘッダー */}
                       <tr className="bg-indigo-50 border-t-2 border-indigo-200">
-                        <td colSpan={10} className="px-4 py-2">
+                        <td colSpan={11} className="px-4 py-2">
                           <div className="flex items-center gap-2">
                             <span className="bg-indigo-600 text-white text-[10px] font-bold px-2 py-0.5 rounded">
                               {factory.code}
@@ -528,7 +531,7 @@ export default function SettingsPage() {
                               'border-t',
                               isUnset ? 'bg-slate-50 border-slate-200' : 'bg-teal-50/60 border-teal-100',
                             )}>
-                              <td colSpan={10} className="px-6 py-1.5">
+                              <td colSpan={11} className="px-6 py-1.5">
                                 <div className="flex items-center gap-2">
                                   <span
                                     className="w-3 h-3 rounded-full border border-black/10 shrink-0"
@@ -566,6 +569,9 @@ export default function SettingsPage() {
                                 </td>
                                 <td className="px-3 py-2 text-slate-600 text-xs">{p.destination ?? '—'}</td>
                                 <td className="px-3 py-2 text-center text-slate-600 text-xs">{p.productionMethod ?? '—'}</td>
+                                <td className="px-3 py-2 text-center">
+                                  <StackingBadge stackable={p.stackable} allowStackOnTop={p.allowStackOnTop} />
+                                </td>
                                 <td className="px-3 py-2 text-right whitespace-nowrap">
                                   <button onClick={() => setEditingProduct({ ...p })} className="text-xs text-brand-600 hover:underline mr-3">編集</button>
                                   <button onClick={() => handleRemoveProduct(p.code)} className="text-xs text-red-400 hover:underline">削除</button>
@@ -951,6 +957,46 @@ export default function SettingsPage() {
   );
 }
 
+// ─── 2段積みバッジ ────────────────────────────────────────────────────
+function StackingBadge({
+  stackable,
+  allowStackOnTop,
+}: {
+  stackable?: boolean;
+  allowStackOnTop?: boolean;
+}) {
+  const canUpper = stackable !== false;
+  const canBottom = allowStackOnTop !== false;
+  if (canUpper && canBottom) {
+    return (
+      <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">
+        ✓ 両可
+      </span>
+    );
+  }
+  if (!canUpper && !canBottom) {
+    return (
+      <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-600">
+        ✕ 床面のみ
+      </span>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-0.5 items-center">
+      {!canUpper && (
+        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
+          上段×
+        </span>
+      )}
+      {!canBottom && (
+        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700">
+          上積×
+        </span>
+      )}
+    </div>
+  );
+}
+
 // ─── トラックモーダル ────────────────────────────────────────────────────
 function TruckModal({
   truck, onSave, onCancel, isNew,
@@ -1266,6 +1312,43 @@ function ProductModal({
               ))}
             </select>
           </Field>
+          {/* 2段積み設定 */}
+          <div className="border-t border-slate-100 pt-3">
+            <p className="text-xs font-semibold text-slate-600 mb-2">2段積み条件</p>
+            <div className="flex flex-col gap-2">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={product.stackable !== false}
+                  onChange={(e) => onChange({ ...product, stackable: e.target.checked })}
+                  className="w-4 h-4 mt-0.5 accent-brand-600"
+                />
+                <div>
+                  <span className="text-sm text-slate-700 font-medium">上段積み可</span>
+                  <p className="text-[10px] text-slate-400 mt-0.5 leading-relaxed">
+                    この製品を2段目（上段）に積めます。<br />
+                    OFFにすると、この製品は常に床面（1段目）のみに配置されます。
+                  </p>
+                </div>
+              </label>
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={product.allowStackOnTop !== false}
+                  onChange={(e) => onChange({ ...product, allowStackOnTop: e.target.checked })}
+                  className="w-4 h-4 mt-0.5 accent-brand-600"
+                />
+                <div>
+                  <span className="text-sm text-slate-700 font-medium">上積み許可</span>
+                  <p className="text-[10px] text-slate-400 mt-0.5 leading-relaxed">
+                    この製品の上に別の製品を積めます。<br />
+                    OFFにすると、この製品は必ず最上段に置かれ、上には何も積みません。
+                  </p>
+                </div>
+              </label>
+            </div>
+          </div>
+
           {/* 表示カラー（器具名から自動設定） */}
           <div className="bg-slate-50 rounded-lg px-3 py-2.5 text-xs text-slate-600 flex items-center gap-3">
             <span

@@ -17,6 +17,8 @@ export interface Product {
   poji?: boolean;             // ポジ（○/×）
   destination?: string;       // 仕向け（量販 / 一般 等）
   productionMethod?: string;  // 生産方式
+  stackable?: boolean;        // 上段積み可：この製品を2段目に配置できる（省略時は true）
+  allowStackOnTop?: boolean;  // 上積み許可：この製品の上に別製品を積める（省略時は true）
 }
 
 export interface Warehouse {

@@ -45,7 +45,8 @@ export async function loadProducts(): Promise<Product[]> {
     poji: r.poji ?? false,
     destination: r.destination ?? '',
     productionMethod: r.production_method ?? '',
-    loadedHeightMM: r.loaded_height_mm ?? 1200,
+    stackable: r.stackable ?? true,
+    allowStackOnTop: r.allow_stack_on_top ?? true,
   }));
 }
 
@@ -62,6 +63,8 @@ export async function upsertProduct(p: Product) {
     poji: p.poji ?? false,
     destination: p.destination ?? '',
     production_method: p.productionMethod ?? '',
+    stackable: p.stackable ?? true,
+    allow_stack_on_top: p.allowStackOnTop ?? true,
   });
   if (error) throw error;
 }
@@ -79,6 +82,8 @@ export async function upsertProducts(products: Product[]) {
     poji: p.poji ?? false,
     destination: p.destination ?? '',
     production_method: p.productionMethod ?? '',
+    stackable: p.stackable ?? true,
+    allow_stack_on_top: p.allowStackOnTop ?? true,
   }));
   const { error } = await supabase.from('products').upsert(rows);
   if (error) throw error;
