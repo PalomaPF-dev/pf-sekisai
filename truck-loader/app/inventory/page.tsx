@@ -18,6 +18,7 @@ export default function InventoryPage() {
   const [confirmed, setConfirmed] = useState(false);
 
   // ── フィルター ──────────────────────────────────────────────────────
+  const [filterFactory, setFilterFactory] = useState<string | null>(null);
   const [filterEquipmentName, setFilterEquipmentName] = useState<string | null>(null);
   const [filterText, setFilterText] = useState('');
 
@@ -79,11 +80,13 @@ export default function InventoryPage() {
     return set;
   }, [products, activeWarehouses, locationStock, inTransitStock, plannedSales, sendQty]);
 
-  // フィルター済み製品リスト（器具名 + テキスト + データなし非表示）
+  // フィルター済み製品リスト（工場 + 器具名 + テキスト + データなし非表示）
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
       // データなし製品は非表示
       if (!hasAnyData.has(p.code)) return false;
+      // 工場フィルター
+      if (filterFactory && (p.factoryCode ?? 'F001') !== filterFactory) return false;
       // 器具名フィルター
       const eq = p.equipmentName?.trim() || '（未設定）';
       if (filterEquipmentName && eq !== filterEquipmentName) return false;
@@ -98,18 +101,30 @@ export default function InventoryPage() {
       }
       return true;
     });
-  }, [products, hasAnyData, filterEquipmentName, filterText]);
+  }, [products, hasAnyData, filterFactory, filterEquipmentName, filterText]);
 
-  // 器具名チップ用カウント（データありの製品のみ）
+  // 工場チップ用カウント（データありの製品のみ）
+  const factoryCountMap = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const p of products) {
+      if (!hasAnyData.has(p.code)) continue;
+      const fc = p.factoryCode ?? 'F001';
+      m[fc] = (m[fc] ?? 0) + 1;
+    }
+    return m;
+  }, [products, hasAnyData]);
+
+  // 器具名チップ用カウント（データあり・工場フィルター適用後の製品のみ）
   const eqCountMap = useMemo(() => {
     const m: Record<string, number> = {};
     for (const p of products) {
       if (!hasAnyData.has(p.code)) continue;
+      if (filterFactory && (p.factoryCode ?? 'F001') !== filterFactory) continue;
       const eq = p.equipmentName?.trim() || '（未設定）';
       m[eq] = (m[eq] ?? 0) + 1;
     }
     return m;
-  }, [products, hasAnyData]);
+  }, [products, hasAnyData, filterFactory]);
 
   return (
     <div className="max-w-screen-xl mx-auto px-4 py-6">
@@ -173,6 +188,48 @@ export default function InventoryPage() {
             >✕</button>
           )}
         </div>
+        {/* 工場チップ */}
+        {factories.length > 1 && (
+          <div className="flex flex-wrap gap-1.5 items-center">
+            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mr-1">工場</span>
+            <button
+              onClick={() => { setFilterFactory(null); setFilterEquipmentName(null); }}
+              className={clsx(
+                'px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
+                filterFactory === null
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'bg-white text-slate-600 border-slate-300 hover:border-indigo-400',
+              )}
+            >
+              すべて
+              <span className="ml-1 opacity-70">{hasAnyData.size}</span>
+            </button>
+            {factories.map((f) => {
+              const count = factoryCountMap[f.code] ?? 0;
+              if (count === 0) return null;
+              const isActive = filterFactory === f.code;
+              return (
+                <button
+                  key={f.code}
+                  onClick={() => {
+                    setFilterFactory(isActive ? null : f.code);
+                    setFilterEquipmentName(null); // 工場切替時に器具名フィルターをリセット
+                  }}
+                  className={clsx(
+                    'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
+                    isActive
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                      : 'bg-white text-slate-600 border-slate-300 hover:border-indigo-400',
+                  )}
+                >
+                  <span className="font-mono text-[9px] opacity-80">{f.code}</span>
+                  {f.name}
+                  <span className="opacity-70">{count}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
         {/* 器具名チップ */}
         <div className="flex flex-wrap gap-1.5 items-center">
           <button
@@ -214,7 +271,7 @@ export default function InventoryPage() {
                 </button>
               );
             })}
-          {(filterEquipmentName !== null || filterText) && (
+          {(filterFactory !== null || filterEquipmentName !== null || filterText) && (
             <span className="text-xs text-slate-500 ml-1">
               {filteredProducts.length}件を表示中
             </span>
