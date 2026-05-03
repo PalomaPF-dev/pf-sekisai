@@ -32,6 +32,7 @@ export default function SettingsPage() {
   const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(null);
   const [editingPallet, setEditingPallet] = useState<PalletType | null>(null);
   const [editingTruck, setEditingTruck] = useState<import('@/lib/types').TruckType | null>(null);
+  const [truckOpError, setTruckOpError] = useState<string | null>(null);
 
   // 製品CSV インポート用
   const prodCsvRef = useRef<HTMLInputElement>(null);
@@ -65,11 +66,11 @@ export default function SettingsPage() {
     code: '', name: '', maxPallets: 8, cols: 2, rows: 4, widthMM: 2100, depthMM: 5200, heightMM: 2300,
   });
 
-  const handleSaveTruck = () => {
-    if (!editingTruck || !editingTruck.code.trim() || !editingTruck.name.trim()) return;
-    const exists = truckTypes.some((t) => t.code === editingTruck.code);
-    if (exists) updateTruckType(editingTruck);
-    else addTruckType(editingTruck);
+  const handleSaveTruck = (truck: import('@/lib/types').TruckType) => {
+    setTruckOpError(null);
+    const exists = truckTypes.some((t) => t.code === truck.code);
+    if (exists) updateTruckType(truck);
+    else addTruckType(truck);
     setEditingTruck(null);
   };
 
@@ -858,10 +859,17 @@ export default function SettingsPage() {
             ※ 荷室高さは2段積み判定に使用されます。使用中の拠点があるトラックは削除できません。
           </p>
 
+          {truckOpError && (
+            <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 flex items-start gap-2">
+              <span className="font-bold shrink-0">❌</span>
+              <div className="flex-1 font-mono break-all">{truckOpError}</div>
+              <button onClick={() => setTruckOpError(null)} className="text-red-400 hover:text-red-600 shrink-0">✕</button>
+            </div>
+          )}
+
           {editingTruck && (
             <TruckModal
               truck={editingTruck}
-              onChange={setEditingTruck}
               onSave={handleSaveTruck}
               onCancel={() => setEditingTruck(null)}
               isNew={!truckTypes.some((t) => t.code === editingTruck.code)}
@@ -945,14 +953,49 @@ export default function SettingsPage() {
 
 // ─── トラックモーダル ────────────────────────────────────────────────────
 function TruckModal({
-  truck, onChange, onSave, onCancel, isNew,
+  truck, onSave, onCancel, isNew,
 }: {
   truck: import('@/lib/types').TruckType;
-  onChange: (t: import('@/lib/types').TruckType) => void;
-  onSave: () => void;
+  onSave: (t: import('@/lib/types').TruckType) => void;
   onCancel: () => void;
   isNew: boolean;
 }) {
+  // フィールドをローカル文字列 state で管理（入力中の中間値を安全に保持）
+  const [code,       setCode]       = useState(truck.code);
+  const [name,       setName]       = useState(truck.name);
+  const [maxPallets, setMaxPallets] = useState(String(truck.maxPallets));
+  const [heightMM,   setHeightMM]   = useState(String(truck.heightMM));
+  const [cols,       setCols]       = useState(String(truck.cols));
+  const [rows,       setRows]       = useState(String(truck.rows));
+  const [widthMM,    setWidthMM]    = useState(String(truck.widthMM));
+  const [depthMM,    setDepthMM]    = useState(String(truck.depthMM));
+  const [error,      setError]      = useState<string | null>(null);
+
+  // プレビュー用に現在値を数値化（無効なら元の値）
+  const pMaxPallets = parseInt(maxPallets, 10) || 0;
+  const pHeightMM   = parseInt(heightMM, 10)   || 0;
+  const pCols       = parseInt(cols, 10)        || 0;
+  const pRows       = parseInt(rows, 10)        || 0;
+  const pWidthMM    = parseInt(widthMM, 10)     || 0;
+  const pDepthMM    = parseInt(depthMM, 10)     || 0;
+
+  const handleSave = () => {
+    if (!code.trim() || !name.trim()) { setError('コードと名称は必須です'); return; }
+    if (!pMaxPallets || !pCols || !pRows) { setError('最大P数・列数・行数は1以上の整数を入力してください'); return; }
+    if (!pHeightMM)  { setError('荷室高さは100mm以上の値を入力してください'); return; }
+    if (!pWidthMM || !pDepthMM) { setError('荷台幅・奥行きを入力してください'); return; }
+    onSave({
+      code: code.trim().toUpperCase(),
+      name: name.trim(),
+      maxPallets: pMaxPallets,
+      heightMM:   pHeightMM,
+      cols:       pCols,
+      rows:       pRows,
+      widthMM:    pWidthMM,
+      depthMM:    pDepthMM,
+    });
+  };
+
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
       <div className="bg-white rounded-xl p-6 shadow-xl w-full max-w-md mx-4">
@@ -961,8 +1004,8 @@ function TruckModal({
           <Field label="コード（例: T07）">
             <input
               className={INPUT_CLASS}
-              value={truck.code}
-              onChange={(e) => onChange({ ...truck, code: e.target.value.toUpperCase() })}
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
               disabled={!isNew}
               placeholder="例: T07"
             />
@@ -970,8 +1013,8 @@ function TruckModal({
           <Field label="名称">
             <input
               className={INPUT_CLASS}
-              value={truck.name}
-              onChange={(e) => onChange({ ...truck, name: e.target.value })}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
               placeholder="例: ウイング車(4t)"
             />
           </Field>
@@ -980,16 +1023,16 @@ function TruckModal({
               <input
                 type="number" min={1} max={30}
                 className={INPUT_CLASS}
-                value={truck.maxPallets}
-                onChange={(e) => onChange({ ...truck, maxPallets: parseInt(e.target.value, 10) || 1 })}
+                value={maxPallets}
+                onChange={(e) => setMaxPallets(e.target.value)}
               />
             </Field>
             <Field label="荷室高さ（mm）" hint="2段積み判定に使用">
               <input
-                type="number" min={1000} max={4000} step={50}
+                type="number" min={100} step={50}
                 className={INPUT_CLASS}
-                value={truck.heightMM}
-                onChange={(e) => onChange({ ...truck, heightMM: parseInt(e.target.value, 10) || 2300 })}
+                value={heightMM}
+                onChange={(e) => setHeightMM(e.target.value)}
                 placeholder="2300"
               />
             </Field>
@@ -1001,16 +1044,16 @@ function TruckModal({
                 <input
                   type="number" min={1} max={4}
                   className={INPUT_CLASS}
-                  value={truck.cols}
-                  onChange={(e) => onChange({ ...truck, cols: parseInt(e.target.value, 10) || 1 })}
+                  value={cols}
+                  onChange={(e) => setCols(e.target.value)}
                 />
               </Field>
               <Field label="縦行数（奥行き方向）">
                 <input
                   type="number" min={1} max={20}
                   className={INPUT_CLASS}
-                  value={truck.rows}
-                  onChange={(e) => onChange({ ...truck, rows: parseInt(e.target.value, 10) || 1 })}
+                  value={rows}
+                  onChange={(e) => setRows(e.target.value)}
                 />
               </Field>
             </div>
@@ -1022,31 +1065,39 @@ function TruckModal({
                 <input
                   type="number" min={1} step={50}
                   className={INPUT_CLASS}
-                  value={truck.widthMM}
-                  onChange={(e) => onChange({ ...truck, widthMM: parseInt(e.target.value, 10) || 0 })}
+                  value={widthMM}
+                  onChange={(e) => setWidthMM(e.target.value)}
                 />
               </Field>
               <Field label="奥行き（mm）">
                 <input
                   type="number" min={1} step={100}
                   className={INPUT_CLASS}
-                  value={truck.depthMM}
-                  onChange={(e) => onChange({ ...truck, depthMM: parseInt(e.target.value, 10) || 0 })}
+                  value={depthMM}
+                  onChange={(e) => setDepthMM(e.target.value)}
                 />
               </Field>
             </div>
           </div>
+
+          {/* プレビュー */}
           <div className="bg-slate-50 rounded-lg px-3 py-2 text-xs text-slate-500">
-            最大P数: {truck.maxPallets}枚　グリッド: {truck.cols}列 × {truck.rows}行
-            　荷台: {truck.widthMM.toLocaleString()} × {truck.depthMM.toLocaleString()} mm
-            　荷室高: {truck.heightMM.toLocaleString()} mm
+            最大P数: {pMaxPallets || '—'}枚　グリッド: {pCols || '—'}列 × {pRows || '—'}行
+            　荷台: {pWidthMM ? pWidthMM.toLocaleString() : '—'} × {pDepthMM ? pDepthMM.toLocaleString() : '—'} mm
+            　荷室高: {pHeightMM ? pHeightMM.toLocaleString() : '—'} mm
           </div>
+
+          {error && (
+            <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+              {error}
+            </div>
+          )}
         </div>
         <div className="flex gap-2 justify-end mt-6">
           <button onClick={onCancel} className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">
             キャンセル
           </button>
-          <button onClick={onSave} className="px-4 py-2 text-sm text-white bg-brand-600 rounded-lg hover:bg-brand-700">
+          <button onClick={handleSave} className="px-4 py-2 text-sm text-white bg-brand-600 rounded-lg hover:bg-brand-700">
             保存
           </button>
         </div>
