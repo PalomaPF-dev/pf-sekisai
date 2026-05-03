@@ -86,6 +86,10 @@ interface AppState {
   updateWarehouse: (warehouse: Warehouse) => void;
   removeWarehouse: (warehouseCode: string) => void;
 
+  addTruckType: (truckType: TruckType) => void;
+  updateTruckType: (truckType: TruckType) => void;
+  removeTruckType: (code: string) => void;
+
   addPalletType: (palletType: PalletType) => void;
   updatePalletType: (palletType: PalletType) => void;
   removePalletType: (code: string) => void;
@@ -422,6 +426,22 @@ export const useAppStore = create<AppState>()((set, get) => ({
   removeWarehouse: (warehouseCode) => {
     set((s) => ({ warehouses: s.warehouses.filter((w) => w.code !== warehouseCode) }));
     db.deleteWarehouse(warehouseCode).catch(console.error);
+  },
+
+  // ─── トラック種別 ─────────────────────────────────────────
+  addTruckType: (truckType) => {
+    set((s) => ({ truckTypes: [...s.truckTypes, truckType] }));
+    db.upsertTruckType(truckType).catch(console.error);
+  },
+
+  updateTruckType: (truckType) => {
+    set((s) => ({ truckTypes: s.truckTypes.map((t) => (t.code === truckType.code ? truckType : t)) }));
+    db.upsertTruckType(truckType).catch(console.error);
+  },
+
+  removeTruckType: (code) => {
+    set((s) => ({ truckTypes: s.truckTypes.filter((t) => t.code !== code) }));
+    db.deleteTruckType(code).catch(console.error);
   },
 
   // ─── パレット種別 ─────────────────────────────────────────

@@ -7,7 +7,7 @@ import { parseProductsCSV, generateProductsTemplate, downloadCSV } from '@/lib/c
 import { buildEquipmentColorMap, buildProductColors, PRODUCT_PALETTE } from '@/lib/productColors';
 import clsx from 'clsx';
 
-type Tab = 'products' | 'warehouses' | 'pallets' | 'factories' | 'operating';
+type Tab = 'products' | 'warehouses' | 'pallets' | 'trucks' | 'factories' | 'operating';
 
 export default function SettingsPage() {
   const {
@@ -16,6 +16,7 @@ export default function SettingsPage() {
     addFactory, updateFactory, removeFactory,
     addProduct, updateProduct, removeProduct,
     addWarehouse, updateWarehouse, removeWarehouse,
+    addTruckType, updateTruckType, removeTruckType,
     addPalletType, updatePalletType, removePalletType,
     upsertProducts,
     resetToDefaults,
@@ -30,6 +31,7 @@ export default function SettingsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(null);
   const [editingPallet, setEditingPallet] = useState<PalletType | null>(null);
+  const [editingTruck, setEditingTruck] = useState<import('@/lib/types').TruckType | null>(null);
 
   // 製品CSV インポート用
   const prodCsvRef = useRef<HTMLInputElement>(null);
@@ -55,8 +57,21 @@ export default function SettingsPage() {
 
   // パレット型の新規追加用空テンプレート
   const newPalletType = (): PalletType => ({
-    code: '', name: '', widthMM: 1100, depthMM: 1100, heightMM: 144, maxWeightKg: 1000,
+    code: '', name: '', widthMM: 1100, depthMM: 1100, heightMM: 144, maxWeightKg: 1000, loadedHeightMM: 1200,
   });
+
+  // トラック型の新規追加用空テンプレート
+  const newTruckType = (): import('@/lib/types').TruckType => ({
+    code: '', name: '', maxPallets: 8, cols: 2, rows: 4, widthMM: 2100, depthMM: 5200, heightMM: 2300,
+  });
+
+  const handleSaveTruck = () => {
+    if (!editingTruck || !editingTruck.code.trim() || !editingTruck.name.trim()) return;
+    const exists = truckTypes.some((t) => t.code === editingTruck.code);
+    if (exists) updateTruckType(editingTruck);
+    else addTruckType(editingTruck);
+    setEditingTruck(null);
+  };
 
   const handleSaveFactory = () => {
     if (!editingFactory || !editingFactory.code.trim() || !editingFactory.name.trim()) return;
@@ -167,6 +182,7 @@ export default function SettingsPage() {
           { key: 'products',   label: '📦 製品マスタ' },
           { key: 'warehouses', label: '🏭 拠点マスタ' },
           { key: 'pallets',    label: '🪵 パレット型' },
+          { key: 'trucks',     label: '🚚 トラックマスタ' },
           { key: 'factories',  label: '🏭 工場マスタ' },
           { key: 'operating',  label: '📅 稼働日マスタ' },
         ] as { key: Tab; label: string }[]).map(({ key, label }) => (
@@ -755,6 +771,105 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* ── トラックマスタ ── */}
+      {tab === 'trucks' && (
+        <div>
+          <div className="flex justify-end mb-3">
+            <button
+              onClick={() => setEditingTruck(newTruckType())}
+              className="text-sm px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors"
+            >
+              + トラックを追加
+            </button>
+          </div>
+
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 text-xs text-slate-500">
+                  <th className="px-4 py-2.5 text-left font-semibold">コード</th>
+                  <th className="px-4 py-2.5 text-left font-semibold">名称</th>
+                  <th className="px-4 py-2.5 text-right font-semibold">最大P数</th>
+                  <th className="px-4 py-2.5 text-right font-semibold">列×行</th>
+                  <th className="px-4 py-2.5 text-right font-semibold">幅（mm）</th>
+                  <th className="px-4 py-2.5 text-right font-semibold">奥行き（mm）</th>
+                  <th className="px-4 py-2.5 text-right font-semibold">荷室高さ（mm）</th>
+                  <th className="px-4 py-2.5 text-right font-semibold">使用拠点数</th>
+                  <th className="px-4 py-2.5 text-right font-semibold">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {truckTypes.map((t) => {
+                  const usedCount = warehouses.filter((w) => w.truckType === t.code).length;
+                  return (
+                    <tr key={t.code} className="border-t border-slate-100 hover:bg-slate-50">
+                      <td className="px-4 py-2">
+                        <span className="font-mono text-xs font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
+                          {t.code}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 font-medium">{t.name}</td>
+                      <td className="px-4 py-2 text-right">{t.maxPallets}枚</td>
+                      <td className="px-4 py-2 text-right text-slate-500 text-xs">
+                        {t.cols}列 × {t.rows}行
+                      </td>
+                      <td className="px-4 py-2 text-right text-slate-600">{t.widthMM.toLocaleString()}</td>
+                      <td className="px-4 py-2 text-right text-slate-600">{t.depthMM.toLocaleString()}</td>
+                      <td className="px-4 py-2 text-right font-semibold text-sky-700">
+                        {t.heightMM.toLocaleString()}
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        {usedCount > 0 ? (
+                          <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
+                            {usedCount}拠点
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-300">未使用</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        <button
+                          onClick={() => setEditingTruck({ ...t })}
+                          className="text-xs text-brand-600 hover:underline mr-3"
+                        >
+                          編集
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (usedCount > 0) {
+                              alert(`「${t.name}」は ${usedCount} 拠点で使用中のため削除できません。`);
+                              return;
+                            }
+                            removeTruckType(t.code);
+                          }}
+                          className="text-xs text-red-400 hover:underline"
+                        >
+                          削除
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <p className="text-xs text-slate-400 mt-3">
+            ※ 荷室高さは2段積み判定に使用されます。使用中の拠点があるトラックは削除できません。
+          </p>
+
+          {editingTruck && (
+            <TruckModal
+              truck={editingTruck}
+              onChange={setEditingTruck}
+              onSave={handleSaveTruck}
+              onCancel={() => setEditingTruck(null)}
+              isNew={!truckTypes.some((t) => t.code === editingTruck.code)}
+            />
+          )}
+        </div>
+      )}
+
       {/* ── 稼働日マスタ ── */}
       {tab === 'operating' && (
         <div>
@@ -824,6 +939,118 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── トラックモーダル ────────────────────────────────────────────────────
+function TruckModal({
+  truck, onChange, onSave, onCancel, isNew,
+}: {
+  truck: import('@/lib/types').TruckType;
+  onChange: (t: import('@/lib/types').TruckType) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  isNew: boolean;
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl p-6 shadow-xl w-full max-w-md mx-4">
+        <h3 className="font-bold text-slate-800 mb-4">{isNew ? 'トラックを追加' : 'トラックを編集'}</h3>
+        <div className="flex flex-col gap-3 max-h-[75vh] overflow-y-auto pr-1">
+          <Field label="コード（例: T07）">
+            <input
+              className={INPUT_CLASS}
+              value={truck.code}
+              onChange={(e) => onChange({ ...truck, code: e.target.value.toUpperCase() })}
+              disabled={!isNew}
+              placeholder="例: T07"
+            />
+          </Field>
+          <Field label="名称">
+            <input
+              className={INPUT_CLASS}
+              value={truck.name}
+              onChange={(e) => onChange({ ...truck, name: e.target.value })}
+              placeholder="例: ウイング車(4t)"
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="最大パレット数">
+              <input
+                type="number" min={1} max={30}
+                className={INPUT_CLASS}
+                value={truck.maxPallets}
+                onChange={(e) => onChange({ ...truck, maxPallets: parseInt(e.target.value, 10) || 1 })}
+              />
+            </Field>
+            <Field label="荷室高さ（mm）" hint="2段積み判定に使用">
+              <input
+                type="number" min={1000} max={4000} step={50}
+                className={INPUT_CLASS}
+                value={truck.heightMM}
+                onChange={(e) => onChange({ ...truck, heightMM: parseInt(e.target.value, 10) || 2300 })}
+                placeholder="2300"
+              />
+            </Field>
+          </div>
+          <div className="border-t border-slate-100 pt-3">
+            <p className="text-[10px] text-slate-400 mb-2">荷台グリッド（積載レイアウト表示用）</p>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="横列数（幅方向）">
+                <input
+                  type="number" min={1} max={4}
+                  className={INPUT_CLASS}
+                  value={truck.cols}
+                  onChange={(e) => onChange({ ...truck, cols: parseInt(e.target.value, 10) || 1 })}
+                />
+              </Field>
+              <Field label="縦行数（奥行き方向）">
+                <input
+                  type="number" min={1} max={20}
+                  className={INPUT_CLASS}
+                  value={truck.rows}
+                  onChange={(e) => onChange({ ...truck, rows: parseInt(e.target.value, 10) || 1 })}
+                />
+              </Field>
+            </div>
+          </div>
+          <div className="border-t border-slate-100 pt-3">
+            <p className="text-[10px] text-slate-400 mb-2">荷台サイズ（mm）</p>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="幅（mm）">
+                <input
+                  type="number" min={1} step={50}
+                  className={INPUT_CLASS}
+                  value={truck.widthMM}
+                  onChange={(e) => onChange({ ...truck, widthMM: parseInt(e.target.value, 10) || 0 })}
+                />
+              </Field>
+              <Field label="奥行き（mm）">
+                <input
+                  type="number" min={1} step={100}
+                  className={INPUT_CLASS}
+                  value={truck.depthMM}
+                  onChange={(e) => onChange({ ...truck, depthMM: parseInt(e.target.value, 10) || 0 })}
+                />
+              </Field>
+            </div>
+          </div>
+          <div className="bg-slate-50 rounded-lg px-3 py-2 text-xs text-slate-500">
+            最大P数: {truck.maxPallets}枚　グリッド: {truck.cols}列 × {truck.rows}行
+            　荷台: {truck.widthMM.toLocaleString()} × {truck.depthMM.toLocaleString()} mm
+            　荷室高: {truck.heightMM.toLocaleString()} mm
+          </div>
+        </div>
+        <div className="flex gap-2 justify-end mt-6">
+          <button onClick={onCancel} className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">
+            キャンセル
+          </button>
+          <button onClick={onSave} className="px-4 py-2 text-sm text-white bg-brand-600 rounded-lg hover:bg-brand-700">
+            保存
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -136,6 +136,25 @@ export async function loadTruckTypes(): Promise<TruckType[]> {
   }));
 }
 
+export async function upsertTruckType(t: TruckType) {
+  const { error } = await supabase.from('truck_types').upsert({
+    code: t.code,
+    name: t.name,
+    max_pallets: t.maxPallets,
+    cols: t.cols,
+    rows: t.rows,
+    width_mm: t.widthMM,
+    depth_mm: t.depthMM,
+    height_mm: t.heightMM,
+  });
+  if (error) throw error;
+}
+
+export async function deleteTruckType(code: string) {
+  const { error } = await supabase.from('truck_types').delete().eq('code', code);
+  if (error) throw error;
+}
+
 // ─── Pallet Types ────────────────────────────────────────────────────────────
 
 export async function loadPalletTypes(): Promise<PalletType[]> {
