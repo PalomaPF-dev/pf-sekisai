@@ -55,8 +55,9 @@ export default function LoadingPlanInner() {
         inTransitStock,
         plannedSales,
         sendQtyManual,
+        palletTypes,
       ),
-    [warehouses, products, truckTypes, factories, productionPlan, distributionRatios, inventoryStock, locationStock, weeklyShippingSchedule, inTransitStock, plannedSales, sendQtyManual],
+    [warehouses, products, truckTypes, factories, productionPlan, distributionRatios, inventoryStock, locationStock, weeklyShippingSchedule, inTransitStock, plannedSales, sendQtyManual, palletTypes],
   );
 
   const [confirmed, setConfirmed] = useState(false);

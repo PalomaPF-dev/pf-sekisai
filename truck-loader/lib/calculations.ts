@@ -85,8 +85,19 @@ export function calcWarehousePlan(
   products: Product[],
   truckType: TruckType,
   sendQty: Record<string, Record<string, number>>,
+  palletTypes: PalletType[] = [],
 ): WarehousePlan {
-  const maxPal = truckType.maxPallets;
+  // 2段積み可能かどうかを判定し、有効最大パレット数を求める
+  const floorCap = truckType.cols * truckType.rows;
+  const truckH = truckType.heightMM ?? 2300;
+  const palletTypeMap = Object.fromEntries(palletTypes.map((pt) => [pt.code, pt]));
+  const shippedProds = products.filter((p) => (sendQty[p.code]?.[warehouseCode] ?? 0) > 0);
+  const minLoadedH = shippedProds.length > 0
+    ? Math.min(...shippedProds.map((p) => palletTypeMap[p.palletType]?.loadedHeightMM ?? 1200))
+    : 1200;
+  const canStack = minLoadedH * 2 <= truckH;
+  const effectiveCap = canStack ? floorCap * 2 : floorCap;
+  const maxPal = Math.max(truckType.maxPallets, effectiveCap);
 
   // 製品ごとに送り数 → パレット数を計算
   const items: (PalletItem & { originalPallets: number; remaining: number })[] = [];
@@ -175,6 +186,7 @@ export function calcAllPlans(
   inTransitStock: InTransitStock = {},
   plannedSales: PlannedSales = {},
   sendQtyManual: SendQtyManual = {},
+  palletTypes: PalletType[] = [],
 ): Record<string, WarehousePlan> {
   const truckMap = Object.fromEntries(truckTypes.map(t => [t.code, t]));
 
@@ -201,7 +213,7 @@ export function calcAllPlans(
       mergedSendQty[p.code] = { [name]: totalQty };
     }
 
-    const plan = calcWarehousePlan(name, products, truck, mergedSendQty);
+    const plan = calcWarehousePlan(name, products, truck, mergedSendQty, palletTypes);
     result[name] = plan;
   }
   return result;
@@ -239,6 +251,7 @@ export function calcWeeklyPlans(
   inTransitStock: InTransitStock = {},
   plannedSales: PlannedSales = {},
   sendQtyManual: SendQtyManual = {},
+  palletTypes: PalletType[] = [],
 ): Record<string, DayWarehousePlan[]> {
   const truckMap = Object.fromEntries(truckTypes.map(t => [t.code, t]));
   const result: Record<string, DayWarehousePlan[]> = {};
@@ -297,7 +310,7 @@ export function calcWeeklyPlans(
           const totalQty = whGroup.reduce((s, wh) => s + (weeklySendQty[p.code]?.[wh.code] ?? 0), 0);
           mergedSendQty[p.code] = { [firstWh.code]: totalQty };
         }
-        const plan = calcWarehousePlan(firstWh.code, factoryProducts, truck, mergedSendQty);
+        const plan = calcWarehousePlan(firstWh.code, factoryProducts, truck, mergedSendQty, palletTypes);
         if (plan.trucks.length === 0) continue;
         dayPlans.push({ ...plan, factoryCode: factory.code, dayOfWeek: -1 });
       } else {
@@ -314,7 +327,7 @@ export function calcWeeklyPlans(
             const extra = dayIdx === activeDays[0] ? remainder : 0;
             daySendQty[p.code] = { [firstWh.code]: base + extra };
           }
-          const plan = calcWarehousePlan(firstWh.code, factoryProducts, truck, daySendQty);
+          const plan = calcWarehousePlan(firstWh.code, factoryProducts, truck, daySendQty, palletTypes);
           if (plan.trucks.length === 0) continue;
           dayPlans.push({ ...plan, factoryCode: factory.code, dayOfWeek: dayIdx });
         }
