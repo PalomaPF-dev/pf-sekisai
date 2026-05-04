@@ -13,6 +13,7 @@ export default function SettingsPage() {
   const {
     factories, products, warehouses, truckTypes, palletTypes,
     operatingDays, setOperatingDay,
+    nonWorkingDates, toggleNonWorkingDate,
     addFactory, updateFactory, removeFactory,
     addProduct, updateProduct, removeProduct,
     addWarehouse, updateWarehouse, removeWarehouse,
@@ -983,73 +984,223 @@ export default function SettingsPage() {
 
       {/* ── 稼働日マスタ ── */}
       {tab === 'operating' && (
-        <div>
-          <p className="text-xs text-slate-500 mb-4">
-            工場ごとに稼働する曜日を設定します。チェックした曜日が出荷計画の対象となります。
-          </p>
-          <div className="card overflow-hidden">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th className="text-left" style={{ minWidth: 160 }}>工場</th>
-                  {['月', '火', '水', '木', '金', '土', '日'].map((d, i) => (
-                    <th key={i} className="text-center" style={{
-                      minWidth: 52,
-                      color: i === 5 ? '#2563eb' : i === 6 ? '#dc2626' : undefined,
-                    }}>{d}</th>
-                  ))}
-                  <th className="text-center" style={{ minWidth: 60 }}>稼働日数</th>
-                </tr>
-              </thead>
-              <tbody>
-                {factories.map((f) => {
-                  const days: boolean[] = operatingDays[f.code] ?? [true, true, true, true, true, false, false];
-                  const count = days.filter(Boolean).length;
-                  return (
-                    <tr key={f.code}>
-                      <td>
-                        <div className="flex items-center gap-2">
-                          <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, fontWeight: 700, background: '#dbeafe', color: '#1e40af', border: '1px solid #bfdbfe' }}>
-                            {f.code}
-                          </span>
-                          <span className="font-medium text-slate-700">{f.name}</span>
-                        </div>
-                      </td>
-                      {days.map((active, dayIdx) => (
-                        <td key={dayIdx} className="text-center" style={{ padding: '6px 4px' }}>
-                          <button
-                            onClick={() => setOperatingDay(f.code, dayIdx, !active)}
-                            style={{
-                              width: 34, height: 34, borderRadius: 6,
-                              border: active ? '2px solid #2563eb' : '2px solid #e5e7eb',
-                              background: active ? '#2563eb' : 'white',
-                              color: active ? 'white' : '#d1d5db',
-                              fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                              transition: 'all 0.15s',
-                            }}
-                          >
-                            {active ? '✓' : ''}
-                          </button>
-                        </td>
-                      ))}
-                      <td className="text-center">
-                        <span style={{
-                          fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10,
-                          background: count > 0 ? '#eff6ff' : '#f9fafb',
-                          color: count > 0 ? '#2563eb' : '#9ca3af',
-                          border: `1px solid ${count > 0 ? '#bfdbfe' : '#e5e7eb'}`,
-                        }}>
-                          {count}日
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        <div className="flex flex-col gap-6">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-xs text-amber-800 leading-relaxed">
+            <strong>稼働日の設定方法：</strong>
+            まず「曜日デフォルト」で通常の稼働曜日を設定し、
+            カレンダーで祝日や特別休業日をクリックして非稼働日に指定してください。<br />
+            <span className="text-amber-600">■ 白 = 稼働日　■ 赤 = 非稼働日（クリックで切替）　■ グレー = 曜日デフォルトで非稼働</span>
           </div>
+          {factories.map((f) => {
+            const weekDays: boolean[] = operatingDays[f.code] ?? [true, true, true, true, true, false, false];
+            const nwd = nonWorkingDates[f.code] ?? [];
+            return (
+              <div key={f.code} className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-700">{f.code}</span>
+                  <h3 className="font-bold text-slate-800">{f.name}</h3>
+                  <span className="text-xs text-slate-400 ml-auto">非稼働日指定：{nwd.length}件</span>
+                </div>
+                {/* 曜日デフォルト */}
+                <div className="mb-4">
+                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-2">曜日デフォルト</p>
+                  <div className="flex gap-1.5">
+                    {['月', '火', '水', '木', '金', '土', '日'].map((label, i) => {
+                      const active = weekDays[i] ?? false;
+                      return (
+                        <button
+                          key={i}
+                          onClick={() => setOperatingDay(f.code, i, !active)}
+                          className={clsx(
+                            'w-9 h-9 rounded-lg text-xs font-bold border-2 transition-all',
+                            active
+                              ? i >= 5 ? 'border-blue-400 bg-blue-500 text-white' : 'border-brand-500 bg-brand-600 text-white'
+                              : 'border-slate-200 bg-slate-50 text-slate-300',
+                          )}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                {/* カレンダー */}
+                <OperatingCalendar
+                  factoryCode={f.code}
+                  defaultDays={weekDays}
+                  nonWorkingDates={nwd}
+                  onToggle={(date) => toggleNonWorkingDate(f.code, date)}
+                />
+              </div>
+            );
+          })}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── 稼働日カレンダー ─────────────────────────────────────────────────
+const DAY_LABELS_CAL = ['月', '火', '水', '木', '金', '土', '日'];
+const MONTH_NAMES = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+
+function OperatingCalendar({
+  factoryCode,
+  defaultDays,
+  nonWorkingDates,
+  onToggle,
+}: {
+  factoryCode: string;
+  defaultDays: boolean[];
+  nonWorkingDates: string[];
+  onToggle: (date: string) => void;
+}) {
+  const today = new Date();
+  const [year,  setYear]  = useState(today.getFullYear());
+  const [month, setMonth] = useState(today.getMonth()); // 0-based
+
+  const todayStr = today.toISOString().slice(0, 10);
+  const nwdSet   = useMemo(() => new Set(nonWorkingDates), [nonWorkingDates]);
+
+  // JS getDay(): 0=Sun, 1=Mon, ..., 6=Sat → index into defaultDays (0=Mon)
+  const jsDayToIdx = (d: number) => (d === 0 ? 6 : d - 1);
+
+  // 月の最初の日が何曜日か（月曜始まりで何列目か）
+  const firstDay = new Date(year, month, 1);
+  const startCol = jsDayToIdx(firstDay.getDay()); // 0=Mon
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const prevMonth = () => {
+    if (month === 0) { setYear(y => y - 1); setMonth(11); }
+    else setMonth(m => m - 1);
+  };
+  const nextMonth = () => {
+    if (month === 11) { setYear(y => y + 1); setMonth(0); }
+    else setMonth(m => m + 1);
+  };
+
+  // 月の稼働日数カウント
+  const workingCount = useMemo(() => {
+    let count = 0;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = new Date(year, month, d);
+      const dateStr = date.toISOString().slice(0, 10);
+      const idx = jsDayToIdx(date.getDay());
+      const defaultWorking = defaultDays[idx] ?? false;
+      if (defaultWorking && !nwdSet.has(dateStr)) count++;
+    }
+    return count;
+  }, [year, month, daysInMonth, defaultDays, nwdSet]);
+
+  // グリッド（空セル + 日付セル）
+  const cells: (number | null)[] = [
+    ...Array(startCol).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+  // 7の倍数になるよう末尾を埋める
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  return (
+    <div>
+      {/* ヘッダー */}
+      <div className="flex items-center justify-between mb-3">
+        <button onClick={prevMonth} className="px-2 py-1 text-xs rounded border border-slate-200 hover:bg-slate-50 transition-colors">← 前月</button>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-bold text-slate-700">{year}年 {MONTH_NAMES[month]}</span>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-brand-100 text-brand-700 font-semibold">
+            稼働 {workingCount}日
+          </span>
+          {nwdSet.size > 0 && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-600 font-semibold">
+              非稼働指定 {nonWorkingDates.filter(d => d.startsWith(`${year}-${String(month + 1).padStart(2, '0')}`)).length}件
+            </span>
+          )}
+        </div>
+        <button onClick={nextMonth} className="px-2 py-1 text-xs rounded border border-slate-200 hover:bg-slate-50 transition-colors">次月 →</button>
+      </div>
+
+      {/* 曜日ヘッダー */}
+      <div className="grid grid-cols-7 mb-1">
+        {DAY_LABELS_CAL.map((label, i) => (
+          <div key={i} className={clsx(
+            'text-center text-[10px] font-bold py-1',
+            i === 5 ? 'text-blue-500' : i === 6 ? 'text-red-500' : 'text-slate-500',
+          )}>
+            {label}
+          </div>
+        ))}
+      </div>
+
+      {/* 日付グリッド */}
+      <div className="grid grid-cols-7 gap-0.5">
+        {cells.map((day, ci) => {
+          if (day === null) return <div key={`empty-${ci}`} />;
+
+          const date    = new Date(year, month, day);
+          const dateStr = date.toISOString().slice(0, 10);
+          const dayIdx  = jsDayToIdx(date.getDay());
+          const isSat   = date.getDay() === 6;
+          const isSun   = date.getDay() === 0;
+          const defaultWorking  = defaultDays[dayIdx] ?? false;
+          const isNonWorking    = nwdSet.has(dateStr);
+          const effectiveWorking = defaultWorking && !isNonWorking;
+          const isToday = dateStr === todayStr;
+          const isPast  = dateStr < todayStr;
+
+          // 曜日デフォルトで非稼働（土日など）はクリック不可
+          const isDefaultOff = !defaultWorking;
+
+          return (
+            <button
+              key={dateStr}
+              disabled={isDefaultOff}
+              onClick={() => onToggle(dateStr)}
+              title={
+                isDefaultOff ? '曜日デフォルトで非稼働' :
+                isNonWorking ? 'クリックで稼働日に戻す' :
+                'クリックで非稼働日に設定'
+              }
+              className={clsx(
+                'relative flex flex-col items-center justify-center rounded-lg h-10 text-xs font-medium transition-all select-none',
+                isDefaultOff
+                  ? 'bg-slate-100 text-slate-300 cursor-default'
+                  : isNonWorking
+                    ? 'bg-red-100 text-red-600 hover:bg-red-200 cursor-pointer border border-red-200'
+                    : 'bg-white text-slate-700 hover:bg-emerald-50 cursor-pointer border border-slate-200 hover:border-emerald-300',
+                isToday && !isDefaultOff && 'ring-2 ring-brand-400 ring-offset-1',
+                isPast && !isDefaultOff && 'opacity-60',
+              )}
+            >
+              <span className={clsx(
+                'font-bold text-sm leading-none',
+                isSat && !isNonWorking && !isDefaultOff ? 'text-blue-600' :
+                isSun && !isNonWorking && !isDefaultOff ? 'text-red-500' : '',
+              )}>
+                {day}
+              </span>
+              {isNonWorking && (
+                <span className="text-[8px] leading-none mt-0.5 font-bold text-red-500">休</span>
+              )}
+              {effectiveWorking && (
+                <span className="absolute bottom-0.5 right-1 text-[7px] text-emerald-400">✓</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 凡例 */}
+      <div className="mt-3 flex gap-4 text-[10px] text-slate-500">
+        <span className="flex items-center gap-1">
+          <span className="w-3 h-3 rounded border border-slate-200 bg-white inline-block" />稼働日
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-3 h-3 rounded border border-red-200 bg-red-100 inline-block" />非稼働日（休日指定）
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-3 h-3 rounded bg-slate-100 inline-block" />曜日デフォルト非稼働
+        </span>
+      </div>
     </div>
   );
 }

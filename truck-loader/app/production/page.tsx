@@ -34,7 +34,14 @@ function dedupeByName<T extends { name: string }>(arr: T[]): T[] {
 
 // ─── 週別カレンダー計算ユーティリティ (module level) ──────────────────
 function _jsDayToOdIdx(jsDay: number): number { return jsDay === 0 ? 6 : jsDay - 1; }
-function _isWorkingDate(dateStr: string, factoryCode: string, od: OperatingDays): boolean {
+function _isWorkingDate(
+  dateStr: string,
+  factoryCode: string,
+  od: OperatingDays,
+  nwd: import('@/lib/types').NonWorkingDates = {},
+): boolean {
+  // 日付指定の非稼働日（祝日など）は優先的に非稼働
+  if ((nwd[factoryCode] ?? []).includes(dateStr)) return false;
   const d = new Date(dateStr + 'T12:00:00');
   return (od[factoryCode] ?? [true,true,true,true,true,false,false])[_jsDayToOdIdx(d.getDay())] ?? false;
 }
@@ -106,7 +113,7 @@ export default function ProductionPage() {
     factories, products, warehouses, truckTypes,
     productionPlan, dailyProductionPlan, distributionRatios,
     locationStock, inTransitStock, plannedSales, inventoryStock,
-    operatingDays,
+    operatingDays, nonWorkingDates,
     sendQtyManual,
     setProductionQty, setProductionDays, setRatio, setLocationStock, setPlannedSales, setInTransitStock,
     setSendQtyManual, clearSendQtyManualCell, importSendQtyManualBulk, clearSendQtyManual,
@@ -674,7 +681,7 @@ export default function ProductionPage() {
                                     </div>
                                   </td>
                                   {weekDays.map((dateStr) => {
-                                    const isWorking = _isWorkingDate(dateStr, p.factoryCode ?? 'F001', operatingDays);
+                                    const isWorking = _isWorkingDate(dateStr, p.factoryCode ?? 'F001', operatingDays, nonWorkingDates);
                                     const qty = dailyProductionPlan[p.code]?.[dateStr] ?? 0;
                                     return (
                                       <td key={dateStr} className="px-1 py-1.5 text-center">

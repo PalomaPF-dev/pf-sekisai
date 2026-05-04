@@ -3,7 +3,7 @@ import type {
   Factory, Product, Warehouse, TruckType, PalletType,
   ProductionPlan, DailyProductionPlan, DistributionRatios,
   InventoryStock, LocationStock, WeeklyShippingSchedule, InTransitStock, PlannedSales,
-  OperatingDays, SendQtyManual,
+  OperatingDays, SendQtyManual, NonWorkingDates,
 } from './types';
 import {
   DEFAULT_FACTORIES,
@@ -39,6 +39,7 @@ interface AppState {
   locationStock: LocationStock;
   weeklyShippingSchedule: WeeklyShippingSchedule;
   operatingDays: OperatingDays;
+  nonWorkingDates: NonWorkingDates;
   inTransitStock: InTransitStock;
   plannedSales: PlannedSales;
   sendQtyManual: SendQtyManual;
@@ -52,6 +53,7 @@ interface AppState {
 
   setShippingDay: (factoryCode: string, warehouseCode: string, dayIndex: number, active: boolean) => void;
   setOperatingDay: (factoryCode: string, dayIndex: number, active: boolean) => void;
+  toggleNonWorkingDate: (factoryCode: string, date: string) => void;
   setProductionQty: (productCode: string, qty: number) => void;
   setRatio: (productCode: string, warehouseCode: string, ratio: number) => void;
   importDistributionRatiosBulk: (ratios: DistributionRatios) => void;
@@ -111,6 +113,7 @@ const defaultState = {
   locationStock: DEFAULT_LOCATION_STOCK,
   weeklyShippingSchedule: DEFAULT_SHIPPING_SCHEDULE,
   operatingDays: DEFAULT_OPERATING_DAYS,
+  nonWorkingDates: {} as NonWorkingDates,
   inTransitStock: {} as InTransitStock,
   plannedSales: {} as PlannedSales,
   sendQtyManual: {} as SendQtyManual,
@@ -135,6 +138,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         locationStock,
         weeklyShippingSchedule,
         operatingDays,
+        nonWorkingDates,
         inTransitStock,
         plannedSales,
         sendQtyManual,
@@ -151,6 +155,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         db.loadLocationStock(),
         db.loadWeeklyShippingSchedule(),
         db.loadOperatingDays(),
+        db.loadNonWorkingDates().catch(() => ({} as NonWorkingDates)),
         db.loadInTransitStock(),
         db.loadPlannedSales(),
         db.loadSendQtyManual().catch(() => ({} as SendQtyManual)),
@@ -181,6 +186,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         locationStock,
         weeklyShippingSchedule,
         operatingDays,
+        nonWorkingDates,
         inTransitStock,
         plannedSales,
         sendQtyManual,
@@ -201,6 +207,22 @@ export const useAppStore = create<AppState>()((set, get) => ({
       const newOperatingDays = { ...s.operatingDays, [factoryCode]: newDays };
       db.upsertOperatingDays(factoryCode, newDays).catch(console.error);
       return { operatingDays: newOperatingDays };
+    });
+  },
+
+  toggleNonWorkingDate: (factoryCode, date) => {
+    set((s) => {
+      const current = s.nonWorkingDates[factoryCode] ?? [];
+      const isNonWorking = current.includes(date);
+      const updated = isNonWorking
+        ? current.filter((d) => d !== date)
+        : [...current, date];
+      if (isNonWorking) {
+        db.removeNonWorkingDate(factoryCode, date).catch(console.error);
+      } else {
+        db.addNonWorkingDate(factoryCode, date).catch(console.error);
+      }
+      return { nonWorkingDates: { ...s.nonWorkingDates, [factoryCode]: updated } };
     });
   },
 

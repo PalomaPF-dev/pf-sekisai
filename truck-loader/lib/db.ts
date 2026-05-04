@@ -7,7 +7,7 @@ import type {
   Factory, Product, Warehouse, TruckType, PalletType,
   ProductionPlan, DailyProductionPlan, DistributionRatios,
   InventoryStock, LocationStock, WeeklyShippingSchedule, InTransitStock, PlannedSales,
-  OperatingDays, SendQtyManual,
+  OperatingDays, SendQtyManual, NonWorkingDates,
 } from './types';
 
 // ─── Factories ────────────────────────────────────────────────────────────────
@@ -502,6 +502,33 @@ export async function upsertOperatingDays(factoryCode: string, days: boolean[]) 
     factory_code: factoryCode,
     days,
   });
+  if (error) throw error;
+}
+
+// ─── Non-Working Dates（祝日・特別休業日） ────────────────────────────────────
+
+export async function loadNonWorkingDates(): Promise<NonWorkingDates> {
+  const { data, error } = await supabase.from('non_working_dates').select('*');
+  if (error) throw error;
+  const result: NonWorkingDates = {};
+  for (const r of data ?? []) {
+    if (!result[r.factory_code]) result[r.factory_code] = [];
+    result[r.factory_code].push(r.date);
+  }
+  return result;
+}
+
+export async function addNonWorkingDate(factoryCode: string, date: string) {
+  const { error } = await supabase.from('non_working_dates').upsert({
+    factory_code: factoryCode,
+    date,
+  });
+  if (error) throw error;
+}
+
+export async function removeNonWorkingDate(factoryCode: string, date: string) {
+  const { error } = await supabase.from('non_working_dates').delete()
+    .eq('factory_code', factoryCode).eq('date', date);
   if (error) throw error;
 }
 

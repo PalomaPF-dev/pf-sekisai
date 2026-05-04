@@ -79,6 +79,9 @@ export type WeeklyShippingSchedule = Record<string, Record<string, boolean[]>>;
 /** 稼働日マスター: factoryCode → [Mon,Tue,Wed,Thu,Fri,Sat,Sun] booleans */
 export type OperatingDays = Record<string, boolean[]>;
 
+/** 日付指定の非稼働日（祝日・特別休業日）: factoryCode → YYYY-MM-DD[] */
+export type NonWorkingDates = Record<string, string[]>;
+
 /** 送り数手動上書き: productCode → warehouseCode → 数量（0=上書きなし扱い） */
 export type SendQtyManual = Record<string, Record<string, number>>;
 
