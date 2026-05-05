@@ -317,18 +317,27 @@ export function calcWeeklyPlans(
         if (plan.trucks.length === 0) continue;
         dayPlans.push({ ...plan, factoryCode: factory.code, dayOfWeek: -1 });
       } else {
-        // 曜日ごとに送り数を均等分割して計算
+        // 曜日ごとにパレット単位で均等分割して計算
+        // （個数単位で分割するとパレット未満の端数が生じるため、必ずパレット整数単位で配分する）
         const numDays = activeDays.length;
 
         for (const dayIdx of activeDays) {
           const daySendQty: Record<string, Record<string, number>> = {};
+          const dayPosition = activeDays.indexOf(dayIdx);
           for (const p of factoryProducts) {
             const weeklyQty = whGroup.reduce((s, wh) => s + (weeklySendQty[p.code]?.[wh.code] ?? 0), 0);
-            const base = Math.floor(weeklyQty / numDays);
-            const remainder = weeklyQty % numDays;
-            // 最初のアクティブ日（activeDays[0]）に余りを加算
-            const extra = dayIdx === activeDays[0] ? remainder : 0;
-            daySendQty[p.code] = { [firstWh.code]: base + extra };
+            if (weeklyQty === 0) {
+              daySendQty[p.code] = { [firstWh.code]: 0 };
+              continue;
+            }
+            // ① 週間個数 → 必要パレット数（1枚未満は切り上げ）
+            const weeklyPallets = Math.ceil(weeklyQty / p.capacityPerPallet);
+            // ② パレット数を日数で均等分割。余りは最初の余り分の日に1枚ずつ積む
+            const basePallets     = Math.floor(weeklyPallets / numDays);
+            const remainderPallets = weeklyPallets % numDays;
+            const palletsForDay   = basePallets + (dayPosition < remainderPallets ? 1 : 0);
+            // ③ パレット数 → 個数（満載）
+            daySendQty[p.code] = { [firstWh.code]: palletsForDay * p.capacityPerPallet };
           }
           const plan = calcWarehousePlan(firstWh.code, factoryProducts, truck, daySendQty, palletTypes);
           if (plan.trucks.length === 0) continue;
