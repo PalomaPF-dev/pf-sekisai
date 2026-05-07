@@ -153,8 +153,9 @@ export default function LoadingPlanInner() {
   const computeMergedFillRate = (merged: MergedDestination): number => {
     let totalMax = 0, totalUsed = 0;
     for (const p of merged.plans) {
-      const wh = warehouseMap[p.warehouseCode]; const tt = wh ? truckMap[wh.truckType] : undefined;
-      if (tt) { totalMax += p.trucks.length * tt.maxPallets; totalUsed += p.totalPallets; }
+      // t.maxPallets は bin-pack 時に算出した有効積載数（2段積み対応済み）
+      totalMax += p.trucks.reduce((s, t) => s + t.maxPallets, 0);
+      totalUsed += p.totalPallets;
     }
     return totalMax > 0 ? Math.round((totalUsed / totalMax) * 100) : 0;
   };
@@ -600,7 +601,7 @@ export default function LoadingPlanInner() {
                       )}
                     </div>
                     <p className="text-xs text-slate-500">
-                      {activeTruckType?.name ? `${activeTruckType.name}（最大${activeTruckType.maxPallets}パレット）・` : ''}
+                      {activeTruckType?.name ? `${activeTruckType.name}（最大${load?.maxPallets ?? activeTruckType.maxPallets}パレット${load && load.maxPallets > activeTruckType.maxPallets ? '・2段積み' : ''}）・` : ''}
                       {effectiveDay === -1 ? '週計' : DAY_LABELS[effectiveDay] + '曜日'} {selectedMerged.totalTrucks}台
                       ・総計 {selectedMerged.totalPallets}パレット・出荷 {selectedMerged.totalQty.toLocaleString()}個
                     </p>
@@ -664,7 +665,7 @@ export default function LoadingPlanInner() {
                     <div className="flex gap-6 items-start flex-wrap">
                       <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
                         <div className="text-xs font-semibold text-slate-500 mb-3">
-                          積載レイアウト ─ {clampedTruck + 1}号車（床面 {load.totalPallets}/{load.maxPallets}パレット）
+                          積載レイアウト ─ {clampedTruck + 1}号車（{load.maxPallets > activeTruckType.maxPallets ? '2段込み' : '床面'} {load.totalPallets}/{load.maxPallets}パレット）
                         </div>
                         <TruckDiagram load={load} truckType={activeTruckType} products={products} palletTypes={palletTypes} productColors={productColors} productNames={productNames} />
                         <div className="text-[10px] text-slate-400 mt-2 text-center">
