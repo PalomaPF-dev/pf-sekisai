@@ -90,9 +90,12 @@ export default function SettingsPage() {
     setEditingFactory(null);
   };
 
+  const [productSaving, setProductSaving] = useState(false);
+
   const handleSaveProduct = async () => {
     if (!editingProduct || !editingProduct.code.trim() || !editingProduct.name.trim()) return;
     setProductOpError(null);
+    setProductSaving(true);
 
     // 器具名から色を自動計算（新規器具名はパレット末尾の次の色を割り当て）
     const eqKey = editingProduct.equipmentName?.trim() ?? '';
@@ -111,7 +114,16 @@ export default function SettingsPage() {
       setEditingProduct(null);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      setProductOpError(`保存に失敗しました: ${msg}`);
+      // カラム不足エラーの場合はマイグレーション案内を付加
+      const isMissingCol = msg.includes('column') || msg.includes('PGRST204');
+      setProductOpError(
+        isMissingCol
+          ? `保存に失敗しました（DBカラム不足）: ${msg}\n\n` +
+            `【対処法】Supabase Dashboard → SQL Editor で supabase/migrations/0001_add_product_fields.sql の内容を実行してください。`
+          : `保存に失敗しました: ${msg}`
+      );
+    } finally {
+      setProductSaving(false);
     }
   };
 
@@ -695,8 +707,10 @@ export default function SettingsPage() {
               equipmentColorMap={equipmentColorMap}
               onChange={setEditingProduct}
               onSave={handleSaveProduct}
-              onCancel={() => setEditingProduct(null)}
+              onCancel={() => { setEditingProduct(null); setProductOpError(null); }}
               isNew={!products.some((p) => p.code === editingProduct.code)}
+              saveError={productOpError}
+              isSaving={productSaving}
             />
           )}
         </div>
@@ -1449,6 +1463,7 @@ function FactoryModal({
 // ─── 製品モーダル ──────────────────────────────────────────────────────
 function ProductModal({
   product, factories, palletTypes, equipmentColorMap, onChange, onSave, onCancel, isNew,
+  saveError, isSaving,
 }: {
   product: Product;
   factories: Factory[];
@@ -1458,6 +1473,8 @@ function ProductModal({
   onSave: () => void;
   onCancel: () => void;
   isNew: boolean;
+  saveError?: string | null;
+  isSaving?: boolean;
 }) {
   // 器具名から自動導出した色（新規器具名は次のパレット色）
   const eqKey = product.equipmentName?.trim() ?? '';
@@ -1613,12 +1630,30 @@ function ProductModal({
             </div>
           </div>
         </div>
-        <div className="flex gap-2 justify-end mt-6">
+
+        {/* ── 保存エラー（モーダル内に表示） ── */}
+        {saveError && (
+          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+            <div className="font-bold mb-1">❌ 保存に失敗しました</div>
+            <div className="font-mono break-all whitespace-pre-wrap leading-relaxed">
+              {saveError}
+            </div>
+          </div>
+        )}
+
+        <div className="flex gap-2 justify-end mt-4">
           <button onClick={onCancel} className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">
             キャンセル
           </button>
-          <button onClick={onSave} className="px-4 py-2 text-sm text-white bg-brand-600 rounded-lg hover:bg-brand-700">
-            保存
+          <button
+            onClick={onSave}
+            disabled={isSaving}
+            className={clsx(
+              'px-4 py-2 text-sm text-white rounded-lg transition-colors',
+              isSaving ? 'bg-slate-400 cursor-wait' : 'bg-brand-600 hover:bg-brand-700',
+            )}
+          >
+            {isSaving ? '保存中…' : '保存'}
           </button>
         </div>
       </div>

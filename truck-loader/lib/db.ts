@@ -51,21 +51,24 @@ export async function loadProducts(): Promise<Product[]> {
 }
 
 export async function upsertProduct(p: Product) {
-  const { error } = await supabase.from('products').upsert({
-    code: p.code,
-    name: p.name,
-    capacity_per_pallet: p.capacityPerPallet,
-    pallet_type: p.palletType,
-    color: p.color,
-    factory_code: p.factoryCode ?? 'F001',
-    equipment_category: p.equipmentCategory ?? '',
-    equipment_name: p.equipmentName ?? '',
-    poji: p.poji ?? false,
-    destination: p.destination ?? '',
-    production_method: p.productionMethod ?? '',
-    stackable: p.stackable ?? true,
-    allow_stack_on_top: p.allowStackOnTop ?? true,
-  });
+  const { error } = await supabase.from('products').upsert(
+    {
+      code: p.code,
+      name: p.name,
+      capacity_per_pallet: p.capacityPerPallet,
+      pallet_type: p.palletType,
+      color: p.color,
+      factory_code: p.factoryCode ?? 'F001',
+      equipment_category: p.equipmentCategory ?? '',
+      equipment_name: p.equipmentName ?? '',
+      poji: p.poji ?? false,
+      destination: p.destination ?? '',
+      production_method: p.productionMethod ?? '',
+      stackable: p.stackable ?? true,
+      allow_stack_on_top: p.allowStackOnTop ?? true,
+    },
+    { onConflict: 'code' },
+  );
   if (error) throw error;
 }
 
@@ -85,7 +88,7 @@ export async function upsertProducts(products: Product[]) {
     stackable: p.stackable ?? true,
     allow_stack_on_top: p.allowStackOnTop ?? true,
   }));
-  const { error } = await supabase.from('products').upsert(rows);
+  const { error } = await supabase.from('products').upsert(rows, { onConflict: 'code' });
   if (error) throw error;
 }
 
