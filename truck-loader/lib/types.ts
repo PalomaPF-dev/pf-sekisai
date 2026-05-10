@@ -19,6 +19,11 @@ export interface Product {
   productionMethod?: string;  // 生産方式
   stackable?: boolean;        // 上段積み可：この製品を2段目に配置できる（省略時は true）
   allowStackOnTop?: boolean;  // 上積み許可：この製品の上に別製品を積める（省略時は true）
+  // 段ボール寸法（積付計算用）
+  boxWidthMM?: number;        // 段ボール幅 (mm)
+  boxDepthMM?: number;        // 段ボール奥行き (mm)
+  boxHeightMM?: number;       // 段ボール高さ (mm)
+  boxWeightKg?: number;       // 段ボール重量 (kg)
 }
 
 export interface Warehouse {

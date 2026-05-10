@@ -50,6 +50,10 @@ export async function loadProducts(): Promise<Product[]> {
       productionMethod: (r.production_method as string | null) ?? '',
       stackable: (r.stackable as boolean | null) ?? true,
       allowStackOnTop: (r.allow_stack_on_top as boolean | null) ?? true,
+      boxWidthMM: (r.box_width_mm as number | null) ?? undefined,
+      boxDepthMM: (r.box_depth_mm as number | null) ?? undefined,
+      boxHeightMM: (r.box_height_mm as number | null) ?? undefined,
+      boxWeightKg: (r.box_weight_kg as number | null) ?? undefined,
     }))
     .filter((p) => {
       if (seen.has(p.code)) return false;
@@ -100,6 +104,10 @@ export async function deduplicateProducts(): Promise<number> {
       production_method: keep.production_method ?? '',
       stackable: keep.stackable ?? true,
       allow_stack_on_top: keep.allow_stack_on_top ?? true,
+      box_width_mm: keep.box_width_mm ?? null,
+      box_depth_mm: keep.box_depth_mm ?? null,
+      box_height_mm: keep.box_height_mm ?? null,
+      box_weight_kg: keep.box_weight_kg ?? null,
     });
     if (insErr) throw insErr;
   }
@@ -123,6 +131,10 @@ export async function upsertProduct(p: Product) {
       production_method: p.productionMethod ?? '',
       stackable: p.stackable ?? true,
       allow_stack_on_top: p.allowStackOnTop ?? true,
+      box_width_mm: p.boxWidthMM ?? null,
+      box_depth_mm: p.boxDepthMM ?? null,
+      box_height_mm: p.boxHeightMM ?? null,
+      box_weight_kg: p.boxWeightKg ?? null,
     },
     { onConflict: 'code' },
   );
@@ -144,6 +156,10 @@ export async function upsertProducts(products: Product[]) {
     production_method: p.productionMethod ?? '',
     stackable: p.stackable ?? true,
     allow_stack_on_top: p.allowStackOnTop ?? true,
+    box_width_mm: p.boxWidthMM ?? null,
+    box_depth_mm: p.boxDepthMM ?? null,
+    box_height_mm: p.boxHeightMM ?? null,
+    box_weight_kg: p.boxWeightKg ?? null,
   }));
   const { error } = await supabase.from('products').upsert(rows, { onConflict: 'code' });
   if (error) throw error;
