@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import type { Factory, Product, Warehouse, PalletType } from '@/lib/types';
 import { parseProductsCSV, generateProductsTemplate, downloadCSV } from '@/lib/csv';
@@ -2052,14 +2052,211 @@ function calcPalletLayout(
 
   if (cols <= 0 || rows <= 0) return null;
 
-  // 利用可能な高さ内で何段積めるか
+  // パレット板を除いた利用可能な高さ内で何段積めるか
   const availableH = maxLoadHeightMM - palletBoardH;
+  if (availableH <= 0) return null;
   const layers = Math.max(1, Math.floor(availableH / boxH));
 
   const perPallet = cols * rows * layers;
   const loadedHeightMM = palletBoardH + layers * boxH;
 
   return { cols, rows, layers, perPallet, loadedHeightMM, orientated };
+}
+
+// ─── パレット配置図コンポーネント ──────────────────────────────────────────
+
+const BOX_COLORS = [
+  '#93c5fd', '#86efac', '#fcd34d', '#f9a8d4', '#a5b4fc',
+  '#6ee7b7', '#fdba74', '#e9d5ff', '#99f6e4', '#bfdbfe',
+];
+
+function PalletDiagram({
+  result, boxW, boxD, boxH, pallet,
+}: {
+  result: { cols: number; rows: number; layers: number; perPallet: number; loadedHeightMM: number; orientated: boolean };
+  boxW: number; boxD: number; boxH: number;
+  pallet: PalletType;
+}) {
+  // orientated = true のとき段ボールが90°回転：幅方向=boxD, 奥行き方向=boxW
+  const bx = result.orientated ? boxD : boxW; // パレット幅方向
+  const by = result.orientated ? boxW : boxD; // パレット奥行き方向
+
+  // ── 上面図スケール ──
+  const TOP_MAX = 220;
+  const topScale = TOP_MAX / Math.max(pallet.widthMM, pallet.depthMM);
+  const pw = Math.round(pallet.widthMM * topScale);
+  const pd = Math.round(pallet.depthMM * topScale);
+  const bxs = bx * topScale;
+  const bys = by * topScale;
+  const usedW = result.cols * bxs;
+  const usedD = result.rows * bys;
+
+  // ── 側面図スケール ──
+  const SIDE_H = 180;
+  const totalH = pallet.heightMM + result.layers * boxH;
+  const sideScale = SIDE_H / totalH;
+  const palBoardPx = Math.max(4, pallet.heightMM * sideScale);
+  const boxHpx = boxH * sideScale;
+  const SIDE_W = 110;
+
+  return (
+    <div className="flex flex-wrap gap-6 items-start p-4 bg-slate-50 rounded-lg border border-slate-200 mt-2">
+
+      {/* 上面図 */}
+      <div className="flex flex-col items-center gap-1">
+        <div className="text-[11px] font-bold text-slate-600">上面図（1段目レイアウト）</div>
+        <svg width={pw + 6} height={pd + 6} style={{ display: 'block', overflow: 'visible' }}>
+          {/* パレット面 */}
+          <rect x={3} y={3} width={pw} height={pd}
+            fill="#f5efe0" stroke="#a07840" strokeWidth={1.5} rx={2} />
+          {/* 使用エリアのガイド */}
+          <rect x={3} y={3} width={usedW} height={usedD}
+            fill="none" stroke="#c4a47c" strokeWidth={0.5} strokeDasharray="3,2" />
+          {/* 段ボール */}
+          {Array.from({ length: result.rows }, (_, row) =>
+            Array.from({ length: result.cols }, (_, col) => {
+              const ci = (row * result.cols + col) % BOX_COLORS.length;
+              return (
+                <g key={`${row}-${col}`}>
+                  <rect
+                    x={3 + col * bxs + 0.5}
+                    y={3 + row * bys + 0.5}
+                    width={bxs - 1}
+                    height={bys - 1}
+                    fill={BOX_COLORS[ci]}
+                    stroke="#475569"
+                    strokeWidth={0.5}
+                    opacity={0.85}
+                    rx={1}
+                  />
+                  {/* 中央に番号 */}
+                  {bxs > 18 && bys > 14 && (
+                    <text
+                      x={3 + col * bxs + bxs / 2}
+                      y={3 + row * bys + bys / 2 + 3}
+                      fontSize={Math.min(9, bxs / 3)}
+                      fill="#1e293b"
+                      textAnchor="middle"
+                      fontWeight="600"
+                    >
+                      {row * result.cols + col + 1}
+                    </text>
+                  )}
+                </g>
+              );
+            })
+          )}
+          {/* 幅寸法ラベル */}
+          <text x={3 + pw / 2} y={pd + 14} fontSize={8} fill="#64748b" textAnchor="middle">{pallet.widthMM}mm</text>
+          {/* 奥行き寸法ラベル（縦） */}
+          <text x={-pd / 2 - 3} y={-9} fontSize={8} fill="#64748b" textAnchor="middle"
+            transform={`rotate(-90) translate(0,0)`}>{pallet.depthMM}mm</text>
+        </svg>
+        <div className="text-[9px] text-slate-500 mt-1">
+          {result.cols}列 × {result.rows}行 = {result.cols * result.rows}個/段
+          {result.orientated && <span className="ml-1.5 text-indigo-500 font-medium">（90°回転配置）</span>}
+        </div>
+        {/* 余白情報 */}
+        <div className="text-[9px] text-slate-400">
+          余白: 幅 {pallet.widthMM - result.cols * bx}mm / 奥 {pallet.depthMM - result.rows * by}mm
+        </div>
+      </div>
+
+      {/* 側面図 */}
+      <div className="flex flex-col items-center gap-1">
+        <div className="text-[11px] font-bold text-slate-600">側面図（高さ方向）</div>
+        <svg width={SIDE_W + 55} height={SIDE_H + 24} style={{ display: 'block' }}>
+          {/* パレット板 */}
+          <rect x={4} y={SIDE_H - palBoardPx + 2} width={SIDE_W} height={palBoardPx}
+            fill="#a07840" stroke="#7c5a3a" strokeWidth={1} rx={1} />
+          <text x={4 + SIDE_W / 2} y={SIDE_H + 2} fontSize={7} fill="#7c5a3a" textAnchor="middle">
+            板 {pallet.heightMM}mm
+          </text>
+
+          {/* 積み段 */}
+          {Array.from({ length: result.layers }, (_, layer) => {
+            const y = SIDE_H - palBoardPx - (layer + 1) * boxHpx + 2;
+            const ci = layer % BOX_COLORS.length;
+            return (
+              <g key={layer}>
+                <rect
+                  x={4} y={y} width={SIDE_W} height={boxHpx - 0.5}
+                  fill={BOX_COLORS[ci]} stroke="#475569" strokeWidth={0.5} rx={1}
+                />
+                <text
+                  x={4 + SIDE_W / 2} y={y + boxHpx / 2 + 3}
+                  fontSize={Math.min(8, boxHpx - 2)} fill="#1e293b"
+                  textAnchor="middle" fontWeight="600"
+                >
+                  {layer + 1}段
+                </text>
+                {/* 右側に高さラベル */}
+                <text x={SIDE_W + 8} y={y + boxHpx / 2 + 3} fontSize={7} fill="#64748b">
+                  {boxH}mm
+                </text>
+              </g>
+            );
+          })}
+
+          {/* 総高さ矢印 */}
+          <line
+            x1={SIDE_W + 42} y1={2}
+            x2={SIDE_W + 42} y2={SIDE_H + 2}
+            stroke="#94a3b8" strokeWidth={0.8} strokeDasharray="2,2"
+          />
+          <text x={SIDE_W + 46} y={SIDE_H / 2 + 3} fontSize={8} fill="#374151" fontWeight="700">
+            {result.loadedHeightMM}mm
+          </text>
+          <text x={SIDE_W + 46} y={SIDE_H / 2 + 12} fontSize={7} fill="#94a3b8">
+            (総高)
+          </text>
+        </svg>
+        <div className="text-[9px] text-slate-500">
+          {pallet.heightMM}（板）+ {boxH}×{result.layers}段 = {result.loadedHeightMM}mm
+        </div>
+      </div>
+
+      {/* サマリー */}
+      <div className="flex flex-col gap-2 text-xs min-w-[200px]">
+        <div className="font-bold text-slate-700 text-sm">📊 積付サマリー</div>
+        <div className="bg-white rounded border border-slate-200 p-3 flex flex-col gap-1.5">
+          <div className="flex justify-between gap-4">
+            <span className="text-slate-500">パレットサイズ</span>
+            <span className="font-medium text-slate-700">{pallet.widthMM}×{pallet.depthMM}mm</span>
+          </div>
+          <div className="flex justify-between gap-4">
+            <span className="text-slate-500">段ボールサイズ</span>
+            <span className="font-medium text-slate-700">
+              {boxW}×{boxD}×{boxH}mm
+              {result.orientated && <span className="ml-1 text-[9px] text-indigo-500">↺</span>}
+            </span>
+          </div>
+          <div className="border-t border-slate-100 my-0.5" />
+          <div className="flex justify-between gap-4">
+            <span className="text-slate-500">床面配置</span>
+            <span className="font-medium text-slate-700">{result.cols}列 × {result.rows}行</span>
+          </div>
+          <div className="flex justify-between gap-4">
+            <span className="text-slate-500">積み段数</span>
+            <span className="font-medium text-slate-700">{result.layers}段</span>
+          </div>
+          <div className="border-t border-slate-100 my-0.5" />
+          <div className="flex justify-between gap-4">
+            <span className="text-slate-500">積載高さ</span>
+            <span className="font-medium text-slate-700">{result.loadedHeightMM}mm</span>
+          </div>
+          <div className="flex justify-between gap-4 bg-emerald-50 rounded px-2 py-1">
+            <span className="font-semibold text-emerald-700">合計個数/パレット</span>
+            <span className="font-bold text-emerald-700 text-base">{result.perPallet}個</span>
+          </div>
+        </div>
+        <div className="text-[9px] text-slate-400 leading-relaxed">
+          ※ 上面図の数字は積み込み順の参考番号です。<br />
+          ※ 縦横90°回転した場合も計算し、多い方を表示しています。
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function StackingCalculator({
@@ -2073,11 +2270,23 @@ function StackingCalculator({
   truckTypes: import('@/lib/types').TruckType[];
   onApply: (updated: Product) => Promise<void>;
 }) {
-  // グローバル設定: パレット内最大積み高さ (mm) と参照トラック
-  const [maxLoadH, setMaxLoadH] = useState(1200);
   const [refTruckCode, setRefTruckCode] = useState(truckTypes[0]?.code ?? '');
   const refTruck = truckTypes.find((t) => t.code === refTruckCode);
   const twoTierMaxH = refTruck ? Math.floor(refTruck.heightMM / 2) : 0;
+
+  // パレット内最大積み高さ: トラックの2段積み上限（庫内高÷2）に自動連動
+  const [linkToTruck, setLinkToTruck] = useState(true);
+  const [maxLoadH, setMaxLoadH] = useState(() =>
+    truckTypes[0] ? Math.floor(truckTypes[0].heightMM / 2) : 1200,
+  );
+
+  // トラック切替 or 連動ON 時に自動更新
+  useEffect(() => {
+    if (linkToTruck && twoTierMaxH > 0) setMaxLoadH(twoTierMaxH);
+  }, [refTruckCode, linkToTruck, twoTierMaxH]);
+
+  // 展開中の図表コード
+  const [diagCode, setDiagCode] = useState<string | null>(null);
 
   // 製品ごとの段ボール寸法ローカル編集状態
   type BoxState = { w: string; d: string; h: string; kg: string; palletType: string };
@@ -2133,7 +2342,7 @@ function StackingCalculator({
     setTimeout(() => setSaved((prev) => ({ ...prev, [product.code]: false })), 2000);
   };
 
-  const CELL = 'px-2 py-1.5 text-xs border-r border-slate-100 last:border-r-0';
+  const CELL = 'px-2 py-2 text-xs border-r border-slate-100 last:border-r-0';
   const NUM_INPUT = 'w-16 border border-slate-200 rounded px-1.5 py-0.5 text-xs text-right focus:outline-none focus:border-brand-500';
 
   return (
@@ -2142,23 +2351,14 @@ function StackingCalculator({
       <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-xs text-blue-800 leading-relaxed">
         <strong>📐 積付計算について：</strong>
         段ボール梱包サイズ（W×D×H）とパレットサイズから、パレット1枚あたりの最適な個数を自動算出します。<br />
-        縦横2通りの向きを試し、より多く積めるほうを採用。「適用」ボタンで製品マスタの<strong>個/パレット</strong>に反映されます。
+        縦横2通りの向きを試し、より多く積めるほうを採用。「図を見る」で配置図を表示、「適用」で製品マスタの<strong>個/パレット</strong>に反映されます。
       </div>
 
       {/* グローバル設定 */}
       <div className="bg-white rounded-lg border border-slate-200 shadow-sm px-5 py-3 flex flex-wrap items-center gap-5">
+        {/* 参照トラック */}
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-slate-600 whitespace-nowrap">パレット内最大積み高さ</span>
-          <input
-            type="number"
-            className="w-24 border border-slate-200 rounded px-2 py-1 text-sm text-right focus:outline-none focus:border-brand-500"
-            value={maxLoadH}
-            onChange={(e) => setMaxLoadH(parseInt(e.target.value, 10) || 1200)}
-          />
-          <span className="text-xs text-slate-400">mm</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-slate-600 whitespace-nowrap">参照トラック（2段積み判定）</span>
+          <span className="text-xs font-semibold text-slate-600 whitespace-nowrap">参照トラック</span>
           <select
             className="border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none focus:border-brand-500"
             value={refTruckCode}
@@ -2169,11 +2369,40 @@ function StackingCalculator({
             ))}
           </select>
         </div>
-        {twoTierMaxH > 0 && (
-          <div className="text-xs text-slate-500">
-            2段積み条件：積載高さ ≤ <strong className="text-emerald-600">{twoTierMaxH} mm</strong>（= {refTruck?.heightMM} ÷ 2）
-          </div>
-        )}
+
+        {/* 2段積み上限・連動 */}
+        <div className="flex items-center gap-2">
+          <label className="flex items-center gap-1.5 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={linkToTruck}
+              onChange={(e) => setLinkToTruck(e.target.checked)}
+              className="w-3.5 h-3.5 accent-brand-600"
+            />
+            <span className="text-xs text-slate-600">2段積み上限に連動</span>
+          </label>
+          <span className="text-[10px] text-slate-400">
+            （庫内高 {refTruck?.heightMM}mm ÷ 2 = <strong className="text-emerald-600">{twoTierMaxH}mm</strong>）
+          </span>
+        </div>
+
+        {/* パレット内最大積み高さ（手動） */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-slate-600 whitespace-nowrap">
+            パレット内最大積み高さ
+          </span>
+          <input
+            type="number"
+            disabled={linkToTruck}
+            className={clsx(
+              'w-24 border rounded px-2 py-1 text-sm text-right focus:outline-none focus:border-brand-500',
+              linkToTruck ? 'bg-slate-50 border-slate-100 text-slate-400' : 'border-slate-200',
+            )}
+            value={maxLoadH}
+            onChange={(e) => setMaxLoadH(parseInt(e.target.value, 10) || 1200)}
+          />
+          <span className="text-xs text-slate-400">mm</span>
+        </div>
       </div>
 
       {/* 製品テーブル */}
@@ -2182,21 +2411,15 @@ function StackingCalculator({
           <thead>
             <tr className="bg-slate-50 border-b-2 border-slate-200 text-slate-500 font-semibold">
               <th className="px-3 py-2.5 text-left min-w-[200px]">製品</th>
-              <th className="px-3 py-2.5 text-center" colSpan={4}>段ボールサイズ</th>
-              <th className="px-2 py-2.5 text-center min-w-[90px]">パレット型</th>
-              <th className="px-3 py-2.5 text-center min-w-[180px] border-l border-slate-200 bg-emerald-50 text-emerald-700" colSpan={2}>計算結果</th>
-              <th className="px-3 py-2.5 text-center min-w-[80px] border-l border-slate-200">適用</th>
-            </tr>
-            <tr className="bg-slate-50 border-b border-slate-200 text-slate-400 text-[10px]">
-              <th className="px-3 py-1"></th>
-              <th className="px-2 py-1 text-center">幅 W (mm)</th>
-              <th className="px-2 py-1 text-center">奥行 D (mm)</th>
-              <th className="px-2 py-1 text-center">高さ H (mm)</th>
-              <th className="px-2 py-1 text-center">重量 (kg)</th>
-              <th className="px-2 py-1 text-center"></th>
-              <th className="px-3 py-1 text-center border-l border-slate-200 text-emerald-600">配置・積載数</th>
-              <th className="px-3 py-1 text-center text-emerald-600">積載高さ / 2段判定</th>
-              <th className="px-3 py-1 border-l border-slate-200"></th>
+              <th className="px-2 py-2.5 text-center min-w-[64px]">幅W(mm)</th>
+              <th className="px-2 py-2.5 text-center min-w-[64px]">奥D(mm)</th>
+              <th className="px-2 py-2.5 text-center min-w-[64px]">高H(mm)</th>
+              <th className="px-2 py-2.5 text-center min-w-[60px]">重量(kg)</th>
+              <th className="px-2 py-2.5 text-center min-w-[80px]">パレット</th>
+              <th className="px-3 py-2.5 text-center min-w-[150px] border-l border-slate-200 bg-emerald-50 text-emerald-700">配置・積載数</th>
+              <th className="px-3 py-2.5 text-center min-w-[130px] bg-emerald-50 text-emerald-700">積載高さ / 2段判定</th>
+              <th className="px-2 py-2.5 text-center min-w-[56px] border-l border-slate-200">図</th>
+              <th className="px-2 py-2.5 text-center min-w-[64px] border-l border-slate-200">適用</th>
             </tr>
           </thead>
           <tbody>
@@ -2211,154 +2434,153 @@ function StackingCalculator({
                 : null;
               const canTwoTier = result ? result.loadedHeightMM <= twoTierMaxH : null;
               const hasChanged = result && result.perPallet !== product.capacityPerPallet;
+              const showDiag = diagCode === product.code && result && pt;
 
               return (
-                <tr
-                  key={product.code}
-                  className={clsx(
+                <React.Fragment key={product.code}>
+                  <tr className={clsx(
                     'border-b border-slate-100 hover:bg-slate-50/60',
                     ri % 2 === 0 ? '' : 'bg-slate-50/40',
-                  )}
-                >
-                  {/* 製品名 */}
-                  <td className={CELL}>
-                    <div className="font-semibold text-slate-700 truncate max-w-[180px]">{product.name}</div>
-                    <div className="text-[10px] text-slate-400 font-mono">{product.code}</div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">現在: <strong>{product.capacityPerPallet}</strong> 個/パレット</div>
-                  </td>
+                    showDiag ? 'bg-blue-50/40' : '',
+                  )}>
+                    {/* 製品名 */}
+                    <td className={CELL}>
+                      <div className="font-semibold text-slate-700 truncate max-w-[180px]">{product.name}</div>
+                      <div className="text-[10px] text-slate-400 font-mono">{product.code}</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">現在: <strong>{product.capacityPerPallet}</strong> 個/P</div>
+                    </td>
 
-                  {/* W */}
-                  <td className={CELL + ' text-center'}>
-                    <input
-                      type="number"
-                      className={NUM_INPUT}
-                      placeholder="—"
-                      value={s.w}
-                      onChange={(e) => setBox(product.code, 'w', e.target.value)}
-                    />
-                  </td>
+                    {/* W */}
+                    <td className={CELL + ' text-center'}>
+                      <input type="number" className={NUM_INPUT} placeholder="—" value={s.w}
+                        onChange={(e) => setBox(product.code, 'w', e.target.value)} />
+                    </td>
+                    {/* D */}
+                    <td className={CELL + ' text-center'}>
+                      <input type="number" className={NUM_INPUT} placeholder="—" value={s.d}
+                        onChange={(e) => setBox(product.code, 'd', e.target.value)} />
+                    </td>
+                    {/* H */}
+                    <td className={CELL + ' text-center'}>
+                      <input type="number" className={NUM_INPUT} placeholder="—" value={s.h}
+                        onChange={(e) => setBox(product.code, 'h', e.target.value)} />
+                    </td>
+                    {/* 重量 */}
+                    <td className={CELL + ' text-center'}>
+                      <input type="number" step="0.1" className={NUM_INPUT} placeholder="—" value={s.kg}
+                        onChange={(e) => setBox(product.code, 'kg', e.target.value)} />
+                    </td>
 
-                  {/* D */}
-                  <td className={CELL + ' text-center'}>
-                    <input
-                      type="number"
-                      className={NUM_INPUT}
-                      placeholder="—"
-                      value={s.d}
-                      onChange={(e) => setBox(product.code, 'd', e.target.value)}
-                    />
-                  </td>
+                    {/* パレット型 */}
+                    <td className={CELL + ' text-center'}>
+                      <select
+                        className="border border-slate-200 rounded px-1 py-0.5 text-[10px] w-full focus:outline-none focus:border-brand-500"
+                        value={s.palletType}
+                        onChange={(e) => setBox(product.code, 'palletType', e.target.value)}
+                      >
+                        {palletTypes.map((p) => (
+                          <option key={p.code} value={p.code}>{p.code}</option>
+                        ))}
+                      </select>
+                      {pt && <div className="text-[9px] text-slate-400 mt-0.5">{pt.widthMM}×{pt.depthMM}</div>}
+                    </td>
 
-                  {/* H */}
-                  <td className={CELL + ' text-center'}>
-                    <input
-                      type="number"
-                      className={NUM_INPUT}
-                      placeholder="—"
-                      value={s.h}
-                      onChange={(e) => setBox(product.code, 'h', e.target.value)}
-                    />
-                  </td>
-
-                  {/* 重量 */}
-                  <td className={CELL + ' text-center'}>
-                    <input
-                      type="number"
-                      step="0.1"
-                      className={NUM_INPUT}
-                      placeholder="—"
-                      value={s.kg}
-                      onChange={(e) => setBox(product.code, 'kg', e.target.value)}
-                    />
-                  </td>
-
-                  {/* パレット型 */}
-                  <td className={CELL + ' text-center'}>
-                    <select
-                      className="border border-slate-200 rounded px-1 py-0.5 text-[10px] focus:outline-none focus:border-brand-500"
-                      value={s.palletType}
-                      onChange={(e) => setBox(product.code, 'palletType', e.target.value)}
-                    >
-                      {palletTypes.map((pt) => (
-                        <option key={pt.code} value={pt.code}>{pt.code}</option>
-                      ))}
-                    </select>
-                    {pt && (
-                      <div className="text-[9px] text-slate-400 mt-0.5">{pt.widthMM}×{pt.depthMM}mm</div>
-                    )}
-                  </td>
-
-                  {/* 計算結果: 配置 */}
-                  <td className={CELL + ' text-center border-l border-slate-200 bg-emerald-50/50'}>
-                    {result ? (
-                      <div>
-                        <div className="font-bold text-emerald-700 text-sm">{result.perPallet} 個</div>
-                        <div className="text-[10px] text-slate-500 mt-0.5">
-                          {result.cols}列×{result.rows}行×{result.layers}段
-                          {result.orientated && <span className="ml-1 text-indigo-500">↺回転</span>}
+                    {/* 計算結果: 配置 */}
+                    <td className={CELL + ' text-center border-l border-slate-200 bg-emerald-50/50'}>
+                      {result ? (
+                        <div>
+                          <div className="font-bold text-emerald-700 text-sm">{result.perPallet} 個</div>
+                          <div className="text-[10px] text-slate-500 mt-0.5">
+                            {result.cols}列×{result.rows}行×{result.layers}段
+                            {result.orientated && <span className="ml-1 text-indigo-500">↺</span>}
+                          </div>
+                          {hasChanged && (
+                            <div className="text-[9px] text-amber-600 mt-0.5">
+                              ※現在値{product.capacityPerPallet}個と異なる
+                            </div>
+                          )}
                         </div>
-                        {hasChanged && (
-                          <div className="text-[9px] text-amber-600 mt-0.5">
-                            現在値（{product.capacityPerPallet}個）と異なります
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-slate-300">寸法を入力</span>
-                    )}
-                  </td>
+                      ) : (
+                        <span className="text-slate-300">寸法を入力</span>
+                      )}
+                    </td>
 
-                  {/* 計算結果: 積載高さ・2段判定 */}
-                  <td className={CELL + ' text-center bg-emerald-50/50'}>
-                    {result ? (
-                      <div>
-                        <div className="font-semibold text-slate-700">{result.loadedHeightMM} mm</div>
-                        {twoTierMaxH > 0 && (
-                          <div className={clsx(
-                            'text-[10px] font-bold mt-0.5 px-1.5 py-0.5 rounded-full inline-block',
-                            canTwoTier
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : 'bg-red-100 text-red-600',
-                          )}>
-                            {canTwoTier ? '✓ 2段積み可' : '✗ 2段積み不可'}
-                          </div>
-                        )}
-                        {!canTwoTier && twoTierMaxH > 0 && (
-                          <div className="text-[9px] text-red-400 mt-0.5">
-                            上限 {twoTierMaxH}mm を {result.loadedHeightMM - twoTierMaxH}mm 超過
-                          </div>
-                        )}
-                        {!canTwoTier && twoTierMaxH > 0 && bh > 0 && (
-                          <div className="text-[9px] text-slate-400 mt-0.5">
-                            ヒント: 最大積み高さを {twoTierMaxH}mm 以下に下げると可
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-slate-300">—</span>
-                    )}
-                  </td>
+                    {/* 計算結果: 積載高さ・2段判定 */}
+                    <td className={CELL + ' text-center bg-emerald-50/50'}>
+                      {result ? (
+                        <div>
+                          <div className="font-semibold text-slate-700">{result.loadedHeightMM} mm</div>
+                          {twoTierMaxH > 0 && (
+                            <div className={clsx(
+                              'text-[10px] font-bold mt-0.5 px-1.5 py-0.5 rounded-full inline-block',
+                              canTwoTier ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600',
+                            )}>
+                              {canTwoTier ? '✓ 2段積み可' : '✗ 2段積み不可'}
+                            </div>
+                          )}
+                          {!canTwoTier && twoTierMaxH > 0 && (
+                            <div className="text-[9px] text-red-400 mt-0.5">
+                              上限{twoTierMaxH}mm超過 +{result.loadedHeightMM - twoTierMaxH}mm
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      )}
+                    </td>
 
-                  {/* 適用ボタン */}
-                  <td className={CELL + ' text-center border-l border-slate-200'}>
-                    {saved[product.code] ? (
-                      <span className="text-[11px] font-bold text-emerald-600">✓ 適用済</span>
-                    ) : (
+                    {/* 図ボタン */}
+                    <td className={CELL + ' text-center border-l border-slate-200'}>
                       <button
-                        disabled={!result || saving[product.code]}
-                        onClick={() => handleApply(product)}
+                        disabled={!result}
+                        onClick={() => setDiagCode(diagCode === product.code ? null : product.code)}
                         className={clsx(
-                          'px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all',
+                          'px-2 py-1 rounded-lg text-[11px] font-semibold transition-all border',
                           result
-                            ? 'bg-brand-600 text-white hover:bg-brand-700 active:scale-95'
-                            : 'bg-slate-100 text-slate-300 cursor-not-allowed',
+                            ? showDiag
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : 'bg-white text-blue-600 border-blue-300 hover:bg-blue-50'
+                            : 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed',
                         )}
                       >
-                        {saving[product.code] ? '保存中…' : '適用'}
+                        {showDiag ? '▲' : '📐'}
                       </button>
-                    )}
-                  </td>
-                </tr>
+                    </td>
+
+                    {/* 適用ボタン */}
+                    <td className={CELL + ' text-center border-l border-slate-200'}>
+                      {saved[product.code] ? (
+                        <span className="text-[11px] font-bold text-emerald-600">✓ 済</span>
+                      ) : (
+                        <button
+                          disabled={!result || saving[product.code]}
+                          onClick={() => handleApply(product)}
+                          className={clsx(
+                            'px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all',
+                            result
+                              ? 'bg-brand-600 text-white hover:bg-brand-700 active:scale-95'
+                              : 'bg-slate-100 text-slate-300 cursor-not-allowed',
+                          )}
+                        >
+                          {saving[product.code] ? '…' : '適用'}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+
+                  {/* 配置図の展開行 */}
+                  {showDiag && result && pt && (
+                    <tr className="bg-blue-50/30 border-b-2 border-blue-200">
+                      <td colSpan={10} className="px-4 py-2">
+                        <PalletDiagram
+                          result={result}
+                          boxW={bw} boxD={bd} boxH={bh}
+                          pallet={pt}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               );
             })}
           </tbody>
@@ -2367,8 +2589,9 @@ function StackingCalculator({
 
       {/* 凡例 */}
       <div className="text-[11px] text-slate-400 flex flex-wrap gap-4">
-        <span>💡 段ボールを縦横90°回転させた場合も自動で比較し、より多く積めるほうを採用します。</span>
-        <span>🔴 2段積み不可の場合は、パレット内最大積み高さ（上の設定欄）を下げて段数を減らしてください。</span>
+        <span>💡 縦横90°回転した場合も計算し、より多く積めるほうを自動採用（↺マーク）します。</span>
+        <span>📐 図ボタンで上面図（パレット配置）と側面図（積み高さ）を表示します。</span>
+        <span>🔴 2段積み不可の場合は、段数を1段減らすか段ボール高さを確認してください。</span>
       </div>
     </div>
   );
