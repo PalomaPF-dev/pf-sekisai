@@ -1,8 +1,11 @@
+'use server';
+
 /**
- * Supabase CRUD operations for all entities.
- * Each write function is fire-and-forget safe (throws on error for caller to handle).
+ * Neon PostgreSQL CRUD operations for all entities.
+ * All functions are Server Actions (Next.js 14).
+ * DATABASE_URL 環境変数に Neon の接続文字列を設定してください。
  */
-import { supabase } from './supabase';
+import { sql } from './neon';
 import type {
   Factory, Product, Warehouse, TruckType, PalletType,
   ProductionPlan, DailyProductionPlan, DistributionRatios,
@@ -13,29 +16,28 @@ import type {
 // ─── Factories ────────────────────────────────────────────────────────────────
 
 export async function loadFactories(): Promise<Factory[]> {
-  const { data, error } = await supabase.from('factories').select('*');
-  if (error) throw error;
-  return (data ?? []).map((r) => ({ code: r.code, name: r.name }));
+  const rows = await sql`SELECT code, name FROM factories ORDER BY code`;
+  return rows.map((r) => ({ code: r.code as string, name: r.name as string }));
 }
 
 export async function upsertFactory(f: Factory) {
-  const { error } = await supabase.from('factories').upsert({ code: f.code, name: f.name });
-  if (error) throw error;
+  await sql`
+    INSERT INTO factories (code, name)
+    VALUES (${f.code}, ${f.name})
+    ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+  `;
 }
 
 export async function deleteFactory(code: string) {
-  const { error } = await supabase.from('factories').delete().eq('code', code);
-  if (error) throw error;
+  await sql`DELETE FROM factories WHERE code = ${code}`;
 }
 
 // ─── Products ────────────────────────────────────────────────────────────────
 
 export async function loadProducts(): Promise<Product[]> {
-  const { data, error } = await supabase.from('products').select('*');
-  if (error) throw error;
-  // code が重複している場合は最初の出現を優先してフィルタ（DB側で重複が起きた場合の安全策）
+  const rows = await sql`SELECT * FROM products ORDER BY code`;
   const seen = new Set<string>();
-  return (data ?? [])
+  return rows
     .map((r) => ({
       code: r.code as string,
       name: r.name as string,
@@ -62,553 +64,519 @@ export async function loadProducts(): Promise<Product[]> {
     });
 }
 
+export async function upsertProduct(p: Product) {
+  await sql`
+    INSERT INTO products (
+      code, name, capacity_per_pallet, pallet_type, color,
+      factory_code, equipment_category, equipment_name,
+      poji, destination, production_method,
+      stackable, allow_stack_on_top,
+      box_width_mm, box_depth_mm, box_height_mm, box_weight_kg
+    ) VALUES (
+      ${p.code}, ${p.name}, ${p.capacityPerPallet}, ${p.palletType}, ${p.color},
+      ${p.factoryCode ?? 'F001'}, ${p.equipmentCategory ?? ''}, ${p.equipmentName ?? ''},
+      ${p.poji ?? false}, ${p.destination ?? ''}, ${p.productionMethod ?? ''},
+      ${p.stackable ?? true}, ${p.allowStackOnTop ?? true},
+      ${p.boxWidthMM ?? null}, ${p.boxDepthMM ?? null}, ${p.boxHeightMM ?? null}, ${p.boxWeightKg ?? null}
+    )
+    ON CONFLICT (code) DO UPDATE SET
+      name                = EXCLUDED.name,
+      capacity_per_pallet = EXCLUDED.capacity_per_pallet,
+      pallet_type         = EXCLUDED.pallet_type,
+      color               = EXCLUDED.color,
+      factory_code        = EXCLUDED.factory_code,
+      equipment_category  = EXCLUDED.equipment_category,
+      equipment_name      = EXCLUDED.equipment_name,
+      poji                = EXCLUDED.poji,
+      destination         = EXCLUDED.destination,
+      production_method   = EXCLUDED.production_method,
+      stackable           = EXCLUDED.stackable,
+      allow_stack_on_top  = EXCLUDED.allow_stack_on_top,
+      box_width_mm        = EXCLUDED.box_width_mm,
+      box_depth_mm        = EXCLUDED.box_depth_mm,
+      box_height_mm       = EXCLUDED.box_height_mm,
+      box_weight_kg       = EXCLUDED.box_weight_kg
+  `;
+}
+
+export async function upsertProducts(products: Product[]) {
+  for (const p of products) {
+    await upsertProduct(p);
+  }
+}
+
+export async function deleteProduct(code: string) {
+  await sql`DELETE FROM products WHERE code = ${code}`;
+}
+
 /**
  * DB 上の products テーブルの重複行（同一 code）を削除し、各 code 1 行にする。
  * 削除した重複件数（code の種類数）を返す。
  */
 export async function deduplicateProducts(): Promise<number> {
-  // 全行をロード
-  const { data, error } = await supabase.from('products').select('*');
-  if (error) throw error;
+  const rows = await sql`SELECT * FROM products ORDER BY code`;
 
-  const rows = data ?? [];
-  // code ごとに最初の行を「残す行」として記録
-  const keepByCode = new Map<string, typeof rows[0]>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const keepByCode = new Map<string, any>();
   const duplicatedCodes = new Set<string>();
   for (const row of rows) {
-    if (keepByCode.has(row.code)) {
-      duplicatedCodes.add(row.code);
+    const code = row.code as string;
+    if (keepByCode.has(code)) {
+      duplicatedCodes.add(code);
     } else {
-      keepByCode.set(row.code, row);
+      keepByCode.set(code, row);
     }
   }
   if (duplicatedCodes.size === 0) return 0;
 
-  // 重複がある code を1つずつ処理（全削除 → 1行だけ再挿入）
   for (const code of duplicatedCodes) {
-    const { error: delErr } = await supabase.from('products').delete().eq('code', code);
-    if (delErr) throw delErr;
-
+    await sql`DELETE FROM products WHERE code = ${code}`;
     const keep = keepByCode.get(code)!;
-    const { error: insErr } = await supabase.from('products').insert({
-      code: keep.code,
-      name: keep.name,
-      capacity_per_pallet: keep.capacity_per_pallet,
-      pallet_type: keep.pallet_type,
-      color: keep.color,
-      factory_code: keep.factory_code ?? 'F001',
-      equipment_category: keep.equipment_category ?? '',
-      equipment_name: keep.equipment_name ?? '',
-      poji: keep.poji ?? false,
-      destination: keep.destination ?? '',
-      production_method: keep.production_method ?? '',
-      stackable: keep.stackable ?? true,
-      allow_stack_on_top: keep.allow_stack_on_top ?? true,
-      box_width_mm: keep.box_width_mm ?? null,
-      box_depth_mm: keep.box_depth_mm ?? null,
-      box_height_mm: keep.box_height_mm ?? null,
-      box_weight_kg: keep.box_weight_kg ?? null,
-    });
-    if (insErr) throw insErr;
+    await sql`
+      INSERT INTO products (
+        code, name, capacity_per_pallet, pallet_type, color,
+        factory_code, equipment_category, equipment_name,
+        poji, destination, production_method,
+        stackable, allow_stack_on_top,
+        box_width_mm, box_depth_mm, box_height_mm, box_weight_kg
+      ) VALUES (
+        ${keep.code}, ${keep.name}, ${keep.capacity_per_pallet}, ${keep.pallet_type}, ${keep.color},
+        ${keep.factory_code ?? 'F001'}, ${keep.equipment_category ?? ''}, ${keep.equipment_name ?? ''},
+        ${keep.poji ?? false}, ${keep.destination ?? ''}, ${keep.production_method ?? ''},
+        ${keep.stackable ?? true}, ${keep.allow_stack_on_top ?? true},
+        ${keep.box_width_mm ?? null}, ${keep.box_depth_mm ?? null},
+        ${keep.box_height_mm ?? null}, ${keep.box_weight_kg ?? null}
+      )
+    `;
   }
 
   return duplicatedCodes.size;
 }
 
-export async function upsertProduct(p: Product) {
-  const { error } = await supabase.from('products').upsert(
-    {
-      code: p.code,
-      name: p.name,
-      capacity_per_pallet: p.capacityPerPallet,
-      pallet_type: p.palletType,
-      color: p.color,
-      factory_code: p.factoryCode ?? 'F001',
-      equipment_category: p.equipmentCategory ?? '',
-      equipment_name: p.equipmentName ?? '',
-      poji: p.poji ?? false,
-      destination: p.destination ?? '',
-      production_method: p.productionMethod ?? '',
-      stackable: p.stackable ?? true,
-      allow_stack_on_top: p.allowStackOnTop ?? true,
-      box_width_mm: p.boxWidthMM ?? null,
-      box_depth_mm: p.boxDepthMM ?? null,
-      box_height_mm: p.boxHeightMM ?? null,
-      box_weight_kg: p.boxWeightKg ?? null,
-    },
-    { onConflict: 'code' },
-  );
-  if (error) throw error;
-}
-
-export async function upsertProducts(products: Product[]) {
-  const rows = products.map((p) => ({
-    code: p.code,
-    name: p.name,
-    capacity_per_pallet: p.capacityPerPallet,
-    pallet_type: p.palletType,
-    color: p.color,
-    factory_code: p.factoryCode ?? 'F001',
-    equipment_category: p.equipmentCategory ?? '',
-    equipment_name: p.equipmentName ?? '',
-    poji: p.poji ?? false,
-    destination: p.destination ?? '',
-    production_method: p.productionMethod ?? '',
-    stackable: p.stackable ?? true,
-    allow_stack_on_top: p.allowStackOnTop ?? true,
-    box_width_mm: p.boxWidthMM ?? null,
-    box_depth_mm: p.boxDepthMM ?? null,
-    box_height_mm: p.boxHeightMM ?? null,
-    box_weight_kg: p.boxWeightKg ?? null,
-  }));
-  const { error } = await supabase.from('products').upsert(rows, { onConflict: 'code' });
-  if (error) throw error;
-}
-
-export async function deleteProduct(code: string) {
-  const { error } = await supabase.from('products').delete().eq('code', code);
-  if (error) throw error;
-}
-
 // ─── Warehouses ──────────────────────────────────────────────────────────────
 
 export async function loadWarehouses(): Promise<Warehouse[]> {
-  const { data, error } = await supabase.from('warehouses').select('*');
-  if (error) throw error;
-  return (data ?? []).map((r) => ({
-    code: r.code,
-    name: r.name,
+  const rows = await sql`SELECT code, name, "group", truck_type, max_pallets FROM warehouses ORDER BY code`;
+  return rows.map((r) => ({
+    code: r.code as string,
+    name: r.name as string,
     group: r.group as '東' | '西',
-    truckType: r.truck_type,
-    maxPallets: r.max_pallets,
+    truckType: r.truck_type as string,
+    maxPallets: r.max_pallets as number,
   }));
 }
 
 export async function upsertWarehouse(w: Warehouse) {
-  const { error } = await supabase.from('warehouses').upsert({
-    code: w.code,
-    name: w.name,
-    group: w.group,
-    truck_type: w.truckType,
-    max_pallets: w.maxPallets,
-  });
-  if (error) throw error;
+  await sql`
+    INSERT INTO warehouses (code, name, "group", truck_type, max_pallets)
+    VALUES (${w.code}, ${w.name}, ${w.group}, ${w.truckType}, ${w.maxPallets})
+    ON CONFLICT (code) DO UPDATE SET
+      name       = EXCLUDED.name,
+      "group"    = EXCLUDED."group",
+      truck_type = EXCLUDED.truck_type,
+      max_pallets = EXCLUDED.max_pallets
+  `;
 }
 
 export async function deleteWarehouse(code: string) {
-  const { error } = await supabase.from('warehouses').delete().eq('code', code);
-  if (error) throw error;
+  await sql`DELETE FROM warehouses WHERE code = ${code}`;
 }
 
 // ─── Truck Types ─────────────────────────────────────────────────────────────
 
 export async function loadTruckTypes(): Promise<TruckType[]> {
-  const { data, error } = await supabase.from('truck_types').select('*');
-  if (error) throw error;
-  return (data ?? []).map((r) => ({
-    code: r.code,
-    name: r.name,
-    maxPallets: r.max_pallets,
-    cols: r.cols,
-    rows: r.rows,
-    widthMM: r.width_mm,
-    depthMM: r.depth_mm,
-    heightMM: r.height_mm ?? 2300,
+  const rows = await sql`SELECT * FROM truck_types ORDER BY code`;
+  return rows.map((r) => ({
+    code: r.code as string,
+    name: r.name as string,
+    maxPallets: r.max_pallets as number,
+    cols: r.cols as number,
+    rows: r.rows as number,
+    widthMM: r.width_mm as number,
+    depthMM: r.depth_mm as number,
+    heightMM: (r.height_mm as number | null) ?? 2300,
   }));
 }
 
 export async function upsertTruckType(t: TruckType) {
-  const { error } = await supabase.from('truck_types').upsert({
-    code: t.code,
-    name: t.name,
-    max_pallets: t.maxPallets,
-    cols: t.cols,
-    rows: t.rows,
-    width_mm: t.widthMM,
-    depth_mm: t.depthMM,
-    height_mm: t.heightMM,
-  });
-  if (error) throw error;
+  await sql`
+    INSERT INTO truck_types (code, name, max_pallets, cols, rows, width_mm, depth_mm, height_mm)
+    VALUES (${t.code}, ${t.name}, ${t.maxPallets}, ${t.cols}, ${t.rows}, ${t.widthMM}, ${t.depthMM}, ${t.heightMM})
+    ON CONFLICT (code) DO UPDATE SET
+      name        = EXCLUDED.name,
+      max_pallets = EXCLUDED.max_pallets,
+      cols        = EXCLUDED.cols,
+      rows        = EXCLUDED.rows,
+      width_mm    = EXCLUDED.width_mm,
+      depth_mm    = EXCLUDED.depth_mm,
+      height_mm   = EXCLUDED.height_mm
+  `;
 }
 
 export async function deleteTruckType(code: string) {
-  const { error } = await supabase.from('truck_types').delete().eq('code', code);
-  if (error) throw error;
+  await sql`DELETE FROM truck_types WHERE code = ${code}`;
 }
 
 // ─── Pallet Types ────────────────────────────────────────────────────────────
 
 export async function loadPalletTypes(): Promise<PalletType[]> {
-  const { data, error } = await supabase.from('pallet_types').select('*');
-  if (error) throw error;
-  return (data ?? []).map((r) => ({
-    code: r.code,
-    name: r.name,
-    widthMM: r.width_mm,
-    depthMM: r.depth_mm,
-    heightMM: r.height_mm,
-    maxWeightKg: r.max_weight_kg,
-    loadedHeightMM: r.loaded_height_mm ?? 1200,
+  const rows = await sql`SELECT * FROM pallet_types ORDER BY code`;
+  return rows.map((r) => ({
+    code: r.code as string,
+    name: r.name as string,
+    widthMM: r.width_mm as number,
+    depthMM: r.depth_mm as number,
+    heightMM: r.height_mm as number,
+    maxWeightKg: r.max_weight_kg as number,
+    loadedHeightMM: (r.loaded_height_mm as number | null) ?? 1200,
   }));
 }
 
 export async function upsertPalletType(pt: PalletType) {
-  const { error } = await supabase.from('pallet_types').upsert({
-    code: pt.code,
-    name: pt.name,
-    width_mm: pt.widthMM,
-    depth_mm: pt.depthMM,
-    height_mm: pt.heightMM,
-    max_weight_kg: pt.maxWeightKg,
-    loaded_height_mm: pt.loadedHeightMM ?? 1200,
-  });
-  if (error) throw error;
+  await sql`
+    INSERT INTO pallet_types (code, name, width_mm, depth_mm, height_mm, max_weight_kg, loaded_height_mm)
+    VALUES (${pt.code}, ${pt.name}, ${pt.widthMM}, ${pt.depthMM}, ${pt.heightMM}, ${pt.maxWeightKg}, ${pt.loadedHeightMM ?? 1200})
+    ON CONFLICT (code) DO UPDATE SET
+      name            = EXCLUDED.name,
+      width_mm        = EXCLUDED.width_mm,
+      depth_mm        = EXCLUDED.depth_mm,
+      height_mm       = EXCLUDED.height_mm,
+      max_weight_kg   = EXCLUDED.max_weight_kg,
+      loaded_height_mm = EXCLUDED.loaded_height_mm
+  `;
 }
 
 export async function deletePalletType(code: string) {
-  const { error } = await supabase.from('pallet_types').delete().eq('code', code);
-  if (error) throw error;
+  await sql`DELETE FROM pallet_types WHERE code = ${code}`;
 }
 
 // ─── Production Plan ─────────────────────────────────────────────────────────
 
 export async function loadProductionPlan(): Promise<ProductionPlan> {
-  const { data, error } = await supabase.from('production_plan').select('*');
-  if (error) throw error;
+  const rows = await sql`SELECT product_code, qty FROM production_plan`;
   const plan: ProductionPlan = {};
-  for (const r of data ?? []) plan[r.product_code] = r.qty;
+  for (const r of rows) plan[r.product_code as string] = r.qty as number;
   return plan;
 }
 
 export async function upsertProductionQty(productCode: string, qty: number) {
-  const { error } = await supabase
-    .from('production_plan')
-    .upsert({ product_code: productCode, qty });
-  if (error) throw error;
+  await sql`
+    INSERT INTO production_plan (product_code, qty)
+    VALUES (${productCode}, ${qty})
+    ON CONFLICT (product_code) DO UPDATE SET qty = EXCLUDED.qty
+  `;
 }
 
 // ─── Daily Production Plan ───────────────────────────────────────────────────
 
 export async function loadDailyProductionPlan(): Promise<DailyProductionPlan> {
-  const { data, error } = await supabase.from('daily_production_plan').select('*');
-  if (error) throw error;
+  const rows = await sql`SELECT product_code, date, qty FROM daily_production_plan`;
   const plan: DailyProductionPlan = {};
-  for (const r of data ?? []) {
-    if (!plan[r.product_code]) plan[r.product_code] = {};
-    plan[r.product_code][r.date] = r.qty;
+  for (const r of rows) {
+    if (!plan[r.product_code as string]) plan[r.product_code as string] = {};
+    plan[r.product_code as string][r.date as string] = r.qty as number;
   }
   return plan;
 }
 
 export async function replaceAllDailyProductionPlan(dailyPlan: DailyProductionPlan) {
-  // Delete all then insert
-  const { error: delErr } = await supabase
-    .from('daily_production_plan')
-    .delete()
-    .neq('product_code', '___never___'); // delete all rows
-  if (delErr) throw delErr;
-
-  const rows: { product_code: string; date: string; qty: number }[] = [];
+  await sql`DELETE FROM daily_production_plan`;
   for (const [productCode, dates] of Object.entries(dailyPlan)) {
     for (const [date, qty] of Object.entries(dates)) {
-      if (qty > 0) rows.push({ product_code: productCode, date, qty });
+      if (qty > 0) {
+        await sql`
+          INSERT INTO daily_production_plan (product_code, date, qty)
+          VALUES (${productCode}, ${date}, ${qty})
+        `;
+      }
     }
-  }
-  if (rows.length > 0) {
-    const { error } = await supabase.from('daily_production_plan').insert(rows);
-    if (error) throw error;
   }
 }
 
-/** 日別生産計画を1件upsert（qty=0なら削除） */
 export async function upsertDailyProductionQty(productCode: string, date: string, qty: number) {
   if (qty > 0) {
-    const { error } = await supabase
-      .from('daily_production_plan')
-      .upsert({ product_code: productCode, date, qty });
-    if (error) throw error;
+    await sql`
+      INSERT INTO daily_production_plan (product_code, date, qty)
+      VALUES (${productCode}, ${date}, ${qty})
+      ON CONFLICT (product_code, date) DO UPDATE SET qty = EXCLUDED.qty
+    `;
   } else {
-    const { error } = await supabase
-      .from('daily_production_plan')
-      .delete()
-      .eq('product_code', productCode)
-      .eq('date', date);
-    if (error) throw error;
+    await sql`
+      DELETE FROM daily_production_plan
+      WHERE product_code = ${productCode} AND date = ${date}
+    `;
   }
 }
 
 // ─── Distribution Ratios ─────────────────────────────────────────────────────
 
 export async function loadDistributionRatios(): Promise<DistributionRatios> {
-  const { data, error } = await supabase.from('distribution_ratios').select('*');
-  if (error) throw error;
+  const rows = await sql`SELECT product_code, warehouse_code, ratio FROM distribution_ratios`;
   const ratios: DistributionRatios = {};
-  for (const r of data ?? []) {
-    if (!ratios[r.product_code]) ratios[r.product_code] = {};
-    ratios[r.product_code][r.warehouse_code] = r.ratio;
+  for (const r of rows) {
+    if (!ratios[r.product_code as string]) ratios[r.product_code as string] = {};
+    ratios[r.product_code as string][r.warehouse_code as string] = r.ratio as number;
   }
   return ratios;
 }
 
 export async function upsertDistributionRatio(productCode: string, warehouseCode: string, ratio: number) {
-  const { error } = await supabase.from('distribution_ratios').upsert({
-    product_code: productCode,
-    warehouse_code: warehouseCode,
-    ratio,
-  });
-  if (error) throw error;
+  await sql`
+    INSERT INTO distribution_ratios (product_code, warehouse_code, ratio)
+    VALUES (${productCode}, ${warehouseCode}, ${ratio})
+    ON CONFLICT (product_code, warehouse_code) DO UPDATE SET ratio = EXCLUDED.ratio
+  `;
 }
 
 export async function replaceAllDistributionRatios(ratios: DistributionRatios) {
-  const { error: delErr } = await supabase
-    .from('distribution_ratios')
-    .delete()
-    .neq('product_code', '___never___');
-  if (delErr) throw delErr;
-
-  const rows: { product_code: string; warehouse_code: string; ratio: number }[] = [];
+  await sql`DELETE FROM distribution_ratios`;
   for (const [pc, whs] of Object.entries(ratios)) {
     for (const [wc, ratio] of Object.entries(whs)) {
-      rows.push({ product_code: pc, warehouse_code: wc, ratio });
+      await sql`
+        INSERT INTO distribution_ratios (product_code, warehouse_code, ratio)
+        VALUES (${pc}, ${wc}, ${ratio})
+      `;
     }
-  }
-  if (rows.length > 0) {
-    const { error } = await supabase.from('distribution_ratios').insert(rows);
-    if (error) throw error;
   }
 }
 
 // ─── Inventory Stock ─────────────────────────────────────────────────────────
 
 export async function loadInventoryStock(): Promise<InventoryStock> {
-  const { data, error } = await supabase.from('inventory_stock').select('*');
-  if (error) throw error;
+  const rows = await sql`SELECT product_code, qty FROM inventory_stock`;
   const stock: InventoryStock = {};
-  for (const r of data ?? []) stock[r.product_code] = r.qty;
+  for (const r of rows) stock[r.product_code as string] = r.qty as number;
   return stock;
 }
 
 export async function upsertInventoryStock(productCode: string, qty: number) {
-  const { error } = await supabase
-    .from('inventory_stock')
-    .upsert({ product_code: productCode, qty });
-  if (error) throw error;
+  await sql`
+    INSERT INTO inventory_stock (product_code, qty)
+    VALUES (${productCode}, ${qty})
+    ON CONFLICT (product_code) DO UPDATE SET qty = EXCLUDED.qty
+  `;
 }
 
 export async function replaceAllInventoryStock(stock: InventoryStock) {
-  const { error: delErr } = await supabase
-    .from('inventory_stock')
-    .delete()
-    .neq('product_code', '___never___');
-  if (delErr) throw delErr;
-
-  const rows = Object.entries(stock).map(([product_code, qty]) => ({ product_code, qty }));
-  if (rows.length > 0) {
-    const { error } = await supabase.from('inventory_stock').insert(rows);
-    if (error) throw error;
+  await sql`DELETE FROM inventory_stock`;
+  for (const [product_code, qty] of Object.entries(stock)) {
+    await sql`INSERT INTO inventory_stock (product_code, qty) VALUES (${product_code}, ${qty})`;
   }
 }
 
 // ─── Location Stock ──────────────────────────────────────────────────────────
 
 export async function loadLocationStock(): Promise<LocationStock> {
-  const { data, error } = await supabase.from('location_stock').select('*');
-  if (error) throw error;
+  const rows = await sql`SELECT product_code, warehouse_code, qty FROM location_stock`;
   const stock: LocationStock = {};
-  for (const r of data ?? []) {
-    if (!stock[r.product_code]) stock[r.product_code] = {};
-    stock[r.product_code][r.warehouse_code] = r.qty;
+  for (const r of rows) {
+    if (!stock[r.product_code as string]) stock[r.product_code as string] = {};
+    stock[r.product_code as string][r.warehouse_code as string] = r.qty as number;
   }
   return stock;
 }
 
 export async function upsertLocationStock(productCode: string, warehouseCode: string, qty: number) {
-  const { error } = await supabase.from('location_stock').upsert({
-    product_code: productCode,
-    warehouse_code: warehouseCode,
-    qty,
-  });
-  if (error) throw error;
+  await sql`
+    INSERT INTO location_stock (product_code, warehouse_code, qty)
+    VALUES (${productCode}, ${warehouseCode}, ${qty})
+    ON CONFLICT (product_code, warehouse_code) DO UPDATE SET qty = EXCLUDED.qty
+  `;
 }
 
 export async function replaceAllLocationStock(stock: LocationStock) {
-  const { error: delErr } = await supabase
-    .from('location_stock')
-    .delete()
-    .neq('product_code', '___never___');
-  if (delErr) throw delErr;
-
-  const rows: { product_code: string; warehouse_code: string; qty: number }[] = [];
+  await sql`DELETE FROM location_stock`;
   for (const [pc, whs] of Object.entries(stock)) {
     for (const [wc, qty] of Object.entries(whs)) {
-      rows.push({ product_code: pc, warehouse_code: wc, qty });
+      await sql`
+        INSERT INTO location_stock (product_code, warehouse_code, qty)
+        VALUES (${pc}, ${wc}, ${qty})
+      `;
     }
-  }
-  if (rows.length > 0) {
-    const { error } = await supabase.from('location_stock').insert(rows);
-    if (error) throw error;
   }
 }
 
 // ─── In-Transit Stock ────────────────────────────────────────────────────────
 
-export async function upsertInTransitStock(productCode: string, warehouseCode: string, qty: number) {
-  if (qty === 0) {
-    await supabase.from('in_transit_stock')
-      .delete()
-      .eq('product_code', productCode)
-      .eq('warehouse_code', warehouseCode);
-    return;
-  }
-  const { error } = await supabase.from('in_transit_stock').upsert({
-    product_code: productCode,
-    warehouse_code: warehouseCode,
-    qty,
-  });
-  if (error) throw error;
-}
-
 export async function loadInTransitStock(): Promise<InTransitStock> {
-  const { data, error } = await supabase.from('in_transit_stock').select('*');
-  if (error) throw error;
+  const rows = await sql`SELECT product_code, warehouse_code, qty FROM in_transit_stock`;
   const stock: InTransitStock = {};
-  for (const r of data ?? []) {
-    if (!stock[r.product_code]) stock[r.product_code] = {};
-    stock[r.product_code][r.warehouse_code] = r.qty;
+  for (const r of rows) {
+    if (!stock[r.product_code as string]) stock[r.product_code as string] = {};
+    stock[r.product_code as string][r.warehouse_code as string] = r.qty as number;
   }
   return stock;
 }
 
-export async function replaceAllInTransitStock(stock: InTransitStock) {
-  const { error: delErr } = await supabase
-    .from('in_transit_stock')
-    .delete()
-    .neq('product_code', '___never___');
-  if (delErr) throw delErr;
+export async function upsertInTransitStock(productCode: string, warehouseCode: string, qty: number) {
+  if (qty === 0) {
+    await sql`
+      DELETE FROM in_transit_stock
+      WHERE product_code = ${productCode} AND warehouse_code = ${warehouseCode}
+    `;
+    return;
+  }
+  await sql`
+    INSERT INTO in_transit_stock (product_code, warehouse_code, qty)
+    VALUES (${productCode}, ${warehouseCode}, ${qty})
+    ON CONFLICT (product_code, warehouse_code) DO UPDATE SET qty = EXCLUDED.qty
+  `;
+}
 
-  const rows: { product_code: string; warehouse_code: string; qty: number }[] = [];
+export async function replaceAllInTransitStock(stock: InTransitStock) {
+  await sql`DELETE FROM in_transit_stock`;
   for (const [pc, whs] of Object.entries(stock)) {
     for (const [wc, qty] of Object.entries(whs)) {
-      if (qty > 0) rows.push({ product_code: pc, warehouse_code: wc, qty });
+      if (qty > 0) {
+        await sql`
+          INSERT INTO in_transit_stock (product_code, warehouse_code, qty)
+          VALUES (${pc}, ${wc}, ${qty})
+        `;
+      }
     }
-  }
-  if (rows.length > 0) {
-    const { error } = await supabase.from('in_transit_stock').insert(rows);
-    if (error) throw error;
   }
 }
 
 // ─── Planned Sales ───────────────────────────────────────────────────────────
 
 export async function loadPlannedSales(): Promise<PlannedSales> {
-  const { data, error } = await supabase.from('planned_sales').select('*');
-  if (error) throw error;
+  const rows = await sql`SELECT product_code, warehouse_code, qty FROM planned_sales`;
   const sales: PlannedSales = {};
-  for (const r of data ?? []) {
-    if (!sales[r.product_code]) sales[r.product_code] = {};
-    sales[r.product_code][r.warehouse_code] = r.qty;
+  for (const r of rows) {
+    if (!sales[r.product_code as string]) sales[r.product_code as string] = {};
+    sales[r.product_code as string][r.warehouse_code as string] = r.qty as number;
   }
   return sales;
 }
 
 export async function upsertPlannedSales(productCode: string, warehouseCode: string, qty: number) {
-  const { error } = await supabase.from('planned_sales').upsert({
-    product_code: productCode,
-    warehouse_code: warehouseCode,
-    qty,
-  });
-  if (error) throw error;
+  await sql`
+    INSERT INTO planned_sales (product_code, warehouse_code, qty)
+    VALUES (${productCode}, ${warehouseCode}, ${qty})
+    ON CONFLICT (product_code, warehouse_code) DO UPDATE SET qty = EXCLUDED.qty
+  `;
 }
 
 export async function replaceAllPlannedSales(sales: PlannedSales) {
-  const { error: delErr } = await supabase
-    .from('planned_sales')
-    .delete()
-    .neq('product_code', '___never___');
-  if (delErr) throw delErr;
-
-  const rows: { product_code: string; warehouse_code: string; qty: number }[] = [];
+  await sql`DELETE FROM planned_sales`;
   for (const [pc, whs] of Object.entries(sales)) {
     for (const [wc, qty] of Object.entries(whs)) {
-      if (qty > 0) rows.push({ product_code: pc, warehouse_code: wc, qty });
+      if (qty > 0) {
+        await sql`
+          INSERT INTO planned_sales (product_code, warehouse_code, qty)
+          VALUES (${pc}, ${wc}, ${qty})
+        `;
+      }
     }
-  }
-  if (rows.length > 0) {
-    const { error } = await supabase.from('planned_sales').insert(rows);
-    if (error) throw error;
   }
 }
 
 // ─── Weekly Shipping Schedule ────────────────────────────────────────────────
 
 export async function loadWeeklyShippingSchedule(): Promise<WeeklyShippingSchedule> {
-  const { data, error } = await supabase.from('weekly_shipping_schedule').select('*');
-  if (error) throw error;
+  const rows = await sql`SELECT factory_code, warehouse_code, days FROM weekly_shipping_schedule`;
   const schedule: WeeklyShippingSchedule = {};
-  for (const r of data ?? []) {
-    if (!schedule[r.factory_code]) schedule[r.factory_code] = {};
-    schedule[r.factory_code][r.warehouse_code] = r.days as boolean[];
+  for (const r of rows) {
+    if (!schedule[r.factory_code as string]) schedule[r.factory_code as string] = {};
+    schedule[r.factory_code as string][r.warehouse_code as string] = r.days as boolean[];
   }
   return schedule;
 }
 
 export async function upsertShippingSchedule(factoryCode: string, warehouseCode: string, days: boolean[]) {
-  const { error } = await supabase.from('weekly_shipping_schedule').upsert({
-    factory_code: factoryCode,
-    warehouse_code: warehouseCode,
-    days,
-  });
-  if (error) throw error;
+  await sql`
+    INSERT INTO weekly_shipping_schedule (factory_code, warehouse_code, days)
+    VALUES (${factoryCode}, ${warehouseCode}, ${days})
+    ON CONFLICT (factory_code, warehouse_code) DO UPDATE SET days = EXCLUDED.days
+  `;
 }
 
 // ─── Operating Days ──────────────────────────────────────────────────────────
 
 export async function loadOperatingDays(): Promise<OperatingDays> {
-  const { data, error } = await supabase.from('operating_days').select('*');
-  if (error) throw error;
+  const rows = await sql`SELECT factory_code, days FROM operating_days`;
   const result: OperatingDays = {};
-  for (const r of data ?? []) {
-    result[r.factory_code] = r.days as boolean[];
-  }
+  for (const r of rows) result[r.factory_code as string] = r.days as boolean[];
   return result;
 }
 
 export async function upsertOperatingDays(factoryCode: string, days: boolean[]) {
-  const { error } = await supabase.from('operating_days').upsert({
-    factory_code: factoryCode,
-    days,
-  });
-  if (error) throw error;
+  await sql`
+    INSERT INTO operating_days (factory_code, days)
+    VALUES (${factoryCode}, ${days})
+    ON CONFLICT (factory_code) DO UPDATE SET days = EXCLUDED.days
+  `;
 }
 
 // ─── Non-Working Dates（祝日・特別休業日） ────────────────────────────────────
 
 export async function loadNonWorkingDates(): Promise<NonWorkingDates> {
-  const { data, error } = await supabase.from('non_working_dates').select('*');
-  if (error) throw error;
+  const rows = await sql`SELECT factory_code, date FROM non_working_dates ORDER BY date`;
   const result: NonWorkingDates = {};
-  for (const r of data ?? []) {
-    if (!result[r.factory_code]) result[r.factory_code] = [];
-    result[r.factory_code].push(r.date);
+  for (const r of rows) {
+    if (!result[r.factory_code as string]) result[r.factory_code as string] = [];
+    result[r.factory_code as string].push(r.date as string);
   }
   return result;
 }
 
 export async function addNonWorkingDate(factoryCode: string, date: string) {
-  const { error } = await supabase.from('non_working_dates').upsert({
-    factory_code: factoryCode,
-    date,
-  });
-  if (error) throw error;
+  await sql`
+    INSERT INTO non_working_dates (factory_code, date)
+    VALUES (${factoryCode}, ${date})
+    ON CONFLICT (factory_code, date) DO NOTHING
+  `;
 }
 
 export async function removeNonWorkingDate(factoryCode: string, date: string) {
-  const { error } = await supabase.from('non_working_dates').delete()
-    .eq('factory_code', factoryCode).eq('date', date);
-  if (error) throw error;
+  await sql`
+    DELETE FROM non_working_dates
+    WHERE factory_code = ${factoryCode} AND date = ${date}
+  `;
 }
 
-// ─── Seed (初回デフォルトデータ投入) ─────────────────────────────────────────
+// ─── 送り数手動上書き ─────────────────────────────────────────────────────────
+
+export async function loadSendQtyManual(): Promise<SendQtyManual> {
+  const rows = await sql`SELECT product_code, warehouse_code, qty FROM send_qty_manual`;
+  const result: SendQtyManual = {};
+  for (const r of rows) {
+    if (!result[r.product_code as string]) result[r.product_code as string] = {};
+    result[r.product_code as string][r.warehouse_code as string] = r.qty as number;
+  }
+  return result;
+}
+
+export async function upsertSendQtyManual(productCode: string, warehouseCode: string, qty: number) {
+  await sql`
+    INSERT INTO send_qty_manual (product_code, warehouse_code, qty)
+    VALUES (${productCode}, ${warehouseCode}, ${qty})
+    ON CONFLICT (product_code, warehouse_code) DO UPDATE SET qty = EXCLUDED.qty
+  `;
+}
+
+export async function deleteSendQtyManual(productCode: string, warehouseCode: string) {
+  await sql`
+    DELETE FROM send_qty_manual
+    WHERE product_code = ${productCode} AND warehouse_code = ${warehouseCode}
+  `;
+}
+
+export async function replaceAllSendQtyManual(data: SendQtyManual) {
+  await sql`DELETE FROM send_qty_manual`;
+  for (const [pc, whMap] of Object.entries(data)) {
+    for (const [wc, qty] of Object.entries(whMap)) {
+      if (qty > 0) {
+        await sql`
+          INSERT INTO send_qty_manual (product_code, warehouse_code, qty)
+          VALUES (${pc}, ${wc}, ${qty})
+        `;
+      }
+    }
+  }
+}
+
+// ─── Seed（初回デフォルトデータ投入） ─────────────────────────────────────────
 
 import {
   DEFAULT_FACTORIES, DEFAULT_PRODUCTS, DEFAULT_WAREHOUSES,
@@ -619,104 +587,98 @@ import {
 
 export async function seedDefaults() {
   // Factories
-  await supabase.from('factories').upsert(
-    DEFAULT_FACTORIES.map((f) => ({ code: f.code, name: f.name }))
-  );
+  for (const f of DEFAULT_FACTORIES) {
+    await sql`
+      INSERT INTO factories (code, name) VALUES (${f.code}, ${f.name})
+      ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+    `;
+  }
 
   // Products
-  await supabase.from('products').upsert(
-    DEFAULT_PRODUCTS.map((p) => ({
-      code: p.code, name: p.name,
-      capacity_per_pallet: p.capacityPerPallet,
-      pallet_type: p.palletType,
-      color: p.color,
-      factory_code: p.factoryCode ?? 'F001',
-    }))
-  );
+  for (const p of DEFAULT_PRODUCTS) {
+    await sql`
+      INSERT INTO products (
+        code, name, capacity_per_pallet, pallet_type, color, factory_code
+      ) VALUES (
+        ${p.code}, ${p.name}, ${p.capacityPerPallet}, ${p.palletType}, ${p.color}, ${p.factoryCode ?? 'F001'}
+      )
+      ON CONFLICT (code) DO UPDATE SET
+        name                = EXCLUDED.name,
+        capacity_per_pallet = EXCLUDED.capacity_per_pallet,
+        pallet_type         = EXCLUDED.pallet_type,
+        color               = EXCLUDED.color,
+        factory_code        = EXCLUDED.factory_code
+    `;
+  }
 
   // Warehouses
-  await supabase.from('warehouses').upsert(
-    DEFAULT_WAREHOUSES.map((w) => ({
-      code: w.code, name: w.name, group: w.group,
-      truck_type: w.truckType, max_pallets: w.maxPallets,
-    }))
-  );
+  for (const w of DEFAULT_WAREHOUSES) {
+    await sql`
+      INSERT INTO warehouses (code, name, "group", truck_type, max_pallets)
+      VALUES (${w.code}, ${w.name}, ${w.group}, ${w.truckType}, ${w.maxPallets})
+      ON CONFLICT (code) DO UPDATE SET
+        name        = EXCLUDED.name,
+        "group"     = EXCLUDED."group",
+        truck_type  = EXCLUDED.truck_type,
+        max_pallets = EXCLUDED.max_pallets
+    `;
+  }
 
   // Truck types
-  await supabase.from('truck_types').upsert(
-    DEFAULT_TRUCK_TYPES.map((t) => ({
-      code: t.code, name: t.name, max_pallets: t.maxPallets,
-      cols: t.cols, rows: t.rows, width_mm: t.widthMM, depth_mm: t.depthMM,
-    }))
-  );
+  for (const t of DEFAULT_TRUCK_TYPES) {
+    await sql`
+      INSERT INTO truck_types (code, name, max_pallets, cols, rows, width_mm, depth_mm, height_mm)
+      VALUES (${t.code}, ${t.name}, ${t.maxPallets}, ${t.cols}, ${t.rows}, ${t.widthMM}, ${t.depthMM}, ${t.heightMM ?? 2300})
+      ON CONFLICT (code) DO UPDATE SET
+        name        = EXCLUDED.name,
+        max_pallets = EXCLUDED.max_pallets,
+        cols        = EXCLUDED.cols,
+        rows        = EXCLUDED.rows,
+        width_mm    = EXCLUDED.width_mm,
+        depth_mm    = EXCLUDED.depth_mm,
+        height_mm   = EXCLUDED.height_mm
+    `;
+  }
 
   // Pallet types
-  await supabase.from('pallet_types').upsert(
-    DEFAULT_PALLET_TYPES.map((p) => ({
-      code: p.code, name: p.name,
-      width_mm: p.widthMM, depth_mm: p.depthMM,
-      height_mm: p.heightMM, max_weight_kg: p.maxWeightKg,
-    }))
-  );
+  for (const p of DEFAULT_PALLET_TYPES) {
+    await sql`
+      INSERT INTO pallet_types (code, name, width_mm, depth_mm, height_mm, max_weight_kg, loaded_height_mm)
+      VALUES (${p.code}, ${p.name}, ${p.widthMM}, ${p.depthMM}, ${p.heightMM}, ${p.maxWeightKg}, ${p.loadedHeightMM ?? 1200})
+      ON CONFLICT (code) DO UPDATE SET
+        name            = EXCLUDED.name,
+        width_mm        = EXCLUDED.width_mm,
+        depth_mm        = EXCLUDED.depth_mm,
+        height_mm       = EXCLUDED.height_mm,
+        max_weight_kg   = EXCLUDED.max_weight_kg,
+        loaded_height_mm = EXCLUDED.loaded_height_mm
+    `;
+  }
 
   // Production plan
-  await supabase.from('production_plan').upsert(
-    Object.entries(DEFAULT_PRODUCTION_PLAN).map(([product_code, qty]) => ({ product_code, qty }))
-  );
+  for (const [product_code, qty] of Object.entries(DEFAULT_PRODUCTION_PLAN)) {
+    await sql`
+      INSERT INTO production_plan (product_code, qty) VALUES (${product_code}, ${qty})
+      ON CONFLICT (product_code) DO UPDATE SET qty = EXCLUDED.qty
+    `;
+  }
 
   // Distribution ratios
-  const ratioRows: { product_code: string; warehouse_code: string; ratio: number }[] = [];
   for (const [pc, whs] of Object.entries(DEFAULT_DISTRIBUTION_RATIOS)) {
     for (const [wc, ratio] of Object.entries(whs)) {
-      ratioRows.push({ product_code: pc, warehouse_code: wc, ratio });
+      await sql`
+        INSERT INTO distribution_ratios (product_code, warehouse_code, ratio)
+        VALUES (${pc}, ${wc}, ${ratio})
+        ON CONFLICT (product_code, warehouse_code) DO UPDATE SET ratio = EXCLUDED.ratio
+      `;
     }
   }
-  await supabase.from('distribution_ratios').upsert(ratioRows);
 
   // Inventory stock
-  await supabase.from('inventory_stock').upsert(
-    Object.entries(DEFAULT_INVENTORY_STOCK).map(([product_code, qty]) => ({ product_code, qty }))
-  );
-}
-
-// ─── 送り数手動上書き ─────────────────────────────────────────────────
-
-export async function loadSendQtyManual(): Promise<SendQtyManual> {
-  const { data, error } = await supabase.from('send_qty_manual').select('*');
-  if (error) throw error;
-  const result: SendQtyManual = {};
-  for (const r of data ?? []) {
-    if (!result[r.product_code]) result[r.product_code] = {};
-    result[r.product_code][r.warehouse_code] = r.qty;
-  }
-  return result;
-}
-
-export async function upsertSendQtyManual(
-  productCode: string, warehouseCode: string, qty: number,
-) {
-  const { error } = await supabase.from('send_qty_manual').upsert(
-    { product_code: productCode, warehouse_code: warehouseCode, qty },
-    { onConflict: 'product_code,warehouse_code' },
-  );
-  if (error) throw error;
-}
-
-export async function deleteSendQtyManual(productCode: string, warehouseCode: string) {
-  const { error } = await supabase.from('send_qty_manual').delete()
-    .eq('product_code', productCode).eq('warehouse_code', warehouseCode);
-  if (error) throw error;
-}
-
-export async function replaceAllSendQtyManual(data: SendQtyManual) {
-  await supabase.from('send_qty_manual').delete().neq('product_code', '');
-  const rows: { product_code: string; warehouse_code: string; qty: number }[] = [];
-  for (const [pc, whMap] of Object.entries(data)) {
-    for (const [wc, qty] of Object.entries(whMap)) {
-      if (qty > 0) rows.push({ product_code: pc, warehouse_code: wc, qty });
-    }
-  }
-  if (rows.length > 0) {
-    await supabase.from('send_qty_manual').insert(rows);
+  for (const [product_code, qty] of Object.entries(DEFAULT_INVENTORY_STOCK)) {
+    await sql`
+      INSERT INTO inventory_stock (product_code, qty) VALUES (${product_code}, ${qty})
+      ON CONFLICT (product_code) DO UPDATE SET qty = EXCLUDED.qty
+    `;
   }
 }

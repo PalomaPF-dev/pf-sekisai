@@ -69,7 +69,7 @@ export default function SettingsPage() {
     try {
       const removed = await db.deduplicateProducts();
       // ストアを再ロード
-      await useAppStore.getState().loadFromSupabase();
+      await useAppStore.getState().loadFromDB();
       setDedupResult(removed > 0 ? `${removed} 種類の重複を削除しました。` : '重複なし（変更なし）');
     } catch (err) {
       setDedupResult(`エラー: ${err instanceof Error ? err.message : String(err)}`);

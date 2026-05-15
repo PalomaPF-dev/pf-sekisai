@@ -45,7 +45,7 @@ interface AppState {
   sendQtyManual: SendQtyManual;
 
   // ─── アクション ───────────────────────────────────────────
-  loadFromSupabase: () => Promise<void>;
+  loadFromDB: () => Promise<void>;
 
   addFactory: (f: Factory) => void;
   updateFactory: (f: Factory) => void;
@@ -122,8 +122,8 @@ const defaultState = {
 export const useAppStore = create<AppState>()((set, get) => ({
   ...defaultState,
 
-  // ─── Supabase からの初回ロード ──────────────────────────────
-  loadFromSupabase: async () => {
+  // ─── DB からの初回ロード ──────────────────────────────
+  loadFromDB: async () => {
     try {
       const [
         factories,

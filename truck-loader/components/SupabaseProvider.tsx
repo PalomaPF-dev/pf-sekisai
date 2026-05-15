@@ -27,7 +27,7 @@ interface LegacyStore {
 }
 
 /**
- * 旧 localStorage データを Supabase に移行する。
+ * 旧 localStorage データを DB に移行する。
  * 移行済みフラグ（truck-loader-migrated）があればスキップ。
  */
 async function migrateLegacyDataIfExists(): Promise<boolean> {
@@ -42,7 +42,7 @@ async function migrateLegacyDataIfExists(): Promise<boolean> {
     const s = legacy?.state;
     if (!s) return false;
 
-    console.log('[Migration] 旧 localStorage データを Supabase に移行中...');
+    console.log('[Migration] 旧 localStorage データを DB に移行中...');
 
     const tasks: Promise<void>[] = [];
 
@@ -108,21 +108,21 @@ async function migrateLegacyDataIfExists(): Promise<boolean> {
 }
 
 /**
- * アプリ起動時に Supabase からデータをロードする。
+ * アプリ起動時に DB からデータをロードする。
  * 旧 localStorage データがあれば先に移行する。
  */
 export function SupabaseProvider({ children }: { children: React.ReactNode }) {
-  const loadFromSupabase = useAppStore((s) => s.loadFromSupabase);
+  const loadFromDB = useAppStore((s) => s.loadFromDB);
   const isLoaded = useAppStore((s) => s.isLoaded);
 
   useEffect(() => {
     (async () => {
       // 旧データの移行（初回のみ）
       await migrateLegacyDataIfExists();
-      // Supabase からロード
-      await loadFromSupabase();
+      // DB からロード
+      await loadFromDB();
     })();
-  }, [loadFromSupabase]);
+  }, [loadFromDB]);
 
   if (!isLoaded) {
     return (
