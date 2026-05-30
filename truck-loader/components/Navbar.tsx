@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import Image from 'next/image';
 import clsx from 'clsx';
+import { UserMenu } from './UserMenu';
 
 const NAV_ITEMS = [
   {
@@ -64,7 +64,7 @@ export function Navbar() {
     <>
       {/* ── トップヘッダー ── */}
       <header
-        className="sticky top-0 z-50 flex items-center px-6"
+        className="sticky top-0 z-50 flex items-center justify-between px-6"
         style={{
           height: 68,
           background: 'white',
@@ -72,19 +72,39 @@ export function Navbar() {
           boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
         }}
       >
-        <div className="flex flex-col justify-center gap-0.5">
-          <Image
-            src="/paloma-logo-black.jpg"
-            alt="Paloma"
-            width={150}
-            height={36}
-            priority
-            style={{ height: 28, width: 'auto', objectFit: 'contain' }}
-          />
-          <span style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', letterSpacing: '0.06em' }}>
-            積載計画管理システム
-          </span>
+        {/* 左：アイコン＋タイトル */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 9,
+              background: '#2563eb',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="1" y="3" width="15" height="13" rx="1"/>
+              <path d="M16 8h4l3 3v5h-7V8z"/>
+              <circle cx="5.5" cy="18.5" r="2.5"/>
+              <circle cx="18.5" cy="18.5" r="2.5"/>
+            </svg>
+          </div>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', lineHeight: 1.2 }}>
+              積載計画管理
+            </div>
+            <div style={{ fontSize: 11, color: '#6b7280', lineHeight: 1.2 }}>
+              Truck Loader
+            </div>
+          </div>
         </div>
+
+        {/* 右：ユーザーメニュー */}
+        <UserMenu />
       </header>
 
       {/* ── 左サイドバー（固定） ── */}

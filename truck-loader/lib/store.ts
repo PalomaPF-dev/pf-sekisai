@@ -6,9 +6,6 @@ import type {
   OperatingDays, SendQtyManual, NonWorkingDates,
 } from './types';
 import {
-  DEFAULT_FACTORIES,
-  DEFAULT_PRODUCTS,
-  DEFAULT_WAREHOUSES,
   DEFAULT_TRUCK_TYPES,
   DEFAULT_PALLET_TYPES,
   DEFAULT_PRODUCTION_PLAN,
@@ -101,9 +98,9 @@ interface AppState {
 
 const defaultState = {
   isLoaded: false,
-  factories: DEFAULT_FACTORIES,
-  products: DEFAULT_PRODUCTS,
-  warehouses: DEFAULT_WAREHOUSES,
+  factories: [] as Factory[],
+  products: [] as Product[],
+  warehouses: [] as Warehouse[],
   truckTypes: DEFAULT_TRUCK_TYPES,
   palletTypes: DEFAULT_PALLET_TYPES,
   productionPlan: DEFAULT_PRODUCTION_PLAN,
@@ -161,17 +158,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         db.loadSendQtyManual().catch(() => ({} as SendQtyManual)),
       ]);
 
-      // テーブルが空なら初期データを投入
-      if (factories.length === 0) {
-        await db.seedDefaults();
-        set({ ...defaultState, isLoaded: true });
-        return;
-      }
-
-      // ⚠ DBから読み込んだ内容をそのまま使う（DEFAULT_*フォールバックは撤廃）。
-      // ユーザーが明示的に削除した行が、リロード時にデフォルト値で復活してしまう
-      // 不具合を防ぐため。初回ロード（factories=0）は上の seedDefaults 分岐で
-      // 全マスタが自動投入される。
+      // DBから読み込んだ内容をそのまま使う（テナントが自分で登録）
       set({
         isLoaded: true,
         factories,
@@ -192,7 +179,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         sendQtyManual,
       });
     } catch (err) {
-      console.error('[Supabase] loadFromSupabase error:', err);
+      console.error('[DB] loadFromDB error:', err);
       // エラー時はデフォルト値で動作継続
       set({ isLoaded: true });
     }
@@ -516,6 +503,5 @@ export const useAppStore = create<AppState>()((set, get) => ({
   // ─── リセット ─────────────────────────────────────────────
   resetToDefaults: () => {
     set({ ...defaultState, isLoaded: true });
-    db.seedDefaults().catch(console.error);
   },
 }));

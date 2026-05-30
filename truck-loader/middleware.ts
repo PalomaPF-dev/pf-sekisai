@@ -1,9 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
-
-export function middleware(_req: NextRequest) {
-  return NextResponse.next()
-}
+export { default } from 'next-auth/middleware';
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
-}
+  matcher: [
+    /*
+     * /login, /register, /api/auth/* 以外の全ルートを保護
+     * next.js の静的ファイル (_next/static, favicon.ico など) は除外
+     */
+    '/((?!login|register|api/auth|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|ico)).*)',
+  ],
+};
