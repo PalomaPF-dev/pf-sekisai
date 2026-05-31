@@ -122,9 +122,10 @@ export interface TruckLayout {
 
 export interface TruckLoad {
   truckIndex: number;   // 1号車〜
+  truckTypeCode: string; // この積載に選定されたトラック種別コード（T01〜）
   items: PalletItem[];  // 積載アイテム（積み込み順）
   totalPallets: number; // 使用パレット数（床面のみ）
-  maxPallets: number;   // 最大パレット数（床面スロット数）
+  maxPallets: number;   // 有効最大パレット数（この車種・2段積み込みの容量）
   layout?: TruckLayout; // 2D積載レイアウト（stacking算出後）
   upperPallets?: number; // 2段目に積まれたパレット枚数
 }

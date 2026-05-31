@@ -115,46 +115,128 @@ export function calcSendQty(
   return sendQty;
 }
 
+/** 選定候補トラック（有効容量つき） */
+interface TruckCandidate {
+  type: TruckType;
+  floorCap: number; // 床面スロット数（ドック制約の判定に使用）
+  eff: number;      // 有効容量（2段積み込み）
+}
+
+/**
+ * フリートから、ドック制約（床面 ≤ dockFloorCap）を満たす候補を作る。
+ * 各候補の有効容量は積載予定製品のスタッキング可否で決まる。
+ */
+function buildTruckCandidates(
+  fleet: TruckType[],
+  dockFloorCap: number,
+  canStackProducts: boolean,
+  minLoadedH: number,
+): TruckCandidate[] {
+  const cands: TruckCandidate[] = [];
+  for (const t of fleet) {
+    const floorCap = t.cols * t.rows;
+    if (floorCap <= 0 || floorCap > dockFloorCap) continue; // ドックに入らない大型は除外
+    const truckH = t.heightMM ?? 2300;
+    const canStack = canStackProducts && minLoadedH * 2 <= truckH;
+    const eff = Math.max(t.maxPallets, canStack ? floorCap * 2 : floorCap);
+    cands.push({ type: t, floorCap, eff });
+  }
+  return cands;
+}
+
+/**
+ * P枚のパレットを運ぶ最適なトラックの組合せを選定する。
+ * 目的: ①廃棄スロット最小（積載率最大）→ ②台数最小 → ③大型優先。
+ * DP（被覆問題）で最適化。Pが大きい場合はグリーディにフォールバック。
+ * 戻り値は有効容量の降順（大型に先に積む）。
+ */
+export function selectTrucksForPallets(P: number, candidates: TruckCandidate[]): TruckCandidate[] {
+  if (P <= 0 || candidates.length === 0) return [];
+  const sortedDesc = [...candidates].sort((a, b) => b.eff - a.eff);
+  const maxEff = sortedDesc[0].eff;
+
+  // 大きすぎる P は DP 配列が膨らむためグリーディ（最大車種を満載で並べ、端数を最適車種で）
+  if (P > 800) {
+    const picks: TruckCandidate[] = [];
+    let rem = P;
+    const big = sortedDesc[0];
+    while (rem > big.eff) { picks.push(big); rem -= big.eff; }
+    // 端数 rem を、廃棄最小の単一車種で
+    let best = sortedDesc.find((c) => c.eff >= rem) ?? big;
+    for (const c of sortedDesc) if (c.eff >= rem && c.eff < best.eff) best = c;
+    picks.push(best);
+    return picks.sort((a, b) => b.eff - a.eff);
+  }
+
+  // dp[k] = 「k枚以上を運ぶ」最良解。比較は (総容量 asc, 台数 asc)
+  const INF = Number.POSITIVE_INFINITY;
+  const dp: { cap: number; count: number; from: number; cand: number }[] =
+    Array.from({ length: P + 1 }, () => ({ cap: INF, count: INF, from: -1, cand: -1 }));
+  dp[0] = { cap: 0, count: 0, from: -1, cand: -1 };
+  const better = (a: { cap: number; count: number }, b: { cap: number; count: number }) =>
+    a.cap !== b.cap ? a.cap < b.cap : a.count < b.count;
+
+  for (let k = 1; k <= P; k++) {
+    for (let ci = 0; ci < sortedDesc.length; ci++) {
+      const c = sortedDesc[ci];
+      const prev = dp[Math.max(0, k - c.eff)];
+      if (prev.cap === INF) continue;
+      const cand = { cap: prev.cap + c.eff, count: prev.count + 1, from: Math.max(0, k - c.eff), cand: ci };
+      if (dp[k].cap === INF || better(cand, dp[k])) dp[k] = cand;
+    }
+  }
+
+  // 復元（解が無ければ最大車種で被覆するフォールバック）
+  if (dp[P].cand < 0) {
+    const picks: TruckCandidate[] = [];
+    let rem = P;
+    while (rem > 0) { picks.push(sortedDesc[0]); rem -= maxEff; }
+    return picks;
+  }
+  const picks: TruckCandidate[] = [];
+  let k = P;
+  while (k > 0 && dp[k].cand >= 0) {
+    picks.push(sortedDesc[dp[k].cand]);
+    k = dp[k].from;
+  }
+  return picks.sort((a, b) => b.eff - a.eff);
+}
+
 /**
  * 1拠点分の積載計画を計算する（送り数を外部から受け取る）
+ * dockTruck はその拠点が受入可能な最大トラック（ドック制約）。
+ * fleet（全車種）から最も積載効率の良いトラックを選定して積み付ける。
  */
 export function calcWarehousePlan(
   warehouseCode: string,
   products: Product[],
-  truckType: TruckType,
+  dockTruck: TruckType,
+  fleet: TruckType[],
   sendQty: Record<string, Record<string, number>>,
   palletTypes: PalletType[] = [],
 ): WarehousePlan {
-  // 2段積み可能かどうかを判定し、有効最大パレット数を求める
-  const floorCap = truckType.cols * truckType.rows;
-  const truckH = truckType.heightMM ?? 2300;
   const palletTypeMap = Object.fromEntries(palletTypes.map((pt) => [pt.code, pt]));
   const shippedProds = products.filter((p) => (sendQty[p.code]?.[warehouseCode] ?? 0) > 0);
   const minLoadedH = shippedProds.length > 0
     ? Math.min(...shippedProds.map((p) => palletTypeMap[p.palletType]?.loadedHeightMM ?? 1200))
     : 1200;
-  // 2段積み条件: 高さ制約 + 上段に積める製品が存在 + 上積み許可の製品が存在
+  // 2段積み条件: 上段に積める製品が存在 + 上積み許可の製品が存在（高さは車種ごとに判定）
   const hasUpperStackable  = shippedProds.some((p) => p.stackable !== false);
   const hasBottomStackable = shippedProds.some((p) => p.allowStackOnTop !== false);
-  const canStack = hasUpperStackable && hasBottomStackable && minLoadedH * 2 <= truckH;
-  const effectiveCap = canStack ? floorCap * 2 : floorCap;
-  const maxPal = Math.max(truckType.maxPallets, effectiveCap);
+  const canStackProducts = hasUpperStackable && hasBottomStackable;
 
   // 製品ごとに送り数 → パレット数を計算（端数は切り捨て＝完全パレット単位のみ）
-  const items: (PalletItem & { originalPallets: number; remaining: number })[] = [];
+  const items: { productCode: string; pallets: number; qty: number; capacityPerPallet: number }[] = [];
   for (const p of products) {
     const qty = sendQty[p.code]?.[warehouseCode] ?? 0;
     if (qty <= 0) continue;
     const pallets = Math.floor(qty / p.capacityPerPallet); // 端数切り捨て
     if (pallets <= 0) continue; // 1パレット未満は積載しない
-    const effectiveQty = pallets * p.capacityPerPallet; // 完全パレット分の実数量
     items.push({
       productCode: p.code,
       pallets,
-      qty: effectiveQty,
+      qty: pallets * p.capacityPerPallet,
       capacityPerPallet: p.capacityPerPallet,
-      originalPallets: pallets,
-      remaining: pallets,
     });
   }
 
@@ -162,50 +244,68 @@ export function calcWarehousePlan(
     return { warehouseCode, trucks: [], totalPallets: 0, totalQty: 0 };
   }
 
-  // 多パレット順に並び替え（重量・数量の多いものをキャブ側へ）
+  // 総パレット数 P を最適なトラック構成で運ぶ
+  const totalP = items.reduce((s, i) => s + i.pallets, 0);
+  const dockFloorCap = dockTruck.cols * dockTruck.rows;
+  let candidates = buildTruckCandidates(fleet, dockFloorCap, canStackProducts, minLoadedH);
+  if (candidates.length === 0) {
+    // フリート未登録などの保険：ドックトラック単体を候補に
+    const floorCap = dockTruck.cols * dockTruck.rows;
+    const canStack = canStackProducts && minLoadedH * 2 <= (dockTruck.heightMM ?? 2300);
+    candidates = [{ type: dockTruck, floorCap, eff: Math.max(dockTruck.maxPallets, canStack ? floorCap * 2 : floorCap) }];
+  }
+  const selected = selectTrucksForPallets(totalP, candidates);
+
+  // 多パレット順に並び替え（重量・数量の多いものをキャブ側／大型車へ）
   items.sort((a, b) => b.pallets - a.pallets);
 
-  // グリーディ bin-pack
+  // 選定済みトラック（大型→小型）へ順に満載で積み付ける
+  const queue = items.map((i) => ({ ...i, rem: i.pallets, qtyRem: i.qty }));
+  let qi = 0;
   const trucks: TruckLoad[] = [];
-  let currentItems: PalletItem[] = [];
-  let currentSlots = 0;
 
-  for (const item of items) {
-    let rem = item.remaining;
-    let qtyRem = item.qty;
-
-    while (rem > 0) {
-      if (currentSlots >= maxPal) {
-        trucks.push({
-          truckIndex: trucks.length + 1,
-          items: currentItems,
-          totalPallets: currentSlots,
-          maxPallets: maxPal,
-        });
-        currentItems = [];
-        currentSlots = 0;
-      }
-      const canFit = maxPal - currentSlots;
-      const place = Math.min(rem, canFit);
-      const qtyHere = Math.min(qtyRem, place * item.capacityPerPallet);
-      currentItems.push({
-        productCode: item.productCode,
-        pallets: place,
-        qty: qtyHere,
-        capacityPerPallet: item.capacityPerPallet,
-      });
-      currentSlots += place;
-      rem -= place;
-      qtyRem -= qtyHere;
+  for (let t = 0; t < selected.length; t++) {
+    const cap = selected[t].eff;
+    const truckItems: PalletItem[] = [];
+    let slots = 0;
+    while (slots < cap && qi < queue.length) {
+      const it = queue[qi];
+      if (it.rem <= 0) { qi++; continue; }
+      const place = Math.min(it.rem, cap - slots);
+      const qtyHere = Math.min(it.qtyRem, place * it.capacityPerPallet);
+      truckItems.push({ productCode: it.productCode, pallets: place, qty: qtyHere, capacityPerPallet: it.capacityPerPallet });
+      it.rem -= place;
+      it.qtyRem -= qtyHere;
+      slots += place;
+      if (it.rem <= 0) qi++;
     }
-  }
-  if (currentItems.length > 0) {
+    if (truckItems.length === 0) continue;
     trucks.push({
       truckIndex: trucks.length + 1,
-      items: currentItems,
-      totalPallets: currentSlots,
-      maxPallets: maxPal,
+      truckTypeCode: selected[t].type.code,
+      items: truckItems,
+      totalPallets: slots,
+      maxPallets: cap,
     });
+  }
+
+  // 念のため：選定容量が不足して積み残しがあれば最大候補で追加（通常発生しない）
+  const biggest = [...candidates].sort((a, b) => b.eff - a.eff)[0];
+  while (qi < queue.length) {
+    const cap = biggest.eff;
+    const truckItems: PalletItem[] = [];
+    let slots = 0;
+    while (slots < cap && qi < queue.length) {
+      const it = queue[qi];
+      if (it.rem <= 0) { qi++; continue; }
+      const place = Math.min(it.rem, cap - slots);
+      const qtyHere = Math.min(it.qtyRem, place * it.capacityPerPallet);
+      truckItems.push({ productCode: it.productCode, pallets: place, qty: qtyHere, capacityPerPallet: it.capacityPerPallet });
+      it.rem -= place; it.qtyRem -= qtyHere; slots += place;
+      if (it.rem <= 0) qi++;
+    }
+    if (truckItems.length === 0) break;
+    trucks.push({ truckIndex: trucks.length + 1, truckTypeCode: biggest.type.code, items: truckItems, totalPallets: slots, maxPallets: cap });
   }
 
   const totalPallets = trucks.reduce((s, t) => s + t.totalPallets, 0);
@@ -245,8 +345,8 @@ export function calcAllPlans(
 
   for (const [name, whGroup] of nameGroups) {
     const firstWh = whGroup[0];
-    const truck = truckMap[firstWh.truckType];
-    if (!truck) continue;
+    const dockTruck = truckMap[firstWh.truckType];
+    if (!dockTruck) continue;
 
     // Merge send quantities: sum over all codes in the group, keyed by name
     const mergedSendQty: Record<string, Record<string, number>> = {};
@@ -255,7 +355,7 @@ export function calcAllPlans(
       mergedSendQty[p.code] = { [name]: totalQty };
     }
 
-    const plan = calcWarehousePlan(name, products, truck, mergedSendQty, palletTypes);
+    const plan = calcWarehousePlan(name, products, dockTruck, truckTypes, mergedSendQty, palletTypes);
     result[name] = plan;
   }
   return result;
@@ -327,8 +427,8 @@ export function calcWeeklyPlans(
 
     for (const [name, whGroup] of nameGroups) {
       const firstWh = whGroup[0];
-      const truck = truckMap[firstWh.truckType];
-      if (!truck) continue;
+      const dockTruck = truckMap[firstWh.truckType];
+      if (!dockTruck) continue;
 
       // Union of active days across all codes in the group
       const activeDaysSet = new Set<number>();
@@ -350,7 +450,7 @@ export function calcWeeklyPlans(
           const totalQty = whGroup.reduce((s, wh) => s + (weeklySendQty[p.code]?.[wh.code] ?? 0), 0);
           mergedSendQty[p.code] = { [firstWh.code]: totalQty };
         }
-        const plan = calcWarehousePlan(firstWh.code, factoryProducts, truck, mergedSendQty, palletTypes);
+        const plan = calcWarehousePlan(firstWh.code, factoryProducts, dockTruck, truckTypes, mergedSendQty, palletTypes);
         if (plan.trucks.length === 0) continue;
         dayPlans.push({ ...plan, factoryCode: factory.code, dayOfWeek: -1 });
       } else {
@@ -376,7 +476,7 @@ export function calcWeeklyPlans(
             // ③ パレット数 → 個数（満載）
             daySendQty[p.code] = { [firstWh.code]: palletsForDay * p.capacityPerPallet };
           }
-          const plan = calcWarehousePlan(firstWh.code, factoryProducts, truck, daySendQty, palletTypes);
+          const plan = calcWarehousePlan(firstWh.code, factoryProducts, dockTruck, truckTypes, daySendQty, palletTypes);
           if (plan.trucks.length === 0) continue;
           dayPlans.push({ ...plan, factoryCode: factory.code, dayOfWeek: dayIdx });
         }
@@ -389,10 +489,15 @@ export function calcWeeklyPlans(
   return result;
 }
 
-/** 積載率 (%) */
-export function fillRate(plan: WarehousePlan, maxPallets: number): number {
+/** 積載率 (%) — 各トラックの有効容量の合計に対する使用パレット比率。
+ *  混在車種に対応するため、台数×単一容量ではなく台数別容量を合算する。
+ *  第2引数 maxPallets は後方互換のための任意値（plan に積載があれば無視）。 */
+export function fillRate(plan: WarehousePlan, maxPallets?: number): number {
   if (plan.trucks.length === 0) return 0;
-  return Math.round(plan.totalPallets / (plan.trucks.length * maxPallets) * 100);
+  const totalCap = plan.trucks.reduce((s, t) => s + (t.maxPallets || 0), 0);
+  if (totalCap > 0) return Math.round((plan.totalPallets / totalCap) * 100);
+  if (maxPallets && maxPallets > 0) return Math.round(plan.totalPallets / (plan.trucks.length * maxPallets) * 100);
+  return 0;
 }
 
 /**
