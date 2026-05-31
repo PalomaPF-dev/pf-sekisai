@@ -153,8 +153,11 @@ export default function LoadingPlanInner() {
 
   const activePlan     = findPlanForTruckIndex(clampedTruck);
   const activeWh       = activePlan ? warehouseMap[activePlan.warehouseCode] : undefined;
-  const activeTruckType = activeWh ? truckMap[activeWh.truckType] : undefined;
   const load           = allTrucks[clampedTruck];
+  // トラック種別は「その積載に選定された車種」を優先（混在対応）。無ければ拠点の受入車種。
+  const activeTruckType =
+    (load?.truckTypeCode ? truckMap[load.truckTypeCode] : undefined) ??
+    (activeWh ? truckMap[activeWh.truckType] : undefined);
 
   const computeMergedFillRate = (merged: MergedDestination): number => {
     let totalMax = 0, totalUsed = 0;
@@ -647,7 +650,8 @@ export default function LoadingPlanInner() {
                             )}
                           >
                             {globalIndex + 1}号車
-                            <span className="ml-1.5 text-[10px] opacity-70">{allTrucks[globalIndex].totalPallets}/{allTrucks[globalIndex].maxPallets}</span>
+                            <span className="ml-1.5 text-[10px] opacity-80">{truckMap[allTrucks[globalIndex].truckTypeCode]?.name ?? ''}</span>
+                            <span className="ml-1 text-[10px] opacity-70">{allTrucks[globalIndex].totalPallets}/{allTrucks[globalIndex].maxPallets}</span>
                           </button>
                         </span>
                       );

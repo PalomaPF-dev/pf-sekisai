@@ -49,21 +49,22 @@ export default function DashboardPage() {
   // ── 拠点別 週間合計（重複名をマージ） ────────────────────────────────
   // warehouseName → 週間集計
   const whWeeklyMap = useMemo(() => {
-    const map: Record<string, { name: string; code: string; totalTrucks: number; totalPallets: number; totalQty: number; maxPallets: number; days: number }> = {};
+    const map: Record<string, { name: string; code: string; totalTrucks: number; totalPallets: number; totalQty: number; totalCap: number; days: number }> = {};
     for (const p of allScheduledPlans) {
       const wh = warehouseMap[p.warehouseCode];
       const name = wh?.name ?? p.warehouseCode;
       if (!map[name]) {
-        const tt = wh ? truckMap[wh.truckType] : undefined;
-        map[name] = { name, code: p.warehouseCode, totalTrucks: 0, totalPallets: 0, totalQty: 0, maxPallets: tt?.maxPallets ?? 0, days: 0 };
+        map[name] = { name, code: p.warehouseCode, totalTrucks: 0, totalPallets: 0, totalQty: 0, totalCap: 0, days: 0 };
       }
       map[name].totalTrucks  += p.trucks.length;
       map[name].totalPallets += p.totalPallets;
       map[name].totalQty     += p.totalQty;
+      // 各トラックの有効容量を合算（混在車種に対応）
+      map[name].totalCap     += p.trucks.reduce((s, t) => s + (t.maxPallets || 0), 0);
       map[name].days         += 1;
     }
     return map;
-  }, [allScheduledPlans, warehouseMap, truckMap]);
+  }, [allScheduledPlans, warehouseMap]);
 
   // 表示用拠点リスト（重複排除・計画なし拠点も含む）
   const displayWarehouses = useMemo(() => {
@@ -174,9 +175,9 @@ export default function DashboardPage() {
             {displayWarehouses.map((wh) => {
               const weekly  = whWeeklyMap[wh.name];
               const hasPlan = !!weekly;
-              // 週間積載率 = 週間パレット / (週間台数 × maxPallets)
-              const fr = hasPlan && weekly.maxPallets > 0 && weekly.totalTrucks > 0
-                ? Math.round(weekly.totalPallets / (weekly.totalTrucks * weekly.maxPallets) * 100)
+              // 週間積載率 = 週間パレット / 週間トラック有効容量合計（混在車種対応）
+              const fr = hasPlan && weekly.totalCap > 0
+                ? Math.round(weekly.totalPallets / weekly.totalCap * 100)
                 : 0;
 
               return (
@@ -325,7 +326,12 @@ export default function DashboardPage() {
                                           borderRadius: 3, padding: '5px 6px',
                                         }}>
                                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                                            <span style={{ fontWeight: 700, fontSize: 11, color: '#1e3a5f' }}>{truck.truckIndex}号車</span>
+                                            <span style={{ fontWeight: 700, fontSize: 11, color: '#1e3a5f' }}>
+                                              {truck.truckIndex}号車
+                                              <span style={{ marginLeft: 4, fontWeight: 600, fontSize: 9, color: '#64748b' }}>
+                                                {truckMap[truck.truckTypeCode]?.name ?? ''}
+                                              </span>
+                                            </span>
                                             <span style={{
                                               fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 2,
                                               background: truck.totalPallets >= truck.maxPallets ? '#dcfce7'
