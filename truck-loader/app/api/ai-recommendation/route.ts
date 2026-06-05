@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { generateText, Output } from 'ai';
+import { google } from '@ai-sdk/google';
 import { authOptions } from '@/lib/authOptions';
 import { recommendationSchema } from '@/lib/aiSchema';
 import { SYSTEM_PROMPT_JA, aiContextPayloadSchema } from '@/lib/aiContext';
@@ -8,9 +9,9 @@ import { SYSTEM_PROMPT_JA, aiContextPayloadSchema } from '@/lib/aiContext';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-// AI Gateway 経由のモデル（provider/model 文字列でルーティング）
-// 速度/コスト均衡。最強推論が必要なら 'anthropic/claude-opus-4.7' に変更可。
-const AI_MODEL = 'anthropic/claude-sonnet-4.6';
+// Google Gemini（無料枠あり）。GOOGLE_GENERATIVE_AI_API_KEY を使用。
+// 速度/コスト重視は 'gemini-2.0-flash'、より賢くしたい場合は 'gemini-2.5-flash' に変更可。
+const AI_MODEL = google('gemini-2.0-flash');
 
 export async function POST(req: NextRequest) {
   // 1. 認証ゲート（db.ts の getCompanyId と同じ判定）
@@ -19,10 +20,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: '認証が必要です。' }, { status: 401 });
   }
 
-  // 2. APIキー存在チェック（ローカル開発向け。Vercel 上では OIDC が自動で効く）
-  if (!process.env.AI_GATEWAY_API_KEY && !process.env.VERCEL_OIDC_TOKEN) {
+  // 2. APIキー存在チェック（Google Gemini）
+  if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
     return NextResponse.json(
-      { message: 'AI設定エラー: AI_GATEWAY_API_KEY が未設定です。.env.local に設定してください。' },
+      { message: 'AI設定エラー: GOOGLE_GENERATIVE_AI_API_KEY が未設定です。.env.local に設定してください（無料キーは aistudio.google.com で取得）。' },
       { status: 503 },
     );
   }
