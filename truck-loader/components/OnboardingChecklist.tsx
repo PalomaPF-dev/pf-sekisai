@@ -69,8 +69,8 @@ export function OnboardingChecklist() {
           >
             {seeding ? 'サンプルを投入中…' : '🍃 サンプルで始める'}
           </button>
-          <Link href="/settings" className="text-sm font-semibold text-slate-500 hover:text-slate-700 hover:underline">
-            白紙から始める（マスタ設定へ）→
+          <Link href="/setup" className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+            ✏️ ウィザードで入力する →
           </Link>
         </div>
         {error && <p className="mt-3 text-xs text-rose-600">{error}</p>}
@@ -85,16 +85,23 @@ export function OnboardingChecklist() {
         <h2 className="text-sm font-bold text-slate-800">
           セットアップ {allDone ? '完了 ✓' : `${doneCount}/${steps.length}`}
         </h2>
-        {!allDone && nextStep && (
-          <Link href={nextStep.href} className="text-xs font-semibold text-indigo-600 hover:underline">
-            次にやること: {nextStep.label} →
-          </Link>
-        )}
-        {allDone && (
-          <Link href="/loading-plan" className="text-xs font-semibold text-emerald-600 hover:underline">
-            積載計画・AI提案を見る →
-          </Link>
-        )}
+        <div className="flex items-center gap-3">
+          {!allDone && (
+            <Link href="/setup" className="text-xs font-semibold text-slate-500 hover:text-indigo-600 hover:underline">
+              ウィザードで設定 →
+            </Link>
+          )}
+          {!allDone && nextStep && (
+            <Link href={nextStep.href} className="text-xs font-semibold text-indigo-600 hover:underline">
+              次にやること: {nextStep.label} →
+            </Link>
+          )}
+          {allDone && (
+            <Link href="/loading-plan" className="text-xs font-semibold text-emerald-600 hover:underline">
+              積載計画・AI提案を見る →
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* 進捗バー */}
