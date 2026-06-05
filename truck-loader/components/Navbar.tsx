@@ -17,6 +17,15 @@ const NAV_ITEMS = [
     ),
   },
   {
+    href: '/setup',
+    label: '初期設定ウィザード',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8L19 13M15 9h0M17.8 6.2L19 5M3 21l9-9M12.2 6.2L11 5"/>
+      </svg>
+    ),
+  },
+  {
     href: '/inventory',
     label: '在庫・積載計画',
     icon: (
