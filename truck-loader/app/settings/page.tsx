@@ -7,6 +7,7 @@ import { parseProductsCSV, generateProductsTemplate, downloadCSV } from '@/lib/c
 import { buildEquipmentColorMap, buildProductColors, PRODUCT_PALETTE } from '@/lib/productColors';
 import * as db from '@/lib/db';
 import { AiKeySettings } from '@/components/AiKeySettings';
+import { toast } from '@/components/Toast';
 import clsx from 'clsx';
 
 type Tab = 'products' | 'warehouses' | 'pallets' | 'trucks' | 'factories' | 'operating' | 'stacking';
@@ -174,9 +175,12 @@ export default function SettingsPage() {
   };
 
   const handleRemoveProduct = async (code: string) => {
+    const target = products.find((p) => p.code === code);
+    if (!window.confirm(`製品「${target?.name ?? code}」を削除します。よろしいですか？`)) return;
     setProductOpError(null);
     try {
       await removeProduct(code);
+      toast(`製品「${target?.name ?? code}」を削除しました`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setProductOpError(`削除に失敗しました: ${msg}`);
@@ -235,7 +239,11 @@ export default function SettingsPage() {
           <p className="text-sm text-slate-500 mt-0.5">製品・拠点のマスタデータを管理します</p>
         </div>
         <button
-          onClick={() => resetToDefaults()}
+          onClick={() => {
+            if (!window.confirm('画面の表示をデフォルト状態に戻します。よろしいですか？\n（保存済みデータは再読み込みで復元されます）')) return;
+            resetToDefaults();
+            toast('デフォルトにリセットしました', 'info');
+          }}
           className="text-xs text-slate-400 hover:text-red-500 border border-slate-200 hover:border-red-300
                      px-3 py-1.5 rounded transition-colors"
         >
@@ -331,7 +339,9 @@ export default function SettingsPage() {
                               alert(`「${f.name}」には ${productCount} 製品が割り当てられているため削除できません。`);
                               return;
                             }
+                            if (!window.confirm(`工場「${f.name}」を削除します。よろしいですか？`)) return;
                             removeFactory(f.code);
+                            toast(`工場「${f.name}」を削除しました`);
                           }}
                           className="text-xs text-red-400 hover:underline"
                         >
@@ -894,7 +904,9 @@ export default function SettingsPage() {
                         </button>
                         <button
                           onClick={() => {
+                            if (!window.confirm(`拠点「${w.name}」を削除します。基準在庫数などこの拠点の設定も使われなくなります。よろしいですか？`)) return;
                             removeWarehouse(w.code);
+                            toast(`拠点「${w.name}」を削除しました`);
                           }}
                           className="text-xs text-red-400 hover:underline"
                         >
@@ -985,7 +997,9 @@ export default function SettingsPage() {
                               alert(`「${pt.name}」は ${usedCount} 製品で使用中のため削除できません。`);
                               return;
                             }
+                            if (!window.confirm(`パレット型「${pt.name}」を削除します。よろしいですか？`)) return;
                             removePalletType(pt.code);
+                            toast(`パレット型「${pt.name}」を削除しました`);
                           }}
                           className="text-xs text-red-400 hover:underline"
                         >
@@ -1085,7 +1099,9 @@ export default function SettingsPage() {
                               alert(`「${t.name}」は ${usedCount} 拠点で使用中のため削除できません。`);
                               return;
                             }
+                            if (!window.confirm(`トラックタイプ「${t.name}」を削除します。よろしいですか？`)) return;
                             removeTruckType(t.code);
+                            toast(`トラックタイプ「${t.name}」を削除しました`);
                           }}
                           className="text-xs text-red-400 hover:underline"
                         >

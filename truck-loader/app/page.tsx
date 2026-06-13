@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import { calcWeeklyPlans } from '@/lib/calculations';
 import { OnboardingChecklist } from '@/components/OnboardingChecklist';
+import { WeeklyFlowGuide } from '@/components/WeeklyFlowGuide';
 import type { DayWarehousePlan } from '@/lib/types';
 import clsx from 'clsx';
 
@@ -103,6 +104,9 @@ export default function DashboardPage() {
 
       {/* ── オンボーディング（サンプルで始める／セットアップ進捗） ── */}
       <OnboardingChecklist />
+
+      {/* ── 今週の作業の流れ（セットアップ完了後に表示） ── */}
+      <WeeklyFlowGuide plannedTrucks={totalTrucks} />
 
       {/* ── スケジュール未設定の警告 ── */}
       {totalTrucks === 0 && totalProductQty > 0 && (

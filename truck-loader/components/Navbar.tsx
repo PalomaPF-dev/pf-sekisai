@@ -1,10 +1,12 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
 import { UserMenu } from './UserMenu';
 
+// 業務の流れ（①設定 → ②データ入力 → ③計画・AI提案）に沿った並び
 const NAV_ITEMS = [
   {
     href: '/',
@@ -17,26 +19,8 @@ const NAV_ITEMS = [
     ),
   },
   {
-    href: '/setup',
-    label: '初期設定ウィザード',
-    icon: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8L19 13M15 9h0M17.8 6.2L19 5M3 21l9-9M12.2 6.2L11 5"/>
-      </svg>
-    ),
-  },
-  {
-    href: '/inventory',
-    label: '在庫・積載計画',
-    icon: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-      </svg>
-    ),
-  },
-  {
     href: '/production',
-    label: '配送計画入力',
+    label: '生産・在庫入力',
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -46,11 +30,20 @@ const NAV_ITEMS = [
   },
   {
     href: '/loading-plan',
-    label: 'スケジュール・積載計画',
+    label: '積載計画・AI提案',
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="1" y="3" width="15" height="13" rx="1"/>
         <path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+      </svg>
+    ),
+  },
+  {
+    href: '/inventory',
+    label: '在庫状況（拠点別）',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
       </svg>
     ),
   },
@@ -64,16 +57,55 @@ const NAV_ITEMS = [
       </svg>
     ),
   },
+  {
+    href: '/setup',
+    label: '初期設定ウィザード',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8L19 13M15 9h0M17.8 6.2L19 5M3 21l9-9M12.2 6.2L11 5"/>
+      </svg>
+    ),
+  },
 ];
+
+function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+  return (
+    <nav className="flex flex-col gap-1 px-3">
+      {NAV_ITEMS.map(({ href, label, icon }) => {
+        const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
+        return (
+          <Link
+            key={href}
+            href={href}
+            onClick={onNavigate}
+            className={clsx(
+              'flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all',
+              active
+                ? 'bg-blue-50 text-blue-700'
+                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800',
+            )}
+            style={active ? { borderLeft: '3px solid #2563eb', paddingLeft: 9 } : { borderLeft: '3px solid transparent', paddingLeft: 9 }}
+          >
+            <span className={active ? 'text-blue-600' : 'text-gray-400'}>
+              {icon}
+            </span>
+            {label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
 
 export function Navbar() {
   const pathname = usePathname();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
     <>
       {/* ── トップヘッダー ── */}
       <header
-        className="sticky top-0 z-50 flex items-center justify-between px-6"
+        className="sticky top-0 z-50 flex items-center justify-between px-4 sm:px-6"
         style={{
           height: 68,
           background: 'white',
@@ -81,8 +113,18 @@ export function Navbar() {
           boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
         }}
       >
-        {/* 左：アイコン＋タイトル */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {/* 左：ハンバーガー（モバイルのみ）＋アイコン＋タイトル */}
+        <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            aria-label="メニューを開く"
+            onClick={() => setMobileOpen(true)}
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 hover:bg-gray-100 lg:hidden"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+          </button>
           <div
             style={{
               width: 36,
@@ -106,7 +148,7 @@ export function Navbar() {
             <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', lineHeight: 1.2 }}>
               積載計画ナビ
             </div>
-            <div style={{ fontSize: 11, color: '#6b7280', lineHeight: 1.2 }}>
+            <div className="hidden sm:block" style={{ fontSize: 11, color: '#6b7280', lineHeight: 1.2 }}>
               Loading Plan Navi
             </div>
           </div>
@@ -116,9 +158,9 @@ export function Navbar() {
         <UserMenu />
       </header>
 
-      {/* ── 左サイドバー（固定） ── */}
+      {/* ── 左サイドバー（PC固定） ── */}
       <aside
-        className="fixed left-0 z-40 flex flex-col"
+        className="fixed left-0 z-40 hidden flex-col lg:flex"
         style={{
           top: 68,
           width: 200,
@@ -129,30 +171,31 @@ export function Navbar() {
           paddingBottom: 16,
         }}
       >
-        <nav className="flex flex-col gap-1 px-3">
-          {NAV_ITEMS.map(({ href, label, icon }) => {
-            const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
-            return (
-              <Link
-                key={href}
-                href={href}
-                className={clsx(
-                  'flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all',
-                  active
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800',
-                )}
-                style={active ? { borderLeft: '3px solid #2563eb', paddingLeft: 9 } : { borderLeft: '3px solid transparent', paddingLeft: 9 }}
-              >
-                <span className={active ? 'text-blue-600' : 'text-gray-400'}>
-                  {icon}
-                </span>
-                {label}
-              </Link>
-            );
-          })}
-        </nav>
+        <NavLinks pathname={pathname} />
       </aside>
+
+      {/* ── モバイルドロワー ── */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-[60] lg:hidden">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setMobileOpen(false)} aria-hidden />
+          <aside className="absolute left-0 top-0 flex h-full w-64 flex-col bg-white pb-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3.5">
+              <span className="text-sm font-bold text-gray-800">積載計画ナビ</span>
+              <button
+                type="button"
+                aria-label="メニューを閉じる"
+                onClick={() => setMobileOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="pt-3">
+              <NavLinks pathname={pathname} onNavigate={() => setMobileOpen(false)} />
+            </div>
+          </aside>
+        </div>
+      )}
     </>
   );
 }

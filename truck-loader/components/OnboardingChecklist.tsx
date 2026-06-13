@@ -33,6 +33,9 @@ export function OnboardingChecklist() {
   const allDone = doneCount === steps.length;
   const nextStep = steps.find((s) => !s.done);
 
+  // セットアップ完了後は「今週の作業の流れ」（WeeklyFlowGuide）に役目を引き継ぐ
+  if (allDone) return null;
+
   const handleSeed = async () => {
     if (seeding) return;
     setSeeding(true);

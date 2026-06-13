@@ -92,3 +92,15 @@ input[type=number] { -moz-appearance: textfield; }
   padding-bottom: 12px; border-bottom: 1px solid #e5e7eb; margin-bottom: 20px;
   display: flex; align-items: center; gap: 8px;
 }
+
+/* ─── モバイル（スマホ/タブレット縦）── 余白を詰めて見やすく ─── */
+@media (max-width: 640px) {
+  .sys-page { padding: 16px 12px; }
+  .sys-page-title { font-size: 16px; margin-bottom: 14px; flex-wrap: wrap; }
+}
+
+/* ─── トースト出現アニメーション ─── */
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

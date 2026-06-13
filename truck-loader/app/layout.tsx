@@ -3,6 +3,7 @@ import './globals.css';
 import { Navbar } from '@/components/Navbar';
 import { SupabaseProvider } from '@/components/SupabaseProvider';
 import { SessionProvider } from '@/components/SessionProvider';
+import { Toaster } from '@/components/Toast';
 
 export const metadata: Metadata = {
   title: '積載計画ナビ',
@@ -16,11 +17,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SessionProvider>
           <Navbar />
           <SupabaseProvider>
-            {/* サイドバー分(200px)だけ右にずらす */}
-            <main style={{ marginLeft: 200, minHeight: 'calc(100vh - 68px)' }}>
+            {/* PCはサイドバー分(200px)右にずらす。モバイルは全幅（ドロワーで遷移） */}
+            <main className="min-h-[calc(100vh-68px)] lg:ml-[200px]">
               {children}
             </main>
           </SupabaseProvider>
+          <Toaster />
         </SessionProvider>
       </body>
     </html>

@@ -360,7 +360,11 @@ function ItemList({ items, onRemove }: { items: { id: string; label: string; col
             {it.color && <span className="h-2.5 w-2.5 rounded-sm" style={{ background: it.color }} />}
             {it.label}
           </span>
-          <button type="button" onClick={() => onRemove(it.id)} className="text-xs text-slate-400 hover:text-rose-600">削除</button>
+          <button
+            type="button"
+            onClick={() => { if (window.confirm(`「${it.label}」を削除します。よろしいですか？`)) onRemove(it.id); }}
+            className="text-xs text-slate-400 hover:text-rose-600"
+          >削除</button>
         </li>
       ))}
     </ul>

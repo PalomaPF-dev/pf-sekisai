@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { calcWeeklyPlans, calcSendQty } from '@/lib/calculations';
 import { buildProductColors } from '@/lib/productColors';
@@ -8,6 +8,8 @@ import { TruckDiagram } from '@/components/TruckDiagram';
 import { LoadingTable } from '@/components/LoadingTable';
 import { AIRecommendationPanel } from '@/components/AIRecommendationPanel';
 import { useAiRecommendation } from '@/lib/useAiRecommendation';
+import { toast } from '@/components/Toast';
+import { HelpTip } from '@/components/HelpTip';
 import type { DayWarehousePlan, Warehouse } from '@/lib/types';
 import clsx from 'clsx';
 
@@ -89,10 +91,18 @@ export default function LoadingPlanInner() {
   type View = 'schedule' | 'plan';
   const [activeView, setActiveView] = useState<View>('schedule');
 
+  // URLの ?view=plan で積載計画ビューを直接開けるように（週次ガイドからのジャンプ用）
+  useEffect(() => {
+    const v = new URLSearchParams(window.location.search).get('view');
+    if (v === 'plan' || v === 'schedule') setActiveView(v);
+  }, []);
+
   // ── 出荷確定 ───────────────────────────────────────────────────────────────
   const [confirmed, setConfirmed] = useState(false);
   const handleConfirmShipment = () => {
+    if (!window.confirm('今週の送り数を「輸送中数量」として確定します。前回の輸送中数量は上書きされます。よろしいですか？')) return;
     confirmShipment(allSendQty);
+    toast('✓ 出荷を確定しました（輸送中数量に反映）');
     setConfirmed(true);
     setTimeout(() => setConfirmed(false), 4000);
   };
@@ -620,7 +630,15 @@ export default function LoadingPlanInner() {
                     ].map(({ label, val }) => (
                       <div key={label} className="text-center px-3">
                         <div className="font-bold text-brand-600 text-base">{val}</div>
-                        <div className="text-[10px] text-slate-400">{label}</div>
+                        <div className="text-[10px] text-slate-400">
+                          {label}
+                          {label === '積載率' && (
+                            <HelpTip
+                              title="積載率"
+                              text={'使用パレット数 ÷ トラックの有効容量（2段積み込み）の合計。\n90%以上=効率的（緑）、60%未満=空きが多い（赤）の目安です。'}
+                            />
+                          )}
+                        </div>
                       </div>
                     ))}
                     <div className="flex-1 flex items-center pl-3">

@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import { calcAllPlans, calcSendQty } from '@/lib/calculations';
 import { buildEquipmentColorMap } from '@/lib/productColors';
+import { HelpTip } from '@/components/HelpTip';
 import clsx from 'clsx';
 
 export default function InventoryPage() {
@@ -130,7 +131,13 @@ export default function InventoryPage() {
     <div className="max-w-screen-xl mx-auto px-4 py-6">
       <div className="mb-4 flex items-start justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-800">拠点別 在庫・積載計画</h1>
+          <h1 className="text-xl font-bold text-slate-800">
+            在庫状況（拠点別）
+            <HelpTip
+              title="この画面でできること"
+              text={'各拠点の現在庫を直接編集できます。\n有効在庫 = 拠点在庫 + 輸送中 − 予定出荷。\n基準在庫数を下回った分が「不足数」として送り数に反映されます。'}
+            />
+          </h1>
           <p className="text-sm text-slate-500 mt-0.5">
             現在庫を直接編集できます。
             <span className="text-slate-400 mx-1">／</span>

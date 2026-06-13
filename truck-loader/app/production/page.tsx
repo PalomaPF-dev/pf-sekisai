@@ -1,11 +1,12 @@
 'use client';
 
 import React from 'react';
-import { useMemo, useState, useRef } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { calcAllPlans, calcSendQty } from '@/lib/calculations';
 import { useAiRecommendation } from '@/lib/useAiRecommendation';
 import { AIRecommendationPanel } from '@/components/AIRecommendationPanel';
+import { HelpTip } from '@/components/HelpTip';
 import {
   parseProductionCSV,
   parseLocationStockCSV,
@@ -124,6 +125,14 @@ export default function ProductionPage() {
   } = useAppStore();
 
   const [activeTab, setActiveTab] = useState<Tab>('production');
+
+  // URLの ?tab= でタブを直接開けるように（週次ガイドからのジャンプ用）
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get('tab');
+    const valid: Tab[] = ['production', 'location', 'transit', 'sales', 'baseline', 'sendqty'];
+    if (t && (valid as string[]).includes(t)) setActiveTab(t as Tab);
+  }, []);
+
   const now = new Date();
 
   // AI提案（送り数の見直しなど）
@@ -331,13 +340,14 @@ export default function ProductionPage() {
     reader.readAsText(file, 'utf-8');
   };
 
+  // 週次の作業順に並べる（基準在庫数は初期設定系のため最後）
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'production', label: '📋 週間生産数' },
-    { key: 'location',   label: '🏭 拠点別現在庫' },
-    { key: 'transit',    label: '🚚 輸送中（前回決定分）' },
-    { key: 'sales',      label: '🛒 予定出荷数' },
-    { key: 'baseline',   label: '📊 基準在庫数' },
-    { key: 'sendqty',    label: '📦 送り数設定' },
+    { key: 'production', label: '① 週間生産数' },
+    { key: 'location',   label: '② 拠点別現在庫' },
+    { key: 'transit',    label: '③ 輸送中（前回決定分）' },
+    { key: 'sales',      label: '④ 予定出荷数' },
+    { key: 'sendqty',    label: '⑤ 送り数の確認・修正' },
+    { key: 'baseline',   label: '⚙️ 基準在庫数（設定）' },
   ];
 
   const handleSendQtyFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -361,7 +371,12 @@ export default function ProductionPage() {
         </div>
       )}
       <div className="mb-6">
-        <h1 className="text-xl font-bold text-slate-800">配送計画入力</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-xl font-bold text-slate-800">生産・在庫入力</h1>
+          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
+            ✓ 入力は自動保存されます
+          </span>
+        </div>
         <p className="text-sm text-slate-500 mt-0.5">
           拠点別現在庫・輸送中数量・予定出荷数・基準在庫数から不足数を算出し、生産数で補充する送り数を計算します
         </p>
@@ -963,7 +978,13 @@ export default function ProductionPage() {
 
           {/* 送り数プレビュー */}
           <div>
-            <h2 className="text-sm font-semibold text-slate-600 mb-3">🚚 算出された送り数（個）</h2>
+            <h2 className="text-sm font-semibold text-slate-600 mb-3">
+              🚚 算出された送り数（個）
+              <HelpTip
+                title="送り数の計算式"
+                text={'有効在庫 = 拠点在庫 + 輸送中 − 予定出荷（マイナスは0）\n不足数 = 基準在庫数 − 有効在庫（マイナスは0）\n送り数 = 生産数を各拠点の不足数の比率で配分'}
+              />
+            </h2>
             <div className="overflow-x-auto">
               <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
                 <table className="text-xs border-collapse w-full">
