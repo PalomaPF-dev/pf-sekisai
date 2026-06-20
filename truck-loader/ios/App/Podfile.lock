@@ -75,6 +75,12 @@ PODS:
   - nanopb/decode (2.30910.0)
   - nanopb/encode (2.30910.0)
   - PromisesObjC (2.4.1)
+  - PurchasesHybridCommon (11.1.1):
+    - RevenueCat (= 4.43.2)
+  - RevenueCat (4.43.2)
+  - RevenuecatPurchasesCapacitor (8.0.0):
+    - Capacitor
+    - PurchasesHybridCommon (= 11.1.1)
 
 DEPENDENCIES:
   - "Capacitor (from `../../node_modules/@capacitor/ios`)"
@@ -86,6 +92,7 @@ DEPENDENCIES:
   - "CapacitorPushNotifications (from `../../node_modules/@capacitor/push-notifications`)"
   - "CapacitorScreenOrientation (from `../../node_modules/@capacitor/screen-orientation`)"
   - "CapacitorShare (from `../../node_modules/@capacitor/share`)"
+  - "RevenuecatPurchasesCapacitor (from `../../node_modules/@revenuecat/purchases-capacitor`)"
 
 SPEC REPOS:
   trunk:
@@ -101,6 +108,8 @@ SPEC REPOS:
     - MLKitVision
     - nanopb
     - PromisesObjC
+    - PurchasesHybridCommon
+    - RevenueCat
 
 EXTERNAL SOURCES:
   Capacitor:
@@ -121,6 +130,8 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/@capacitor/screen-orientation"
   CapacitorShare:
     :path: "../../node_modules/@capacitor/share"
+  RevenuecatPurchasesCapacitor:
+    :path: "../../node_modules/@revenuecat/purchases-capacitor"
 
 SPEC CHECKSUMS:
   Capacitor: c95400d761e376be9da6be5a05f226c0e865cebf
@@ -144,7 +155,10 @@ SPEC CHECKSUMS:
   MLKitVision: 90922bca854014a856f8b649d1f1f04f63fd9c79
   nanopb: 438bc412db1928dac798aa6fd75726007be04262
   PromisesObjC: 752c3227f599e3467650e47ea36f433eeb10c273
+  PurchasesHybridCommon: 73f4f2c6e4ec3487b4219bf60e1661100fb85da3
+  RevenueCat: 3d934653b7e8b09af88fd47e9e84cfaf5d0a89ba
+  RevenuecatPurchasesCapacitor: 838148fb2aceed5dc3b1c24877b675964db24fc0
 
-PODFILE CHECKSUM: 770e61e81d1f8f556b3d154e073a97f1ac4e3942
+PODFILE CHECKSUM: 397eec8cf9a0e8fcb1cfdd51c2fb27d79be89ba7
 
 COCOAPODS: 1.16.2

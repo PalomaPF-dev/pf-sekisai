@@ -11,6 +11,7 @@ import { HelpTip } from '@/components/HelpTip';
 import { LoadingScanPanel } from '@/components/LoadingScanPanel';
 import { PrintableLoadingPlan } from '@/components/PrintableLoadingPlan';
 import { exportLoadingPlanPdf } from '@/lib/exportPdf';
+import { useUpgrade } from '@/lib/entitlement';
 import type { DayWarehousePlan, Warehouse } from '@/lib/types';
 import clsx from 'clsx';
 
@@ -94,6 +95,9 @@ export default function LoadingPlanInner() {
     const v = new URLSearchParams(window.location.search).get('view');
     if (v === 'plan' || v === 'schedule') setActiveView(v);
   }, []);
+
+  // ── サブスク・ゲート ─────────────────────────────────────────────────────────
+  const { requirePro } = useUpgrade();
 
   // ── 積込スキャン（フェーズ5） ───────────────────────────────────────────────
   const [showScan, setShowScan] = useState(false);
@@ -280,14 +284,14 @@ export default function LoadingPlanInner() {
         </p>
         <div className="shrink-0 flex items-center gap-2 sm:ml-4">
           <button
-            onClick={handleExportPdf}
+            onClick={() => { if (!requirePro('PDF出力')) return; void handleExportPdf(); }}
             disabled={pdfBusy}
             className="flex-1 sm:flex-none px-4 py-2 sm:py-1.5 text-sm font-semibold rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 active:scale-95 transition-all disabled:opacity-60"
           >
             {pdfBusy ? '作成中…' : '🖨 印刷・PDF'}
           </button>
           <button
-            onClick={() => setShowScan(true)}
+            onClick={() => { if (!requirePro('バーコード積込照合')) return; setShowScan(true); }}
             className="flex-1 sm:flex-none px-4 py-2 sm:py-1.5 text-sm font-semibold rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 active:scale-95 transition-all"
           >
             📷 積込スキャン

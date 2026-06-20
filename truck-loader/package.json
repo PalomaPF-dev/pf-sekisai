@@ -24,6 +24,7 @@
     "@capacitor/screen-orientation": "^6.0.4",
     "@capacitor/share": "^6.0.4",
     "@neondatabase/serverless": "^1.1.0",
+    "@revenuecat/purchases-capacitor": "^8.0.0",
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",

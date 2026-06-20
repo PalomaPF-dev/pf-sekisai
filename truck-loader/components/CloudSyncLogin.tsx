@@ -8,8 +8,10 @@
 import { useEffect, useState } from 'react';
 import { cloudLogin, cloudLogout, isCloudLoggedIn, deleteAccount } from '@/lib/auth/cloudAuth';
 import { toast } from '@/components/Toast';
+import { useUpgrade } from '@/lib/entitlement';
 
 export function CloudSyncLogin() {
+  const { isPro, openUpgrade } = useUpgrade();
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -63,8 +65,20 @@ export function CloudSyncLogin() {
         <p className="text-xs text-gray-400 mt-3">確認中…</p>
       ) : loggedIn ? (
         <div className="mt-3 flex flex-col gap-3">
+          {!isPro && (
+            <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800 flex items-center justify-between gap-2">
+              <span>クラウド同期は <strong>Proプラン</strong>で有効になります。</span>
+              <button
+                type="button"
+                onClick={() => openUpgrade('クラウド同期')}
+                className="shrink-0 rounded-md bg-amber-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-amber-700"
+              >
+                アップグレード
+              </button>
+            </div>
+          )}
           <div className="flex items-center justify-between gap-3">
-            <span className="text-sm text-green-700">✓ ログイン済み（同期有効）</span>
+            <span className="text-sm text-green-700">{isPro ? '✓ ログイン済み（同期有効）' : '✓ ログイン済み'}</span>
             <button
               type="button"
               onClick={handleLogout}

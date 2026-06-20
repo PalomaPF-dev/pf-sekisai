@@ -5,6 +5,7 @@ import { useMemo, useState, useRef, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { calcAllPlans, calcSendQty } from '@/lib/calculations';
 import { HelpTip } from '@/components/HelpTip';
+import { useUpgrade } from '@/lib/entitlement';
 import {
   parseProductionCSV,
   parseLocationStockCSV,
@@ -281,9 +282,17 @@ export default function ProductionPage() {
   };
 
   // ─── CSV ハンドラ ────────────────────────────────────────────────────
+  // CSV インポートは Pro 機能。未契約ならアップグレードを促す。
+  const { requirePro } = useUpgrade();
+  const gateCsv = (e: React.ChangeEvent<HTMLInputElement>): boolean => {
+    if (requirePro('CSVインポート')) return true;
+    e.target.value = '';
+    return false;
+  };
   const handleProdFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!gateCsv(e)) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
       setProdPreview(parseProductionCSV(ev.target?.result as string, products, dailyProductionPlan, productionPlan));
@@ -295,6 +304,7 @@ export default function ProductionPage() {
   const handleLocFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!gateCsv(e)) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
       setLocPreview(parseLocationStockCSV(ev.target?.result as string, products, warehouses, locationStock));
@@ -306,6 +316,7 @@ export default function ProductionPage() {
   const handleTransitFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!gateCsv(e)) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
       setTransitPreview(parseInTransitStockCSV(ev.target?.result as string, products, warehouses, inTransitStock));
@@ -317,6 +328,7 @@ export default function ProductionPage() {
   const handleBaselineFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!gateCsv(e)) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
       setBaselinePreview(parseBaselineStockCSV(ev.target?.result as string, products, warehouses, baselineStock));
@@ -328,6 +340,7 @@ export default function ProductionPage() {
   const handleSalesFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!gateCsv(e)) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
       setSalesPreview(parsePlannedSalesCSV(ev.target?.result as string, products, warehouses, plannedSales));
@@ -349,6 +362,7 @@ export default function ProductionPage() {
   const handleSendQtyFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!gateCsv(e)) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
       setSendQtyPreview(parseSendQtyCSV(ev.target?.result as string, products, warehouses, sendQtyManual));
