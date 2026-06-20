@@ -83,16 +83,11 @@ export default function RegisterPage() {
               width: 56,
               height: 56,
               borderRadius: 14,
-              background: '#2563eb',
+              background: 'linear-gradient(135deg,#6366f1 0%,#3b82f6 50%,#06b6d4 100%)',
               marginBottom: 16,
             }}
           >
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="1" y="3" width="15" height="13" rx="1"/>
-              <path d="M16 8h4l3 3v5h-7V8z"/>
-              <circle cx="5.5" cy="18.5" r="2.5"/>
-              <circle cx="18.5" cy="18.5" r="2.5"/>
-            </svg>
+            <span style={{ color: '#fff', fontWeight: 900, fontSize: 34, lineHeight: 1, letterSpacing: -1 }}>ス</span>
           </div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: '#111827', marginBottom: 4 }}>
             スマコウバ積載
