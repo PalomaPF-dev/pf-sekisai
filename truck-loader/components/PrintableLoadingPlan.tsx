@@ -92,9 +92,15 @@ export function PrintableLoadingPlan({ factoryName, weekLabel, plans, warehouses
   return (
     <div style={{ width: 760, background: '#fff', color: '#0f172a', fontFamily: '-apple-system, "Hiragino Sans", sans-serif', padding: 16 }}>
       {/* ── 見出し ── */}
-      <div style={{ borderBottom: '2px solid #1e293b', paddingBottom: 8, marginBottom: 12 }}>
-        <div style={{ fontSize: 18, fontWeight: 800 }}>積載計画書 — {factoryName}</div>
-        <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>{weekLabel}</div>
+      <div style={{ borderBottom: '2px solid #1e293b', paddingBottom: 8, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ width: 34, height: 34, borderRadius: 8, background: 'linear-gradient(135deg,#6366f1 0%,#3b82f6 50%,#06b6d4 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <span style={{ color: '#fff', fontWeight: 900, fontSize: 22, lineHeight: 1 }}>ス</span>
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 18, fontWeight: 800 }}>積載計画書 — {factoryName}</div>
+          <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>{weekLabel}</div>
+        </div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>スマコウバ積載</div>
       </div>
 
       {/* ── 全体スケジュール ── */}
