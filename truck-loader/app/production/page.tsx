@@ -4,8 +4,6 @@ import React from 'react';
 import { useMemo, useState, useRef, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { calcAllPlans, calcSendQty } from '@/lib/calculations';
-import { useAiRecommendation } from '@/lib/useAiRecommendation';
-import { AIRecommendationPanel } from '@/components/AIRecommendationPanel';
 import { HelpTip } from '@/components/HelpTip';
 import {
   parseProductionCSV,
@@ -135,8 +133,6 @@ export default function ProductionPage() {
 
   const now = new Date();
 
-  // AI提案（送り数の見直しなど）
-  const ai = useAiRecommendation();
   const productNameMap = useMemo(
     () => Object.fromEntries(products.map((p) => [p.code, p.name])),
     [products],
@@ -1030,16 +1026,6 @@ export default function ProductionPage() {
               </div>
             </div>
           </div>
-
-          {/* AI提案：送り数の見直し・警告など */}
-          <AIRecommendationPanel
-            data={ai.data}
-            loading={ai.loading}
-            error={ai.error}
-            onGenerate={ai.generate}
-            onApplyAdjustment={(pc, wc, qty) => setSendQtyManual(pc, wc, qty)}
-            productNames={productNameMap}
-          />
 
         </div>
       )}

@@ -6,7 +6,8 @@ import type { Factory, Product, Warehouse, PalletType } from '@/lib/types';
 import { parseProductsCSV, generateProductsTemplate, downloadCSV } from '@/lib/csv';
 import { buildEquipmentColorMap, buildProductColors, PRODUCT_PALETTE } from '@/lib/productColors';
 import * as db from '@/lib/db';
-import { AiKeySettings } from '@/components/AiKeySettings';
+import { PushNotificationSetup } from '@/components/PushNotificationSetup';
+import { CloudSyncLogin } from '@/components/CloudSyncLogin';
 import { toast } from '@/components/Toast';
 import clsx from 'clsx';
 
@@ -251,9 +252,14 @@ export default function SettingsPage() {
         </button>
       </div>
 
-      {/* AI提案（Geminiキー）設定 */}
+      {/* クラウド同期ログイン（ネイティブのトークン認証） */}
       <div className="mb-6">
-        <AiKeySettings />
+        <CloudSyncLogin />
+      </div>
+
+      {/* プッシュ通知設定（フェーズ6） */}
+      <div className="mb-6">
+        <PushNotificationSetup />
       </div>
 
       {/* タブ */}

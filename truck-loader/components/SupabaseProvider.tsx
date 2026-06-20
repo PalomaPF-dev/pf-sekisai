@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import * as db from '@/lib/db';
+import { toast } from '@/components/Toast';
 import type {
   Factory, Product, Warehouse, TruckType, PalletType,
   ProductionPlan, DailyProductionPlan,
@@ -115,6 +116,13 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       await loadFromDB();
     })();
   }, [loadFromDB]);
+
+  // プッシュ通知の受信リスナー（ネイティブのみ。受信時にトースト表示）
+  useEffect(() => {
+    import('@/lib/push')
+      .then(({ initPushListeners }) => initPushListeners((title, body) => toast(`${title}${body ? '：' + body : ''}`, 'info')))
+      .catch(() => {});
+  }, []);
 
   if (!isLoaded) {
     return (

@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
 import { UserMenu } from './UserMenu';
+import { SyncStatus } from './SyncStatus';
 
-// 業務の流れ（①設定 → ②データ入力 → ③計画・AI提案）に沿った並び
+// 業務の流れ（①設定 → ②データ入力 → ③積載計画）に沿った並び
 const NAV_ITEMS = [
   {
     href: '/',
@@ -30,7 +31,7 @@ const NAV_ITEMS = [
   },
   {
     href: '/loading-plan',
-    label: '積載計画・AI提案',
+    label: '積載計画',
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="1" y="3" width="15" height="13" rx="1"/>
@@ -107,7 +108,8 @@ export function Navbar() {
       <header
         className="sticky top-0 z-50 flex items-center justify-between px-4 sm:px-6"
         style={{
-          height: 68,
+          height: 'calc(68px + env(safe-area-inset-top))',
+          paddingTop: 'env(safe-area-inset-top)', // ステータスバー/Dynamic Island分を確保
           background: 'white',
           borderBottom: '1px solid #e5e7eb',
           boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
@@ -154,17 +156,20 @@ export function Navbar() {
           </div>
         </div>
 
-        {/* 右：ユーザーメニュー */}
-        <UserMenu />
+        {/* 右：同期ステータス + ユーザーメニュー */}
+        <div className="flex items-center gap-2">
+          <SyncStatus />
+          <UserMenu />
+        </div>
       </header>
 
       {/* ── 左サイドバー（PC固定） ── */}
       <aside
         className="fixed left-0 z-40 hidden flex-col lg:flex"
         style={{
-          top: 68,
+          top: 'calc(68px + env(safe-area-inset-top))',
           width: 200,
-          height: 'calc(100vh - 68px)',
+          height: 'calc(100vh - 68px - env(safe-area-inset-top))',
           background: 'white',
           borderRight: '1px solid #e5e7eb',
           paddingTop: 16,
@@ -178,7 +183,7 @@ export function Navbar() {
       {mobileOpen && (
         <div className="fixed inset-0 z-[60] lg:hidden">
           <div className="absolute inset-0 bg-black/30" onClick={() => setMobileOpen(false)} aria-hidden />
-          <aside className="absolute left-0 top-0 flex h-full w-64 flex-col bg-white pb-4 shadow-2xl">
+          <aside className="absolute left-0 top-0 flex h-full w-64 flex-col bg-white pb-4 shadow-2xl" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
             <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3.5">
               <span className="text-sm font-bold text-gray-800">積載計画ナビ</span>
               <button

@@ -101,10 +101,12 @@ export function TruckDiagram({ load, truckType, products, palletTypes, productCo
   return (
     <div className="flex flex-col gap-2 select-none">
 
-      {/* Truck direction labels */}
+      {/* Truck direction labels（モバイルは縦：前=上／後=下、PCは横：前=左／後=右）*/}
       <div className="flex items-center justify-between text-[10px] px-1">
         <div className="font-semibold text-slate-600 flex items-center gap-1">
-          <span className="bg-slate-200 text-slate-600 rounded px-1 py-0.5 text-[9px]">← 前</span>
+          <span className="bg-slate-200 text-slate-600 rounded px-1 py-0.5 text-[9px]">
+            <span className="sm:hidden">↑ 前</span><span className="hidden sm:inline">← 前</span>
+          </span>
           <span>キャブ側</span>
         </div>
         <div className="text-slate-400 text-[9px] text-center">
@@ -113,7 +115,9 @@ export function TruckDiagram({ load, truckType, products, palletTypes, productCo
         </div>
         <div className="font-semibold text-slate-600 flex items-center gap-1">
           <span>後方</span>
-          <span className="bg-slate-200 text-slate-600 rounded px-1 py-0.5 text-[9px]">後 →</span>
+          <span className="bg-slate-200 text-slate-600 rounded px-1 py-0.5 text-[9px]">
+            <span className="sm:hidden">後 ↓</span><span className="hidden sm:inline">後 →</span>
+          </span>
         </div>
       </div>
 
@@ -127,9 +131,9 @@ export function TruckDiagram({ load, truckType, products, palletTypes, productCo
               <span className="text-[9px] font-bold text-sky-600">2段目（上段）</span>
               <span className="text-[9px] text-sky-400">{upperCount > 0 ? `${upperCount}枚 積載` : '空き'}</span>
             </div>
-            <div className="flex gap-0 bg-sky-50/50 px-1.5 py-1">
+            <div className="flex flex-col sm:flex-row gap-0 bg-sky-50/50 px-1.5 py-1">
               {Array.from({ length: rows }, (_, row) => (
-                <div key={row} className="flex gap-0.5 mr-1">
+                <div key={row} className="flex gap-0.5 mb-0.5 sm:mb-0 sm:mr-1 justify-center sm:justify-start">
                   {Array.from({ length: cols }, (_, col) => (
                     <PalletCell
                       key={col}
@@ -156,9 +160,9 @@ export function TruckDiagram({ load, truckType, products, palletTypes, productCo
           {hasStackable && (
             <div className="text-[9px] font-bold text-slate-500 mb-0.5 ml-0.5">1段目（下段・床面）</div>
           )}
-          <div className="flex gap-0">
+          <div className="flex flex-col sm:flex-row gap-0">
             {Array.from({ length: rows }, (_, row) => (
-              <div key={row} className="flex gap-0.5 mr-1">
+              <div key={row} className="flex gap-0.5 mb-0.5 sm:mb-0 sm:mr-1 justify-center sm:justify-start">
                 {Array.from({ length: cols }, (_, col) => (
                   <PalletCell
                     key={col}
@@ -179,8 +183,8 @@ export function TruckDiagram({ load, truckType, products, palletTypes, productCo
         <div className="h-2 bg-gradient-to-b from-slate-400 to-slate-500 border-t border-slate-500" />
       </div>
 
-      {/* Depth position labels */}
-      <div className="flex gap-0 px-1.5">
+      {/* Depth position labels（横並び時のみ。縦並び=前が上で自明なため非表示）*/}
+      <div className="hidden sm:flex gap-0 px-1.5">
         {Array.from({ length: rows }, (_, row) => (
           <div key={row} className="text-[9px] text-center text-slate-400 mr-1" style={{ width: groupW }}>
             {row === 0 ? '①前' : row === rows - 1 ? `${row + 1}後` : `${row + 1}`}

@@ -56,7 +56,7 @@ export function OnboardingChecklist() {
       <div className="mb-5 rounded-xl border border-indigo-200 bg-gradient-to-br from-indigo-50 to-white p-5 shadow-sm">
         <h2 className="text-base font-bold text-slate-800">はじめましょう 🚚</h2>
         <p className="mt-1 text-sm text-slate-600">
-          このアプリは、在庫基準と増減から「どの拠点へ・どのトラックで・どう積むか」をAIが提案します。
+          このアプリは、在庫基準と増減から「どの拠点へ・どのトラックで・どう積むか」を自動で計算します。
           <br className="hidden sm:block" />
           まずは<strong className="text-indigo-700">サンプルデータ</strong>で全体の流れを体験するのがおすすめです（あとから自社の値に書き換えられます）。
         </p>
@@ -101,7 +101,7 @@ export function OnboardingChecklist() {
           )}
           {allDone && (
             <Link href="/loading-plan" className="text-xs font-semibold text-emerald-600 hover:underline">
-              積載計画・AI提案を見る →
+              積載計画を見る →
             </Link>
           )}
         </div>
@@ -137,10 +137,6 @@ export function OnboardingChecklist() {
           </li>
         ))}
       </ol>
-      <p className="mt-2 text-[11px] text-slate-400">
-        💡 AI提案を使うには Gemini キーが必要です（無料・お試し可）。
-        <Link href="/settings" className="ml-1 font-semibold text-indigo-600 hover:underline">設定で登録 →</Link>
-      </p>
       {error && <p className="mt-2 text-xs text-rose-600">{error}</p>}
     </div>
   );

@@ -32,3 +32,14 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# capacitor (iOS) — 生成物・依存。capacitor.config.ts と ios/App のソースは追跡対象
+/ios/App/Pods/
+/ios/App/build/
+/ios/App/App/public/
+DerivedData/
+*.xcuserstate
+
+# capacitor 静的ビルド出力（npm run build:ios で再生成）
+/www/
+/.capacitor-build-tmp/

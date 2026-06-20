@@ -15,7 +15,11 @@ import {
   DEFAULT_SHIPPING_SCHEDULE,
   DEFAULT_OPERATING_DAYS,
 } from './defaultData';
-import * as db from './db';
+import { getDataSource } from './dataSource';
+
+// 永続化層（実行環境に応じて Server / Local を選択）。
+// store の各アクションはこの db を通して読み書きする。詳細は lib/dataSource/ 参照。
+const db = getDataSource();
 
 interface AppState {
   // ─── ロード状態 ────────────────────────────────────────────
@@ -189,7 +193,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   // ─── サンプルデータ投入（オンボーディング）───────────────────
   // 既存データが無い場合のみ投入。投入後に再ロード。戻り値=実際に投入したか
   loadSampleData: async () => {
-    const { seeded } = await db.seedSampleDataForCompany();
+    const { seeded } = await db.seedSampleData();
     if (seeded) await get().loadFromDB();
     return seeded;
   },

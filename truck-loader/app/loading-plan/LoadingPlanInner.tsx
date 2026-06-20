@@ -1,15 +1,16 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { useAppStore } from '@/lib/store';
 import { calcWeeklyPlans, calcSendQty } from '@/lib/calculations';
 import { buildProductColors } from '@/lib/productColors';
 import { TruckDiagram } from '@/components/TruckDiagram';
 import { LoadingTable } from '@/components/LoadingTable';
-import { AIRecommendationPanel } from '@/components/AIRecommendationPanel';
-import { useAiRecommendation } from '@/lib/useAiRecommendation';
 import { toast } from '@/components/Toast';
 import { HelpTip } from '@/components/HelpTip';
+import { LoadingScanPanel } from '@/components/LoadingScanPanel';
+import { PrintableLoadingPlan } from '@/components/PrintableLoadingPlan';
+import { exportLoadingPlanPdf } from '@/lib/exportPdf';
 import type { DayWarehousePlan, Warehouse } from '@/lib/types';
 import clsx from 'clsx';
 
@@ -62,9 +63,6 @@ export default function LoadingPlanInner() {
     confirmShipment, setShippingDay, setSendQtyManual,
   } = useAppStore();
 
-  // AI提案ドロワー
-  const ai = useAiRecommendation();
-  const [aiOpen, setAiOpen] = useState(false);
 
   const productColors = buildProductColors(products);
   const productNames  = Object.fromEntries(products.map((p) => [p.code, p.name]));
@@ -97,6 +95,25 @@ export default function LoadingPlanInner() {
     if (v === 'plan' || v === 'schedule') setActiveView(v);
   }, []);
 
+  // ── 積込スキャン（フェーズ5） ───────────────────────────────────────────────
+  const [showScan, setShowScan] = useState(false);
+
+  // ── 印刷・PDF出力 ──────────────────────────────────────────
+  const printRef = useRef<HTMLDivElement>(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const handleExportPdf = async () => {
+    if (!printRef.current || pdfBusy) return;
+    setPdfBusy(true);
+    try {
+      const fname = `積載計画_${(factories.find((f) => f.code === selectedFactory)?.name ?? '')}_${formatWeekLabel(planMonday).replace(/[（）\s]/g, '')}.pdf`;
+      await exportLoadingPlanPdf(printRef.current, fname);
+    } catch (e) {
+      toast(`PDFの作成に失敗しました: ${e instanceof Error ? e.message : e}`, 'error');
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
   // ── 出荷確定 ───────────────────────────────────────────────────────────────
   const [confirmed, setConfirmed] = useState(false);
   const handleConfirmShipment = () => {
@@ -123,6 +140,17 @@ export default function LoadingPlanInner() {
 
   // ── 選択中工場の計画 ────────────────────────────────────────────────────────
   const factoryPlans = weeklyPlans[selectedFactory] ?? [];
+
+  // 積込スキャンの「計画内」判定用：選択中工場の計画に含まれる製品コード集合
+  const expectedCodes = useMemo(() => {
+    const set = new Set<string>();
+    for (const plan of factoryPlans) {
+      for (const truck of plan.trucks) {
+        for (const item of truck.items) set.add(item.productCode);
+      }
+    }
+    return set;
+  }, [factoryPlans]);
 
   const availableDays = useMemo(() => {
     const days = new Set<number>();
@@ -243,27 +271,42 @@ export default function LoadingPlanInner() {
 
   // ─────────────────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-[calc(100vh-68px)] overflow-hidden">
+    <div className="flex flex-col md:h-[calc(100vh-68px)] md:overflow-hidden">
 
       {/* ── 出荷確定バー ── */}
-      <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between shrink-0">
-        <p className="text-xs text-slate-500">
+      <div className="bg-white border-b border-slate-200 px-4 py-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between shrink-0">
+        <p className="hidden sm:block text-xs text-slate-500">
           出荷が完了したら「出荷確定」を押すと、今週の送り数が<strong className="text-slate-700">輸送中数量</strong>として保存され、次回の計画に反映されます。
         </p>
-        <button
-          onClick={handleConfirmShipment}
-          className={clsx(
-            'ml-4 shrink-0 px-4 py-1.5 text-sm font-semibold rounded-lg transition-all',
-            confirmed ? 'bg-emerald-100 text-emerald-700 cursor-default' : 'bg-brand-600 text-white hover:bg-brand-700 active:scale-95',
-          )}
-        >
-          {confirmed ? '✓ 出荷確定済み' : '🚚 出荷確定'}
-        </button>
+        <div className="shrink-0 flex items-center gap-2 sm:ml-4">
+          <button
+            onClick={handleExportPdf}
+            disabled={pdfBusy}
+            className="flex-1 sm:flex-none px-4 py-2 sm:py-1.5 text-sm font-semibold rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 active:scale-95 transition-all disabled:opacity-60"
+          >
+            {pdfBusy ? '作成中…' : '🖨 印刷・PDF'}
+          </button>
+          <button
+            onClick={() => setShowScan(true)}
+            className="flex-1 sm:flex-none px-4 py-2 sm:py-1.5 text-sm font-semibold rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 active:scale-95 transition-all"
+          >
+            📷 積込スキャン
+          </button>
+          <button
+            onClick={handleConfirmShipment}
+            className={clsx(
+              'flex-1 sm:flex-none px-4 py-2 sm:py-1.5 text-sm font-semibold rounded-lg transition-all',
+              confirmed ? 'bg-emerald-100 text-emerald-700 cursor-default' : 'bg-brand-600 text-white hover:bg-brand-700 active:scale-95',
+            )}
+          >
+            {confirmed ? '✓ 出荷確定済み' : '🚚 出荷確定'}
+          </button>
+        </div>
       </div>
 
       {/* ── 工場タブ ── */}
       {factories.length > 0 && (
-        <div className="bg-white border-b border-slate-200 px-4 flex gap-1 shrink-0">
+        <div className="bg-white border-b border-slate-200 px-4 flex gap-1 shrink-0 overflow-x-auto">
           {factories.map((f) => {
             const hasPlans = (weeklyPlans[f.code] ?? []).length > 0;
             return (
@@ -271,7 +314,7 @@ export default function LoadingPlanInner() {
                 key={f.code}
                 onClick={() => handleFactorySelect(f.code)}
                 className={clsx(
-                  'px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2',
+                  'px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2 whitespace-nowrap shrink-0',
                   selectedFactory === f.code ? 'border-brand-600 text-brand-600' : 'border-transparent text-slate-500 hover:text-slate-700',
                 )}
               >
@@ -289,11 +332,11 @@ export default function LoadingPlanInner() {
       )}
 
       {/* ── ビュー切替タブ ── */}
-      <div className="bg-slate-50 border-b border-slate-200 px-4 flex items-center gap-1 shrink-0">
+      <div className="bg-slate-50 border-b border-slate-200 px-4 flex items-center gap-1 shrink-0 overflow-x-auto">
         <button
           onClick={() => setActiveView('schedule')}
           className={clsx(
-            'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+            'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap shrink-0',
             activeView === 'schedule' ? 'border-brand-600 text-brand-600' : 'border-transparent text-slate-500 hover:text-slate-700',
           )}
         >
@@ -302,17 +345,11 @@ export default function LoadingPlanInner() {
         <button
           onClick={() => setActiveView('plan')}
           className={clsx(
-            'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+            'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap shrink-0',
             activeView === 'plan' ? 'border-brand-600 text-brand-600' : 'border-transparent text-slate-500 hover:text-slate-700',
           )}
         >
           🚛 積載計画
-        </button>
-        <button
-          onClick={() => { setAiOpen(true); if (!ai.data && !ai.loading) ai.generate(); }}
-          className="ml-auto my-1 px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
-        >
-          🤖 AI提案
         </button>
       </div>
 
@@ -320,7 +357,7 @@ export default function LoadingPlanInner() {
           ビュー①：スケジュール設定
       ══════════════════════════════════════════════════════════════════════ */}
       {activeView === 'schedule' && (
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="flex-1 md:overflow-y-auto p-3 md:p-5">
 
           {/* 計画週セレクター */}
           <div className="bg-white rounded-lg border border-slate-200 shadow-sm mb-4 px-5 py-3 flex items-center justify-between gap-4">
@@ -547,9 +584,9 @@ export default function LoadingPlanInner() {
             </div>
           )}
 
-          <div className="flex flex-1 overflow-hidden">
+          <div className="flex flex-col md:flex-row md:flex-1 md:overflow-hidden">
             {/* ── 左パネル: 拠点リスト ── */}
-            <aside className="w-52 shrink-0 bg-white border-r border-slate-200 overflow-y-auto">
+            <aside className="w-full md:w-52 shrink-0 bg-white md:border-r border-b md:border-b-0 border-slate-200 max-h-[38vh] md:max-h-none overflow-y-auto">
               <div className="px-3 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">
                 {dayLabel(effectiveDay)} — 配送拠点
               </div>
@@ -587,7 +624,7 @@ export default function LoadingPlanInner() {
             </aside>
 
             {/* ── 中央: トラック図 ── */}
-            <div className="flex-1 overflow-y-auto bg-slate-50 p-5">
+            <div className="flex-1 md:overflow-y-auto bg-slate-50 p-3 md:p-5">
               {(weeklyPlans[selectedFactory] ?? []).length === 0 ? (
                 <div className="flex items-center justify-center h-full text-slate-400 text-sm">
                   出荷計画がありません。「📅 スケジュール設定」で出荷曜日を設定してください。
@@ -683,12 +720,14 @@ export default function LoadingPlanInner() {
 
                   {/* トラック図 + 凡例 */}
                   {load && activeTruckType && (
-                    <div className="flex gap-6 items-start flex-wrap">
-                      <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
+                    <div className="flex gap-3 md:gap-6 items-start flex-wrap">
+                      <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-3 md:p-5 w-full md:w-auto">
                         <div className="text-xs font-semibold text-slate-500 mb-3">
                           積載レイアウト ─ {clampedTruck + 1}号車（{load.maxPallets > activeTruckType.maxPallets ? '2段込み' : '床面'} {load.totalPallets}/{load.maxPallets}パレット）
                         </div>
-                        <TruckDiagram load={load} truckType={activeTruckType} products={products} palletTypes={palletTypes} productColors={productColors} productNames={productNames} />
+                        <div className="overflow-x-auto">
+                          <TruckDiagram load={load} truckType={activeTruckType} products={products} palletTypes={palletTypes} productColors={productColors} productNames={productNames} />
+                        </div>
                         <div className="text-[10px] text-slate-400 mt-2 text-center">
                           荷台 {activeTruckType.widthMM.toLocaleString()} × {activeTruckType.depthMM.toLocaleString()}mm　高さ {activeTruckType.heightMM.toLocaleString()}mm
                         </div>
@@ -713,7 +752,7 @@ export default function LoadingPlanInner() {
             </div>
 
             {/* ── 右パネル: 積み込み手順 ── */}
-            <aside className="w-64 shrink-0 bg-white border-l border-slate-200 overflow-y-auto">
+            <aside className="w-full md:w-64 shrink-0 bg-white md:border-l border-t md:border-t-0 border-slate-200 md:overflow-y-auto">
               <div className="px-3 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">
                 積み込み手順 {load ? `— ${clampedTruck + 1}号車` : ''}
               </div>
@@ -735,38 +774,49 @@ export default function LoadingPlanInner() {
         </>
       )}
 
-      {/* ── AI提案 スライドオーバー ── */}
-      {aiOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end">
+      {/* ── 積込スキャン オーバーレイ（フェーズ5） ── */}
+      {showScan && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40"
+          onClick={() => setShowScan(false)}
+        >
           <div
-            className="absolute inset-0 bg-black/30"
-            onClick={() => setAiOpen(false)}
-            aria-hidden
-          />
-          <div className="relative w-full max-w-md h-full bg-slate-50 shadow-2xl overflow-y-auto">
-            <div className="sticky top-0 z-10 flex items-center justify-between bg-white border-b border-slate-200 px-4 py-3">
-              <h2 className="text-sm font-bold text-slate-800">🤖 AI提案</h2>
+            className="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[85vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 sticky top-0 bg-white">
+              <span className="text-sm font-bold text-gray-900">積込スキャン</span>
               <button
-                onClick={() => setAiOpen(false)}
-                className="rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-100"
+                onClick={() => setShowScan(false)}
+                className="text-sm text-slate-500 hover:text-slate-800"
               >
                 閉じる ✕
               </button>
             </div>
             <div className="p-4">
-              <AIRecommendationPanel
-                data={ai.data}
-                loading={ai.loading}
-                error={ai.error}
-                onGenerate={ai.generate}
-                onApplyAdjustment={(pc, wc, qty) => setSendQtyManual(pc, wc, qty)}
-                productNames={productNames}
-                className="border-0 shadow-none p-0 bg-transparent"
-              />
+              <LoadingScanPanel expectedCodes={expectedCodes} />
             </div>
           </div>
         </div>
       )}
+
+      {/* ── 印刷・PDF用ドキュメント（画面外で描画）── */}
+      <div aria-hidden style={{ position: 'absolute', left: -10000, top: 0, pointerEvents: 'none' }}>
+        <div ref={printRef}>
+          <PrintableLoadingPlan
+            factoryName={factories.find((f) => f.code === selectedFactory)?.name ?? ''}
+            weekLabel={formatWeekLabel(planMonday)}
+            plans={factoryPlans}
+            warehouses={warehouses}
+            truckTypes={truckTypes}
+            products={products}
+            palletTypes={palletTypes}
+            productColors={productColors}
+            productNames={productNames}
+            dayLabels={DAY_LABELS}
+          />
+        </div>
+      </div>
     </div>
   );
 }

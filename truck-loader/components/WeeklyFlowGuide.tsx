@@ -41,7 +41,7 @@ export function WeeklyFlowGuide({ plannedTrucks }: Props) {
     { n: 1, label: '週間生産数を入力', href: '/production?tab=production', done: s1, desc: '今週つくる数' },
     { n: 2, label: '拠点在庫・予定出荷を更新', href: '/production?tab=location', done: s2, desc: '最新の在庫に' },
     { n: 3, label: '送り数を確認', href: '/production?tab=sendqty', done: s3, desc: '自動計算を確認・修正' },
-    { n: 4, label: '積載計画・AI提案を確認', href: '/loading-plan?view=plan', done: s4, desc: 'トラックと積み方' },
+    { n: 4, label: '積載計画を確認', href: '/loading-plan?view=plan', done: s4, desc: 'トラックと積み方' },
     { n: 5, label: '出荷確定', href: '/loading-plan?view=plan', done: s5, desc: '輸送中数量に反映' },
   ];
   const current = steps.find((s) => !s.done);

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { signOut, useSession } from 'next-auth/react';
+import { signOut, useSession } from '@/lib/authClient';
 
 export function UserMenu() {
   const { data: session } = useSession();
