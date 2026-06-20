@@ -13,8 +13,25 @@ export interface UpgradePackage {
   identifier: string;          // RevenueCat package id
   plan: 'monthly' | 'annual' | 'other';
   priceString: string;         // 表示用（例 "¥1,200"）
+  periodLabel: string;         // "月" | "年" | ""（自動更新の期間表示用）
+  trialLabel: string;          // 無料トライアル表示（例 "7日間無料"）。無ければ ""
   productId: string;
   raw: unknown;                // purchasePackage に渡す元オブジェクト
+}
+
+const UNIT_JA: Record<string, string> = { DAY: '日間', WEEK: '週間', MONTH: 'ヶ月', YEAR: '年' };
+
+/** product の導入価格(無料トライアル)からラベルを生成。無料トライアルが無ければ '' */
+// プラグインのバージョン差を吸収するため product は緩く受ける
+function trialLabelOf(product: unknown): string {
+  const ip = (product as { introductoryPrice?: { price?: number; periodNumberOfUnits?: number; periodUnit?: string } | null } | null | undefined)?.introductoryPrice;
+  if (!ip) return '';
+  // price 0 = 無料トライアル
+  if (typeof ip.price === 'number' && ip.price === 0 && ip.periodNumberOfUnits && ip.periodUnit) {
+    const unit = UNIT_JA[ip.periodUnit] ?? '';
+    return `${ip.periodNumberOfUnits}${unit}無料`;
+  }
+  return '';
 }
 
 export function isNative(): boolean {
@@ -66,6 +83,8 @@ export async function getUpgradePackages(): Promise<UpgradePackage[]> {
         identifier: p.identifier,
         plan,
         priceString: p.product?.priceString ?? '',
+        periodLabel: plan === 'annual' ? '年' : plan === 'monthly' ? '月' : '',
+        trialLabel: trialLabelOf(p.product),
         productId: p.product?.identifier ?? '',
         raw: p,
       };

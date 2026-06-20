@@ -79,10 +79,17 @@ export function UpgradeModal({
                     key={p.identifier}
                     onClick={() => onPurchase(p)}
                     disabled={busy}
-                    className="w-full flex items-center justify-between rounded-xl border-2 border-blue-600 px-4 py-3 text-sm font-bold text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+                    className="w-full flex items-center justify-between gap-2 rounded-xl border-2 border-blue-600 px-4 py-3 text-left hover:bg-blue-50 disabled:opacity-50"
                   >
-                    <span>{planLabel(p)}</span>
-                    <span>{p.priceString}</span>
+                    <span className="flex flex-col">
+                      <span className="text-sm font-bold text-blue-700">
+                        {planLabel(p)}{p.trialLabel ? ` ・ ${p.trialLabel}` : ''}
+                      </span>
+                      <span className="text-[11px] text-gray-500">
+                        {p.trialLabel ? `トライアル終了後 ` : ''}{p.priceString} / {p.periodLabel}・自動更新
+                      </span>
+                    </span>
+                    <span className="text-sm font-bold text-blue-700 shrink-0">{p.priceString}</span>
                   </button>
                 ))}
                 <button
@@ -92,17 +99,29 @@ export function UpgradeModal({
                 >
                   購入を復元する
                 </button>
+                {/* App Store ガイドライン 3.1.2: 自動更新条件＋利用規約/プライバシー */}
                 <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
-                  サブスクは自動更新されます。期間終了の24時間前までに解約しない限り更新されます。解約は iOS の設定 →
-                  Apple ID → サブスクリプションから行えます。
+                  お支払いは購入確定時に Apple ID に請求されます。サブスクリプションは、期間終了の24時間前までに自動更新をオフにしない限り自動更新され、更新料が請求されます。購読の管理・解約は iOS の「設定 → Apple ID → サブスクリプション」から行えます。
+                </p>
+                <p className="text-[11px] text-gray-400 leading-relaxed">
+                  <a href="/terms" className="underline hover:text-gray-600">利用規約(EULA)</a>
+                  {' / '}
+                  <a href="/privacy" className="underline hover:text-gray-600">プライバシーポリシー</a>
                 </p>
               </div>
             ) : (
               <p className="text-sm text-gray-500 text-center py-4">{busy ? '読み込み中…' : 'プランを読み込めませんでした。時間をおいて再度お試しください。'}</p>
             )
           ) : (
-            <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
-              プロのご購読は <strong>iOS アプリ</strong>から行えます。iOS で購読すると、この Web 版でも自動的にプロ機能が使えるようになります。
+            <div className="flex flex-col gap-2">
+              <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+                プロのご購読は <strong>iOS アプリ</strong>から行えます。iOS で購読すると、この Web 版でも自動的にプロ機能が使えるようになります。
+              </div>
+              <p className="text-[11px] text-gray-400 leading-relaxed">
+                <a href="/terms" className="underline hover:text-gray-600">利用規約(EULA)</a>
+                {' / '}
+                <a href="/privacy" className="underline hover:text-gray-600">プライバシーポリシー</a>
+              </p>
             </div>
           )}
         </div>

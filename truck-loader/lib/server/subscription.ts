@@ -51,9 +51,10 @@ const ACTIVE_TYPES = new Set([
   'INITIAL_PURCHASE', 'RENEWAL', 'PRODUCT_CHANGE', 'UNCANCELLATION', 'NON_RENEWING_PURCHASE',
 ]);
 const INACTIVE_TYPES = new Set([
-  'EXPIRATION', 'SUBSCRIPTION_PAUSED',
+  'EXPIRATION', 'SUBSCRIPTION_PAUSED', 'REFUND', 'SUBSCRIPTION_EXTENDED_REVOKED',
 ]);
 // CANCELLATION は自動更新OFFだが期限まで有効 → ダウングレードしない
+// BILLING_ISSUE は猶予期間中のため即時ダウングレードしない（期限切れで EXPIRATION が来る）
 
 export interface RevenueCatEvent {
   type?: string;

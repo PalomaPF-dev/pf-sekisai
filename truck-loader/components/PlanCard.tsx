@@ -61,11 +61,31 @@ export function PlanCard() {
         </div>
       )}
 
+      {isPro && isNative() && (
+        <div className="mt-3">
+          <a
+            href="https://apps.apple.com/account/subscriptions"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            サブスクリプションを管理
+          </a>
+          <p className="mt-1 text-[11px] text-gray-400">解約・プラン変更は iOS の「設定 → Apple ID → サブスクリプション」からも行えます。</p>
+        </div>
+      )}
+
       {!isPro && (
         <p className="mt-2 text-[11px] text-gray-400 leading-relaxed">
           複数拠点・CSV・PDF・クラウド同期・バーコード照合などが利用できます。購読は iOS アプリ内から行えます。
         </p>
       )}
+
+      <p className="mt-3 text-[11px] text-gray-400">
+        <a href="/terms" className="underline hover:text-gray-600">利用規約(EULA)</a>
+        {' / '}
+        <a href="/privacy" className="underline hover:text-gray-600">プライバシーポリシー</a>
+      </p>
     </div>
   );
 }
