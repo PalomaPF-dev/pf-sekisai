@@ -5,6 +5,7 @@ import { SupabaseProvider } from '@/components/SupabaseProvider';
 import { SessionProvider } from '@/components/SessionProvider';
 import { Toaster } from '@/components/Toast';
 import { OrientationController } from '@/components/OrientationController';
+import { BiometricLock } from '@/components/BiometricLock';
 
 export const metadata: Metadata = {
   title: 'スマコウバ積載',
@@ -32,6 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </main>
           </SupabaseProvider>
           <Toaster />
+          <BiometricLock />
         </SessionProvider>
       </body>
     </html>

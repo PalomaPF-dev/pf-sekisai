@@ -8,6 +8,7 @@ import { buildEquipmentColorMap, buildProductColors, PRODUCT_PALETTE } from '@/l
 import * as db from '@/lib/db';
 import { PushNotificationSetup } from '@/components/PushNotificationSetup';
 import { CloudSyncLogin } from '@/components/CloudSyncLogin';
+import { BiometricLockSetting } from '@/components/BiometricLockSetting';
 import { toast } from '@/components/Toast';
 import clsx from 'clsx';
 
@@ -255,6 +256,11 @@ export default function SettingsPage() {
       {/* クラウド同期ログイン（ネイティブのトークン認証） */}
       <div className="mb-6">
         <CloudSyncLogin />
+      </div>
+
+      {/* Face ID ロック（ネイティブのみ） */}
+      <div className="mb-6">
+        <BiometricLockSetting />
       </div>
 
       {/* プッシュ通知設定（フェーズ6） */}
