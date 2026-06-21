@@ -8,8 +8,6 @@ import { buildEquipmentColorMap, buildProductColors, PRODUCT_PALETTE } from '@/l
 import * as db from '@/lib/db';
 import { PushNotificationSetup } from '@/components/PushNotificationSetup';
 import { CloudSyncLogin } from '@/components/CloudSyncLogin';
-import { PlanCard } from '@/components/PlanCard';
-import { useUpgrade } from '@/lib/entitlement';
 import { toast } from '@/components/Toast';
 import clsx from 'clsx';
 
@@ -28,9 +26,6 @@ export default function SettingsPage() {
     upsertProducts,
     resetToDefaults,
   } = useAppStore();
-
-  // サブスク・ゲート
-  const { requirePro } = useUpgrade();
 
   // 器具名ごとの色マップ・製品コードごとの色マップ（描画用）
   const equipmentColorMap = useMemo(() => buildEquipmentColorMap(products), [products]);
@@ -255,11 +250,6 @@ export default function SettingsPage() {
         >
           デフォルトにリセット
         </button>
-      </div>
-
-      {/* プラン（サブスク） */}
-      <div className="mb-6">
-        <PlanCard />
       </div>
 
       {/* クラウド同期ログイン（ネイティブのトークン認証） */}
@@ -882,11 +872,7 @@ export default function SettingsPage() {
         <div>
           <div className="flex justify-end mb-3">
             <button
-              onClick={() => {
-                // 無料プランは1拠点まで。2拠点目以降はProが必要。
-                if (warehouses.length >= 1 && !requirePro('複数拠点')) return;
-                setEditingWarehouse(newWarehouse());
-              }}
+              onClick={() => setEditingWarehouse(newWarehouse())}
               className="text-sm px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors"
             >
               + 拠点を追加

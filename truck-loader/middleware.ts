@@ -15,6 +15,6 @@ export const config = {
      * next-auth ミドルウェアの Cookie セッション必須から除外する（ネイティブから呼べるように）。
      * next.js の静的ファイル (_next/static, favicon.ico など) は除外
      */
-    '/((?!login|register|privacy|support|terms|api/auth|api/register|api/sync|api/account|api/push|api/subscription|api/webhooks|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|ico)).*)',
+    '/((?!login|register|privacy|support|terms|pricing|api/auth|api/register|api/sync|api/account|api/push|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|ico)).*)',
   ],
 };
