@@ -110,9 +110,11 @@ export function UserMenu() {
           </div>
           <button
             onClick={() => {
-              // ログアウト後はローカル（デモ）モードへ戻す
-              try { localStorage.setItem('truckloader.dataSource', 'local'); }
-              catch (e) { console.warn('dataSource モード保存に失敗:', e); }
+              // ログアウト: デモCookieも解除し、次回は /login ゲートへ
+              try {
+                localStorage.setItem('truckloader.dataSource', 'local');
+                document.cookie = 'truckloader.demo=; path=/; max-age=0';
+              } catch (e) { console.warn('dataSource モード保存に失敗:', e); }
               signOut({ callbackUrl: '/login' });
             }}
             style={{

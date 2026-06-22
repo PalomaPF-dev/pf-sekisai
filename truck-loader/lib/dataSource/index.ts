@@ -32,9 +32,9 @@ function resolveMode(): DataSourceMode {
   // Capacitor（iOS）静的ビルドは既定でローカル（オフライン動作）
   if (process.env.NEXT_PUBLIC_CAPACITOR === '1') return 'local';
   if (process.env.NEXT_PUBLIC_DATA_SOURCE === 'local') return 'local';
-  // Web 既定もローカル（ログイン不要で使える＝デモ）。クラウド同期ログイン成功時に
-  // 'server' を localStorage に明示セットしてサーバ同期へ切り替える。
-  return 'local';
+  // Web 既定は server（ログイン必須）。デモは /login のボタンが localStorage='local' を
+  // 明示セット＋デモCookie付与で入る。ログイン成功時も 'server' を明示セット。
+  return 'server';
 }
 
 let cached: DataSource | null = null;

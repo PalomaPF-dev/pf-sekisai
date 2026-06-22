@@ -26,10 +26,12 @@ export default function LoginPage() {
     if (result?.error) {
       setError('メールアドレスまたはパスワードが正しくありません。');
     } else {
-      // ログイン成功＝クラウド同期(サーバモード)へ切替。
+      // ログイン成功＝クラウド同期(サーバモード)へ切替。デモCookieは解除。
       // データソースはモジュール読込時に確定するためフルリロードで反映する。
-      try { localStorage.setItem('truckloader.dataSource', 'server'); }
-      catch (e) { console.warn('dataSource モード保存に失敗:', e); }
+      try {
+        localStorage.setItem('truckloader.dataSource', 'server');
+        document.cookie = 'truckloader.demo=; path=/; max-age=0';
+      } catch (e) { console.warn('dataSource モード保存に失敗:', e); }
       window.location.href = '/';
     }
   }
@@ -37,6 +39,8 @@ export default function LoginPage() {
   // ログインせずにデモ（ローカルモード＋サンプルデータ投入）で全機能を体験
   function startDemo() {
     try {
+      // デモCookieでミドルウェアのログインゲートを通過（ローカル＋サンプル）
+      document.cookie = 'truckloader.demo=1; path=/; max-age=86400; samesite=lax';
       localStorage.setItem('truckloader.dataSource', 'local');
       localStorage.setItem('truckloader.autoSeedDemo', '1');
     } catch (e) { console.warn('デモ設定の保存に失敗:', e); }
