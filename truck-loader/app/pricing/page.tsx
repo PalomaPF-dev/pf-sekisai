@@ -47,7 +47,7 @@ export default function PricingPage() {
       <p className="mt-6">
         アプリは無料でダウンロードでき、基本機能はそのままご利用いただけます。
         現場で毎日使う <strong>Pro機能</strong>（複数拠点の積載計画・CSV入出力・PDF出力・クラウド同期・バーコード積込確認）は、
-        <strong>会社単位・人数無制限</strong>の法人プランでご提供します（請求書・銀行振込に対応）。
+        <strong>会社単位・人数無制限</strong>の法人プランでご提供します（お支払いはクレジットカード決済）。
       </p>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-3">
@@ -77,7 +77,7 @@ export default function PricingPage() {
       </div>
 
       <p className="mt-3 text-xs text-gray-400">
-        ※ 価格は税別。年額は月額の約10ヶ月分（2ヶ月分お得）。導入費・契約条件は内容により異なります。30日間の無料トライアルをご用意できます。
+        ※ 価格は税別。年額は月額の約10ヶ月分（2ヶ月分お得）。お支払いはクレジットカード決済。30日間の無料トライアルをご用意しています。
       </p>
 
       <div className="mt-8 rounded-2xl bg-blue-50 border border-blue-200 p-6 text-center">

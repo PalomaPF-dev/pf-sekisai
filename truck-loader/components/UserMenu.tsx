@@ -111,7 +111,8 @@ export function UserMenu() {
           <button
             onClick={() => {
               // ログアウト後はローカル（デモ）モードへ戻す
-              try { localStorage.setItem('truckloader.dataSource', 'local'); } catch { /* ignore */ }
+              try { localStorage.setItem('truckloader.dataSource', 'local'); }
+              catch (e) { console.warn('dataSource モード保存に失敗:', e); }
               signOut({ callbackUrl: '/login' });
             }}
             style={{

@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
+import { useSession } from '@/lib/authClient';
 import * as db from '@/lib/db';
 import { toast } from '@/components/Toast';
 import type {
@@ -108,6 +109,18 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   const loadFromDB = useAppStore((s) => s.loadFromDB);
   const loadSampleData = useAppStore((s) => s.loadSampleData);
   const isLoaded = useAppStore((s) => s.isLoaded);
+  const { status } = useSession();
+
+  // サーバモード(クラウド同期)なのに未ログイン＝セッション失効 → 再ログインへ誘導
+  // （ネイティブの useSession スタブは常に authenticated なので作動しない）
+  useEffect(() => {
+    if (status !== 'unauthenticated') return;
+    try {
+      if (localStorage.getItem('truckloader.dataSource') === 'server') {
+        window.location.href = '/login';
+      }
+    } catch { /* ignore */ }
+  }, [status]);
 
   useEffect(() => {
     (async () => {
@@ -116,12 +129,15 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       // DB からロード
       await loadFromDB();
       // 「ログインせずにデモを見る」からの遷移時はサンプルを自動投入（空のときのみ）
+      // フラグ削除は投入成功後に行う（失敗時は次回起動で再試行できるよう残す）
       try {
         if (localStorage.getItem('truckloader.autoSeedDemo') === '1') {
-          localStorage.removeItem('truckloader.autoSeedDemo');
           await loadSampleData();
+          localStorage.removeItem('truckloader.autoSeedDemo');
         }
-      } catch { /* ignore */ }
+      } catch (e) {
+        console.error('[demo] サンプル自動投入に失敗:', e);
+      }
     })();
   }, [loadFromDB, loadSampleData]);
 

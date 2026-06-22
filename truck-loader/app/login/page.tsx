@@ -28,7 +28,8 @@ export default function LoginPage() {
     } else {
       // ログイン成功＝クラウド同期(サーバモード)へ切替。
       // データソースはモジュール読込時に確定するためフルリロードで反映する。
-      try { localStorage.setItem('truckloader.dataSource', 'server'); } catch { /* ignore */ }
+      try { localStorage.setItem('truckloader.dataSource', 'server'); }
+      catch (e) { console.warn('dataSource モード保存に失敗:', e); }
       window.location.href = '/';
     }
   }
@@ -38,7 +39,7 @@ export default function LoginPage() {
     try {
       localStorage.setItem('truckloader.dataSource', 'local');
       localStorage.setItem('truckloader.autoSeedDemo', '1');
-    } catch { /* ignore */ }
+    } catch (e) { console.warn('デモ設定の保存に失敗:', e); }
     window.location.href = '/';
   }
 
