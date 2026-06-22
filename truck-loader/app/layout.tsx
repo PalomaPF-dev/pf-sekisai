@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
-import { Navbar } from '@/components/Navbar';
-import { SupabaseProvider } from '@/components/SupabaseProvider';
+import { AppShell } from '@/components/AppShell';
 import { SessionProvider } from '@/components/SessionProvider';
 import { Toaster } from '@/components/Toast';
 import { OrientationController } from '@/components/OrientationController';
@@ -25,13 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="antialiased" style={{ background: '#f5f7fa', color: '#1f2937' }}>
         <SessionProvider>
           <OrientationController />
-          <Navbar />
-          <SupabaseProvider>
-            {/* PCはサイドバー分(200px)右にずらす。モバイルは全幅（ドロワーで遷移） */}
-            <main className="min-h-[calc(100vh_-_68px_-_env(safe-area-inset-top))] lg:ml-[200px]">
-              {children}
-            </main>
-          </SupabaseProvider>
+          <AppShell>{children}</AppShell>
           <Toaster />
           <BiometricLock />
         </SessionProvider>

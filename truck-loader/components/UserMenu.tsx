@@ -19,7 +19,26 @@ export function UserMenu() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  if (!session) return null;
+  // 未ログイン（Web・ローカル/デモ利用中）はクラウド同期用のログイン導線を出す
+  if (!session) {
+    return (
+      <a
+        href="/login"
+        style={{
+          fontSize: 13,
+          fontWeight: 700,
+          color: '#2563eb',
+          textDecoration: 'none',
+          padding: '6px 12px',
+          border: '1px solid #bfdbfe',
+          borderRadius: 8,
+          background: '#eff6ff',
+        }}
+      >
+        ログイン
+      </a>
+    );
+  }
 
   const initial = (session.user.name?.[0] ?? session.user.email?.[0] ?? '?').toUpperCase();
 
@@ -90,7 +109,11 @@ export function UserMenu() {
             <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>{session.user.email}</div>
           </div>
           <button
-            onClick={() => signOut({ callbackUrl: '/login' })}
+            onClick={() => {
+              // ログアウト後はローカル（デモ）モードへ戻す
+              try { localStorage.setItem('truckloader.dataSource', 'local'); } catch { /* ignore */ }
+              signOut({ callbackUrl: '/login' });
+            }}
             style={{
               display: 'flex',
               alignItems: 'center',

@@ -2,11 +2,9 @@
 
 import { useState } from 'react';
 import { signIn } from '@/lib/authClient';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -28,9 +26,20 @@ export default function LoginPage() {
     if (result?.error) {
       setError('メールアドレスまたはパスワードが正しくありません。');
     } else {
-      router.push('/');
-      router.refresh();
+      // ログイン成功＝クラウド同期(サーバモード)へ切替。
+      // データソースはモジュール読込時に確定するためフルリロードで反映する。
+      try { localStorage.setItem('truckloader.dataSource', 'server'); } catch { /* ignore */ }
+      window.location.href = '/';
     }
+  }
+
+  // ログインせずにデモ（ローカルモード＋サンプルデータ投入）で全機能を体験
+  function startDemo() {
+    try {
+      localStorage.setItem('truckloader.dataSource', 'local');
+      localStorage.setItem('truckloader.autoSeedDemo', '1');
+    } catch { /* ignore */ }
+    window.location.href = '/';
   }
 
   return (
@@ -164,6 +173,30 @@ export default function LoginPage() {
             新規登録
           </Link>
         </p>
+
+        {/* ログイン不要のデモ導線 */}
+        <div style={{ borderTop: '1px solid #f0f0f0', marginTop: 24, paddingTop: 20 }}>
+          <button
+            type="button"
+            onClick={startDemo}
+            style={{
+              width: '100%',
+              padding: '11px 0',
+              background: '#fffbeb',
+              color: '#92400e',
+              border: '1px solid #fcd34d',
+              borderRadius: 8,
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            🚚 ログインせずにデモを見る
+          </button>
+          <p style={{ textAlign: 'center', marginTop: 8, fontSize: 12, color: '#9ca3af' }}>
+            サンプルデータで全機能を体験できます（登録不要）
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -106,6 +106,7 @@ async function migrateLegacyDataIfExists(): Promise<boolean> {
  */
 export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   const loadFromDB = useAppStore((s) => s.loadFromDB);
+  const loadSampleData = useAppStore((s) => s.loadSampleData);
   const isLoaded = useAppStore((s) => s.isLoaded);
 
   useEffect(() => {
@@ -114,8 +115,15 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       await migrateLegacyDataIfExists();
       // DB からロード
       await loadFromDB();
+      // 「ログインせずにデモを見る」からの遷移時はサンプルを自動投入（空のときのみ）
+      try {
+        if (localStorage.getItem('truckloader.autoSeedDemo') === '1') {
+          localStorage.removeItem('truckloader.autoSeedDemo');
+          await loadSampleData();
+        }
+      } catch { /* ignore */ }
     })();
-  }, [loadFromDB]);
+  }, [loadFromDB, loadSampleData]);
 
   // プッシュ通知の受信リスナー（ネイティブのみ。受信時にトースト表示）
   useEffect(() => {

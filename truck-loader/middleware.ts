@@ -1,20 +1,19 @@
 import { withAuth } from 'next-auth/middleware';
 
+/**
+ * 本アプリは「無料・ローカルファースト」。ページはログイン不要で利用でき（ローカルモード）、
+ * ログインはクラウド同期のための任意機能。したがってミドルウェアでのログイン強制は行わない。
+ * - ページ: 認証不要（全許可）。
+ * - サーバアクション(lib/db.ts)/API(/api/sync・account・push 等): それぞれが getAuthContext で
+ *   自前にセッション/Bearerを検証するため、ミドルウェアの保護は不要。
+ */
 export default withAuth({
-  pages: {
-    signIn: '/login',
+  callbacks: {
+    authorized: () => true, // 常に許可（リダイレクトしない）
   },
 });
 
 export const config = {
-  matcher: [
-    /*
-     * /login, /register, /privacy, /api/auth/* 以外の全ルートを保護
-     * （/privacy は App Store 申請の公開URLとして未ログインで閲覧可能にする）
-     * api/sync・api/account・api/push は自前の Bearer トークン認証(getAuthContext)を行うため
-     * next-auth ミドルウェアの Cookie セッション必須から除外する（ネイティブから呼べるように）。
-     * next.js の静的ファイル (_next/static, favicon.ico など) は除外
-     */
-    '/((?!login|register|privacy|contact|terms|pricing|api/auth|api/register|api/sync|api/account|api/push|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|ico)).*)',
-  ],
+  // 実質無効化（静的アセット等のみ対象。authorized が常に true のため何もしない）
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };
