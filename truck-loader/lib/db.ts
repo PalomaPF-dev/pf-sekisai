@@ -40,10 +40,11 @@ async function getCompanyId(): Promise<string> {
 
 // ─── Company & User (登録用) ─────────────────────────────────────────────────
 
-/** 会社を作成し、生成された company_id を返す */
+/** 会社を作成し、生成された company_id を返す。登録時に30日トライアルを付与。 */
 export async function createCompany(name: string): Promise<string> {
   const rows = await sql`
-    INSERT INTO companies (name) VALUES (${name})
+    INSERT INTO companies (name, trial_ends_at)
+    VALUES (${name}, NOW() + INTERVAL '30 days')
     RETURNING id
   `;
   return rows[0].id as string;

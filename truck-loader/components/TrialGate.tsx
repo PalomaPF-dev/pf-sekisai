@@ -1,0 +1,194 @@
+'use client';
+
+/**
+ * トライアル/契約ゲート（アプリ本体ページに適用）。
+ *
+ * 判定:
+ *  - デモ（無ログインのプレビュー）: ゲートなしで通す。
+ *  - Web: middleware でログイン済み。/api/subscription/status を取得し、
+ *         active(契約 or トライアル期限内) なら通す。期限切れはロック画面。
+ *  - ネイティブ(iOS): 初回はトークンログインが必要（ログイン画面）。ログイン後は
+ *         エンタイトルメントを取得＋ローカルにキャッシュし、オフラインでも期間内は利用可。
+ *         「ログインせずにデモを見る」も提供。
+ */
+import { useCallback, useEffect, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { getToken } from '@/lib/auth/token';
+import { cloudLogin, syncApiBase, authHeader } from '@/lib/auth/cloudAuth';
+
+type Phase = 'loading' | 'login' | 'locked' | 'ok';
+interface Ent { active: boolean; trialEndsAt: string | null; trialDaysLeft: number | null; isPro: boolean }
+
+const ENT_CACHE = 'truckloader.entitlement';
+
+function isDemo(): boolean {
+  try {
+    if (typeof document !== 'undefined' && document.cookie.includes('truckloader.demo=1')) return true;
+    return localStorage.getItem('truckloader.demoNative') === '1';
+  } catch {
+    return false;
+  }
+}
+
+async function fetchEnt(): Promise<Ent | null> {
+  try {
+    const token = await getToken();
+    const res = await fetch(`${syncApiBase()}/api/subscription/status`, {
+      headers: { ...authHeader(token) },
+      credentials: 'include',
+    });
+    if (!res.ok) return null;
+    const d = await res.json();
+    const ent: Ent = {
+      active: Boolean(d.active), trialEndsAt: d.trialEndsAt ?? null,
+      trialDaysLeft: typeof d.trialDaysLeft === 'number' ? d.trialDaysLeft : null, isPro: Boolean(d.isPro),
+    };
+    try { localStorage.setItem(ENT_CACHE, JSON.stringify({ ...ent, cachedAt: Date.now() })); } catch { /* ignore */ }
+    return ent;
+  } catch {
+    return null;
+  }
+}
+
+/** キャッシュからエンタイトルメントを復元（期限はローカル時刻で再判定＝オフライン猶予） */
+function cachedEnt(): Ent | null {
+  try {
+    const raw = localStorage.getItem(ENT_CACHE);
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    const ends = d.trialEndsAt ? new Date(d.trialEndsAt).getTime() : null;
+    const active = Boolean(d.isPro) || (ends ? ends > Date.now() : false);
+    const trialDaysLeft = ends ? Math.max(0, Math.ceil((ends - Date.now()) / 86_400_000)) : null;
+    return { active, trialEndsAt: d.trialEndsAt ?? null, trialDaysLeft, isPro: Boolean(d.isPro) };
+  } catch {
+    return null;
+  }
+}
+
+export function TrialGate({ children }: { children: React.ReactNode }) {
+  const native = typeof window !== 'undefined' && Capacitor.isNativePlatform();
+  const [phase, setPhase] = useState<Phase>('loading');
+  const [ent, setEnt] = useState<Ent | null>(null);
+
+  const evaluate = useCallback(async () => {
+    if (isDemo()) { setPhase('ok'); return; }
+    if (native) {
+      const token = await getToken();
+      if (!token) { setPhase('login'); return; }
+      const live = (await fetchEnt()) ?? cachedEnt();
+      if (!live) { setPhase('login'); return; } // 検証不能＆キャッシュ無し→再ログイン
+      setEnt(live);
+      setPhase(live.active ? 'ok' : 'locked');
+    } else {
+      // Web（middlewareでログイン済み）。取得失敗時はフェイルオープン（締め出さない）。
+      const live = await fetchEnt();
+      if (!live) { setPhase('ok'); return; }
+      setEnt(live);
+      setPhase(live.active ? 'ok' : 'locked');
+    }
+  }, [native]);
+
+  useEffect(() => { void evaluate(); }, [evaluate]);
+
+  if (phase === 'loading') {
+    return (
+      <div className="flex items-center justify-center h-screen text-slate-400 text-sm gap-2">
+        <svg className="animate-spin h-5 w-5 text-brand-600" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>
+        読み込み中…
+      </div>
+    );
+  }
+  if (phase === 'login') return <NativeLoginGate onDone={() => window.location.reload()} />;
+  if (phase === 'locked') return <LockScreen ent={ent} native={native} />;
+
+  return (
+    <>
+      {ent && !ent.isPro && ent.trialDaysLeft != null && (
+        <div className="bg-amber-50 border-b border-amber-200 text-amber-800 text-xs text-center py-1.5 px-4">
+          無料トライアル中（残り {ent.trialDaysLeft} 日）・継続利用はご契約が必要です{' '}
+          <a href="/contact" className="underline font-semibold">お問い合わせ</a>
+        </div>
+      )}
+      {children}
+    </>
+  );
+}
+
+/** トライアル終了（または未契約）のロック画面 */
+function LockScreen({ ent, native }: { ent: Ent | null; native: boolean }) {
+  const contactHref = native ? 'mailto:sophie83101028@gmail.com?subject=スマコウバ積載 ご契約のお問い合わせ' : '/contact';
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[70vh] px-6 text-center">
+      <div style={{ width: 56, height: 56, borderRadius: 14, background: 'linear-gradient(135deg,#6366f1,#3b82f6 50%,#06b6d4)' }} className="flex items-center justify-center mb-4">
+        <span style={{ color: '#fff', fontWeight: 900, fontSize: 32 }}>ス</span>
+      </div>
+      <h1 className="text-xl font-bold text-gray-900">無料トライアルが終了しました</h1>
+      <p className="mt-3 text-sm text-gray-600 max-w-md leading-relaxed">
+        引き続きスマコウバ積載をご利用いただくには、法人プランのご契約が必要です。
+        ご利用人数・拠点数をお知らせいただければ、最適なプランをご案内します。
+      </p>
+      <a href={contactHref} className="mt-6 rounded-lg bg-blue-600 px-6 py-3 text-sm font-bold text-white hover:bg-blue-700">
+        ご契約・お見積りのお問い合わせ
+      </a>
+      <p className="mt-3 text-xs text-gray-400">スマコウバ運営事務局：sophie83101028@gmail.com</p>
+    </div>
+  );
+}
+
+/** ネイティブ初回のログイン画面（トークン認証）＋デモ導線 */
+function NativeLoginGate({ onDone }: { onDone: () => void }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const login = async () => {
+    if (!email || !password) { setError('メールアドレスとパスワードを入力してください'); return; }
+    setBusy(true);
+    const res = await cloudLogin(email.trim(), password);
+    if (res.ok) {
+      try { localStorage.setItem('truckloader.dataSource', 'local'); } catch { /* ignore */ }
+      onDone();
+    } else {
+      setBusy(false);
+      setError(res.message ?? 'ログインに失敗しました');
+    }
+  };
+
+  const demo = () => {
+    try {
+      localStorage.setItem('truckloader.demoNative', '1');
+      localStorage.setItem('truckloader.dataSource', 'local');
+      localStorage.setItem('truckloader.autoSeedDemo', '1');
+    } catch { /* ignore */ }
+    onDone();
+  };
+
+  return (
+    <div className="flex items-center justify-center min-h-screen px-5" style={{ background: '#f5f7fa' }}>
+      <div className="w-full max-w-sm rounded-2xl bg-white p-7 shadow">
+        <div className="text-center mb-6">
+          <div style={{ width: 56, height: 56, borderRadius: 14, background: 'linear-gradient(135deg,#6366f1,#3b82f6 50%,#06b6d4)' }} className="mx-auto mb-3 flex items-center justify-center">
+            <span style={{ color: '#fff', fontWeight: 900, fontSize: 34 }}>ス</span>
+          </div>
+          <h1 className="text-lg font-bold text-gray-900">スマコウバ積載</h1>
+          <p className="text-xs text-gray-500 mt-1">ログインして利用を開始</p>
+        </div>
+        <div className="flex flex-col gap-3">
+          <input className="rounded-lg border border-gray-300 px-3 py-2.5 text-sm" type="email" inputMode="email" placeholder="メールアドレス" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <input className="rounded-lg border border-gray-300 px-3 py-2.5 text-sm" type="password" placeholder="パスワード" value={password} onChange={(e) => setPassword(e.target.value)} />
+          {error && <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">{error}</div>}
+          <button onClick={login} disabled={busy} className="rounded-lg bg-blue-600 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60">
+            {busy ? 'ログイン中…' : 'ログイン'}
+          </button>
+        </div>
+        <div className="border-t border-gray-100 mt-5 pt-4">
+          <button onClick={demo} className="w-full rounded-lg border border-amber-300 bg-amber-50 py-2.5 text-sm font-bold text-amber-800 hover:bg-amber-100">
+            🚚 ログインせずにデモを見る
+          </button>
+          <p className="text-center text-[11px] text-gray-400 mt-2">サンプルデータで全機能を体験できます（登録不要）</p>
+        </div>
+      </div>
+    </div>
+  );
+}
