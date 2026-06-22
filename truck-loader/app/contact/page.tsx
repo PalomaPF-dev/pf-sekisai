@@ -1,25 +1,25 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'サポート｜スマコウバ積載',
-  description: 'スマコウバ積載のサポート・お問い合わせ・よくある質問',
+  title: 'お問い合わせ｜スマコウバ積載',
+  description: 'スマコウバ積載のお問い合わせ・サポート・よくある質問',
 };
 
 // App Store 申請の「サポートURL」用に未ログインで閲覧できる公開ページ。
-// （middleware.ts の matcher で /support を認証対象から除外している）
-export default function SupportPage() {
+// （middleware.ts の matcher で /contact を認証対象から除外している）
+export default function ContactPage() {
   return (
     <div className="mx-auto max-w-3xl px-5 py-10 text-gray-800 leading-relaxed">
-      <h1 className="text-2xl font-bold text-gray-900">サポート</h1>
+      <h1 className="text-2xl font-bold text-gray-900">お問い合わせ</h1>
       <p className="mt-1 text-sm text-gray-500">スマコウバ積載（トラック配車・積み付け計算）</p>
 
       <p className="mt-6">
         スマコウバ積載は、中小の製造業・物流現場向けの「トラック積載計画」アプリです。
         週間の生産数と拠点ごとの在庫から、どの拠点へ・どのトラックで・どう積むかを自動で算出し、
-        荷台レイアウトや積込チェックリストとして可視化します。ご不明な点は下記の窓口までお問い合わせください。
+        荷台レイアウトや積込チェックリストとして可視化します。導入のご相談・ご質問など、下記の窓口までお気軽にお問い合わせください。
       </p>
 
-      <h2 className="mt-8 text-lg font-bold text-gray-900">お問い合わせ</h2>
+      <h2 className="mt-8 text-lg font-bold text-gray-900">お問い合わせ窓口</h2>
       <p className="mt-2">
         運営者：スマコウバ運営事務局
         <br />
@@ -42,18 +42,10 @@ export default function SupportPage() {
         クラウド同期を有効にすると、複数端末でデータを共有できます。
       </p>
 
-      <h3 className="mt-5 font-bold text-gray-900">無料でどこまで使えますか？（プランについて）</h3>
+      <h3 className="mt-5 font-bold text-gray-900">料金について</h3>
       <p className="mt-1">
-        生産・在庫の手入力、1拠点の積載計算・荷台レイアウトの閲覧、基本のダッシュボードは無料でご利用いただけます。
-        複数拠点の積載計画、CSVインポート/エクスポート、PDF出力、クラウド同期、バーコード積込確認は
-        Pro（月額／年額サブスクリプション）でご利用いただけます。
-      </p>
-
-      <h3 className="mt-5 font-bold text-gray-900">サブスクリプションの解約方法は？</h3>
-      <p className="mt-1">
-        iPhoneの「設定」→ 最上部のApple ID →「サブスクリプション」→「スマコウバ積載」から、
-        いつでも解約できます。解約後も、期間終了まではPro機能をご利用いただけます。
-        購入の復元は、アプリ内「設定 → プラン → 購入を復元」から行えます。
+        アプリは無料でご利用いただけます。複数端末での本格運用やサポートを含む法人向けプランは、
+        <a className="text-blue-600 underline" href="/pricing">料金ページ</a>または上記窓口へお問い合わせください。
       </p>
 
       <h3 className="mt-5 font-bold text-gray-900">バーコード読取で撮った画像は保存されますか？</h3>
@@ -70,6 +62,8 @@ export default function SupportPage() {
       <h2 className="mt-8 text-lg font-bold text-gray-900">関連リンク</h2>
       <ul className="mt-2 list-disc pl-6 space-y-1">
         <li><a className="text-blue-600 underline" href="/privacy">プライバシーポリシー</a></li>
+        <li><a className="text-blue-600 underline" href="/terms">利用規約</a></li>
+        <li><a className="text-blue-600 underline" href="/pricing">料金</a></li>
       </ul>
 
       <p className="mt-10 text-xs text-gray-400">© 2026 スマコウバ運営事務局</p>

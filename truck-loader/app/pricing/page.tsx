@@ -97,7 +97,7 @@ export default function PricingPage() {
         {' / '}
         <a href="/privacy" className="underline hover:text-gray-600">プライバシーポリシー</a>
         {' / '}
-        <a href="/support" className="underline hover:text-gray-600">サポート</a>
+        <a href="/contact" className="underline hover:text-gray-600">お問い合わせ</a>
       </p>
     </div>
   );
