@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createCompany, createUser, emailExists, seedDefaultsForCompany } from '@/lib/db';
+import { withCors, preflight } from '@/lib/cors';
+
+export function OPTIONS(req: Request) {
+  return preflight(req);
+}
 
 export async function POST(req: NextRequest) {
+  return withCors(req, await handlePOST(req));
+}
+
+async function handlePOST(req: NextRequest) {
   try {
     const { companyName, userName, email, password } = await req.json();
 

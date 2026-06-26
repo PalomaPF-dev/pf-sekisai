@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { ContactForm } from '@/components/ContactForm';
 import BrandLogo from '@/components/BrandLogo';
+import NativeRedirect from '@/components/NativeRedirect';
 
 export const metadata: Metadata = {
   title: 'お問い合わせ｜スマコウバ積載',
@@ -11,6 +12,8 @@ export const metadata: Metadata = {
 export default function ContactPage() {
   return (
     <div className="mx-auto max-w-xl px-5 py-10">
+      {/* ネイティブ(iOS)ではお問い合わせ(外部課金導線)を表示しない（App Store 3.1.1） */}
+      <NativeRedirect to="/login" />
       {/* ロゴ・見出し */}
       <div className="text-center mb-8">
         <BrandLogo size={56} rounded={14} className="mx-auto mb-3" />

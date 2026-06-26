@@ -76,10 +76,11 @@ export function TrialGate({ children }: { children: React.ReactNode }) {
     if (native) {
       const token = await getToken();
       if (!token) { setPhase('login'); return; }
+      // ネイティブ(iOS)はトライアル/契約でブロックしない（アプリ内課金なし・外部課金導線も出さない＝App Store 3.1.1対応）。
+      // エンタイトルメントは残日数バナーの情報表示にのみ使用。取得不能でもログイン済みなら通す。
       const live = (await fetchEnt()) ?? cachedEnt();
-      if (!live) { setPhase('login'); return; } // 検証不能＆キャッシュ無し→再ログイン
       setEnt(live);
-      setPhase(live.active ? 'ok' : 'locked');
+      setPhase('ok');
     } else {
       // Web（middlewareでログイン済み）。取得失敗時はフェイルオープン（締め出さない）。
       const live = await fetchEnt();
@@ -106,8 +107,13 @@ export function TrialGate({ children }: { children: React.ReactNode }) {
     <>
       {ent && !ent.isPro && ent.trialDaysLeft != null && (
         <div className="bg-amber-50 border-b border-amber-200 text-amber-800 text-xs text-center py-1.5 px-4">
-          無料トライアル中（残り {ent.trialDaysLeft} 日）・継続利用はご契約が必要です{' '}
-          <a href="/contact" className="underline font-semibold">お問い合わせ</a>
+          無料トライアル中（残り {ent.trialDaysLeft} 日）
+          {/* ネイティブでは契約/問い合わせ(外部課金導線)を出さない（App Store 3.1.1） */}
+          {!native && (
+            <>・継続利用はご契約が必要です{' '}
+              <a href="/contact" className="underline font-semibold">お問い合わせ</a>
+            </>
+          )}
         </div>
       )}
       {children}
@@ -115,9 +121,23 @@ export function TrialGate({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** トライアル終了（または未契約）のロック画面 */
+/** トライアル終了（または未契約）のロック画面（Webのみ。ネイティブはロックしない方針） */
 function LockScreen({ ent, native }: { ent: Ent | null; native: boolean }) {
-  const contactHref = native ? 'mailto:sophie83101028@gmail.com?subject=スマコウバ積載 ご契約のお問い合わせ' : '/contact';
+  void ent;
+  // ネイティブ(iOS)では外部課金/契約への導線を一切出さない（App Store 3.1.1）。
+  // ※通常ネイティブは evaluate() でロックに到達しないが、防御的に分岐し外部リンクを出さない。
+  if (native) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[70vh] px-6 text-center">
+        <BrandLogo size={56} rounded={14} className="mb-4" />
+        <h1 className="text-xl font-bold text-gray-900">無料トライアル期間が終了しました</h1>
+        <p className="mt-3 text-sm text-gray-600 max-w-md leading-relaxed">
+          引き続きアプリをご利用いただけます。法人でのご利用に関するご案内は、Web版
+          （sumakouba-truck-loader.vercel.app）をご覧ください。
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] px-6 text-center">
       <BrandLogo size={56} rounded={14} className="mb-4" />
@@ -126,7 +146,7 @@ function LockScreen({ ent, native }: { ent: Ent | null; native: boolean }) {
         引き続きスマコウバ積載をご利用いただくには、法人プランのご契約が必要です。
         ご利用人数・拠点数をお知らせいただければ、最適なプランをご案内します。
       </p>
-      <a href={contactHref} className="mt-6 rounded-lg bg-blue-600 px-6 py-3 text-sm font-bold text-white hover:bg-blue-700">
+      <a href="/contact" className="mt-6 rounded-lg bg-blue-600 px-6 py-3 text-sm font-bold text-white hover:bg-blue-700">
         ご契約・お見積りのお問い合わせ
       </a>
       <p className="mt-3 text-xs text-gray-400">スマコウバ運営事務局：sophie83101028@gmail.com</p>

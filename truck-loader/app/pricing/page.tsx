@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import NativeRedirect from '@/components/NativeRedirect';
 
 export const metadata: Metadata = {
   title: '料金｜スマコウバ積載',
@@ -41,6 +42,8 @@ const TIERS = [
 export default function PricingPage() {
   return (
     <div className="mx-auto max-w-4xl px-5 py-10 text-gray-800 leading-relaxed">
+      {/* ネイティブ(iOS)では料金ページを表示しない（App Store 3.1.1：外部課金導線を出さない） */}
+      <NativeRedirect to="/login" />
       <h1 className="text-2xl font-bold text-gray-900">料金プラン</h1>
       <p className="mt-1 text-sm text-gray-500">スマコウバ積載（トラック配車・積み付け計算）</p>
 

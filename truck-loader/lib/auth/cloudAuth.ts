@@ -9,8 +9,15 @@
  */
 import { getToken, setToken, clearToken } from './token';
 
+// 本番API(Vercel)のオリジン。ネイティブ(Capacitor)は別オリジンのため絶対URLが必須。
+const PROD_API_ORIGIN = 'https://sumakouba-truck-loader.vercel.app';
+
 export function syncApiBase(): string {
-  return process.env.NEXT_PUBLIC_SYNC_API ?? '';
+  if (process.env.NEXT_PUBLIC_SYNC_API) return process.env.NEXT_PUBLIC_SYNC_API;
+  // Capacitorビルドで env 未指定でも相対URL(=ローカルoriginで失敗)にならないよう保険。
+  // ※相対URLになるとネイティブのログイン/同期が全て「ネットワークエラー」になる(App Store 2.1(a))。
+  if (process.env.NEXT_PUBLIC_CAPACITOR === '1') return PROD_API_ORIGIN;
+  return ''; // Web は同一オリジン(相対)でよい
 }
 
 export function authHeader(token: string | null): Record<string, string> {

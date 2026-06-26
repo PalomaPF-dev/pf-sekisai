@@ -9,8 +9,17 @@ import { NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
 import bcrypt from 'bcryptjs';
 import { signAuthToken } from '@/lib/server/auth';
+import { withCors, preflight } from '@/lib/cors';
+
+export function OPTIONS(req: Request) {
+  return preflight(req);
+}
 
 export async function POST(req: Request) {
+  return withCors(req, await handlePOST(req));
+}
+
+async function handlePOST(req: Request) {
   const body = await req.json().catch(() => null);
   const email = body?.email;
   const password = body?.password;

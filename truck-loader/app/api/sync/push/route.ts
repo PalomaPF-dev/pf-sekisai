@@ -9,8 +9,17 @@ import { NextResponse } from 'next/server';
 import { getAuthContext } from '@/lib/server/auth';
 import { saveSnapshotData } from '@/lib/server/syncRepo';
 import { getCompanyEntitlement } from '@/lib/server/subscription';
+import { withCors, preflight } from '@/lib/cors';
+
+export function OPTIONS(req: Request) {
+  return preflight(req);
+}
 
 export async function POST(req: Request) {
+  return withCors(req, await handlePOST(req));
+}
+
+async function handlePOST(req: Request) {
   const auth = await getAuthContext(req);
   if (!auth?.companyId) return new NextResponse('Unauthorized', { status: 401 });
 

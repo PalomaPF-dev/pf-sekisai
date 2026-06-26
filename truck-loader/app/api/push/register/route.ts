@@ -8,6 +8,15 @@
 import { NextResponse } from 'next/server';
 import { getAuthContext } from '@/lib/server/auth';
 import { sql } from '@/lib/neon';
+import { withCors, preflight } from '@/lib/cors';
+
+export function OPTIONS(req: Request) {
+  return preflight(req);
+}
+
+export async function POST(req: Request) {
+  return withCors(req, await handlePOST(req));
+}
 
 async function ensureTable() {
   await sql`
@@ -20,7 +29,7 @@ async function ensureTable() {
   `;
 }
 
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const auth = await getAuthContext(req);
   const companyId = auth?.companyId;
   if (!companyId) return new NextResponse('Unauthorized', { status: 401 });
