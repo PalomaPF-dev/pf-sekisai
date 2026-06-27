@@ -28,7 +28,7 @@ export default function TermsPage() {
       <h2 className="mt-8 text-lg font-bold text-gray-900">2. 料金プラン（無料／法人Pro）</h2>
       <ul className="mt-2 list-disc pl-6 space-y-1">
         <li>本アプリは App Store で<strong>無料</strong>で提供し、アプリ内課金はありません。</li>
-        <li>Pro機能（複数拠点の積載計画、CSVインポート/エクスポート、PDF出力、クラウド同期、バーコード積込確認）は、<strong>会社単位の法人契約（アプリ外でのお申し込み・クレジットカード決済）</strong>でご利用いただけます。料金・条件は<a className="text-blue-600 underline" href="/pricing">料金ページ</a>または当方へのお問い合わせにてご案内します。</li>
+        <li>Pro機能（複数拠点の積載計画、CSVインポート/エクスポート、PDF出力、クラウド同期）は、<strong>会社単位の法人契約（アプリ外でのお申し込み・クレジットカード決済）</strong>でご利用いただけます。料金・条件は<a className="text-blue-600 underline" href="/pricing">料金ページ</a>または当方へのお問い合わせにてご案内します。</li>
       </ul>
 
       <h2 className="mt-8 text-lg font-bold text-gray-900">3. 契約・解約・返金</h2>

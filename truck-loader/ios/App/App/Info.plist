@@ -22,8 +22,6 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>NSCameraUsageDescription</key>
-	<string>製品バーコード/QRを読み取り、積込内容を確認するためにカメラを使用します。</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>アプリのロック解除に Face ID を使用します。</string>
 	<key>UIBackgroundModes</key>

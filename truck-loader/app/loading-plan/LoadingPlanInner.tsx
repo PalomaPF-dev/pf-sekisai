@@ -8,7 +8,6 @@ import { TruckDiagram } from '@/components/TruckDiagram';
 import { LoadingTable } from '@/components/LoadingTable';
 import { toast } from '@/components/Toast';
 import { HelpTip } from '@/components/HelpTip';
-import { LoadingScanPanel } from '@/components/LoadingScanPanel';
 import { PrintableLoadingPlan } from '@/components/PrintableLoadingPlan';
 import { exportLoadingPlanPdf } from '@/lib/exportPdf';
 import type { DayWarehousePlan, Warehouse } from '@/lib/types';
@@ -95,9 +94,6 @@ export default function LoadingPlanInner() {
     if (v === 'plan' || v === 'schedule') setActiveView(v);
   }, []);
 
-  // ── 積込スキャン（フェーズ5） ───────────────────────────────────────────────
-  const [showScan, setShowScan] = useState(false);
-
   // ── 印刷・PDF出力 ──────────────────────────────────────────
   const printRef = useRef<HTMLDivElement>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -140,17 +136,6 @@ export default function LoadingPlanInner() {
 
   // ── 選択中工場の計画 ────────────────────────────────────────────────────────
   const factoryPlans = weeklyPlans[selectedFactory] ?? [];
-
-  // 積込スキャンの「計画内」判定用：選択中工場の計画に含まれる製品コード集合
-  const expectedCodes = useMemo(() => {
-    const set = new Set<string>();
-    for (const plan of factoryPlans) {
-      for (const truck of plan.trucks) {
-        for (const item of truck.items) set.add(item.productCode);
-      }
-    }
-    return set;
-  }, [factoryPlans]);
 
   const availableDays = useMemo(() => {
     const days = new Set<number>();
@@ -285,12 +270,6 @@ export default function LoadingPlanInner() {
             className="flex-1 sm:flex-none px-4 py-2 sm:py-1.5 text-sm font-semibold rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 active:scale-95 transition-all disabled:opacity-60"
           >
             {pdfBusy ? '作成中…' : '🖨 印刷・PDF'}
-          </button>
-          <button
-            onClick={() => setShowScan(true)}
-            className="flex-1 sm:flex-none px-4 py-2 sm:py-1.5 text-sm font-semibold rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 active:scale-95 transition-all"
-          >
-            📷 積込スキャン
           </button>
           <button
             onClick={handleConfirmShipment}
@@ -772,32 +751,6 @@ export default function LoadingPlanInner() {
             </aside>
           </div>
         </>
-      )}
-
-      {/* ── 積込スキャン オーバーレイ（フェーズ5） ── */}
-      {showScan && (
-        <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40"
-          onClick={() => setShowScan(false)}
-        >
-          <div
-            className="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[85vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 sticky top-0 bg-white">
-              <span className="text-sm font-bold text-gray-900">積込スキャン</span>
-              <button
-                onClick={() => setShowScan(false)}
-                className="text-sm text-slate-500 hover:text-slate-800"
-              >
-                閉じる ✕
-              </button>
-            </div>
-            <div className="p-4">
-              <LoadingScanPanel expectedCodes={expectedCodes} />
-            </div>
-          </div>
-        </div>
       )}
 
       {/* ── 印刷・PDF用ドキュメント（画面外で描画）── */}
