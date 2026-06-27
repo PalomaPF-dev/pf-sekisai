@@ -22,19 +22,11 @@ export type { DataSource } from './types';
 export type DataSourceMode = 'server' | 'local';
 
 function resolveMode(): DataSourceMode {
+  // クラウド同期は廃止。データは常に端末ローカル(IndexedDB)へ保存する。
+  // ログイン/トライアル/課金は「アクセス・課金ゲート」として別途維持（データ保存先とは無関係）。
+  // SSR は IndexedDB 不可のため server スタブ（データ操作はクライアントの useEffect 内のみ実行）。
   if (typeof window === 'undefined') return 'server';
-  try {
-    const ls = window.localStorage.getItem('truckloader.dataSource');
-    if (ls === 'local' || ls === 'server') return ls;
-  } catch {
-    /* localStorage 不可環境 */
-  }
-  // Capacitor（iOS）静的ビルドは既定でローカル（オフライン動作）
-  if (process.env.NEXT_PUBLIC_CAPACITOR === '1') return 'local';
-  if (process.env.NEXT_PUBLIC_DATA_SOURCE === 'local') return 'local';
-  // Web 既定は server（ログイン必須）。デモは /login のボタンが localStorage='local' を
-  // 明示セット＋デモCookie付与で入る。ログイン成功時も 'server' を明示セット。
-  return 'server';
+  return 'local';
 }
 
 let cached: DataSource | null = null;

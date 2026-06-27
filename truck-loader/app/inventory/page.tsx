@@ -7,6 +7,7 @@ import { calcAllPlans, calcSendQty } from '@/lib/calculations';
 import { useCalcSettings } from '@/lib/useCalcSettings';
 import { buildEquipmentColorMap } from '@/lib/productColors';
 import { HelpTip } from '@/components/HelpTip';
+import { useDemo } from '@/lib/demo';
 import clsx from 'clsx';
 
 export default function InventoryPage() {
@@ -17,6 +18,7 @@ export default function InventoryPage() {
     setLocationStock, confirmShipment,
   } = useAppStore();
   const calcSettings = useCalcSettings();
+  const demo = useDemo();
 
   const [confirmed, setConfirmed] = useState(false);
 
@@ -154,20 +156,22 @@ export default function InventoryPage() {
           <Link href="/production" className="text-xs text-brand-600 hover:underline">
             配送計画入力 →
           </Link>
-          <button
-            onClick={handleConfirmShipment}
-            disabled={activePlans.length === 0}
-            className={clsx(
-              'px-4 py-1.5 text-sm font-semibold rounded-lg transition-all',
-              confirmed
-                ? 'bg-emerald-100 text-emerald-700 cursor-default'
-                : activePlans.length === 0
-                  ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                  : 'bg-brand-600 text-white hover:bg-brand-700 active:scale-95',
-            )}
-          >
-            {confirmed ? '✓ 出荷確定済み' : '🚚 出荷確定'}
-          </button>
+          {!demo && (
+            <button
+              onClick={handleConfirmShipment}
+              disabled={activePlans.length === 0}
+              className={clsx(
+                'px-4 py-1.5 text-sm font-semibold rounded-lg transition-all',
+                confirmed
+                  ? 'bg-emerald-100 text-emerald-700 cursor-default'
+                  : activePlans.length === 0
+                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                    : 'bg-brand-600 text-white hover:bg-brand-700 active:scale-95',
+              )}
+            >
+              {confirmed ? '✓ 出荷確定済み' : '🚚 出荷確定'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -432,9 +436,13 @@ export default function InventoryPage() {
                                             type="number" min={0}
                                             value={cur === 0 ? '' : cur}
                                             onChange={(e) => setLocationStock(p.code, wh.code, parseInt(e.target.value, 10) || 0)}
+                                            readOnly={demo}
                                             placeholder="0"
-                                            className="w-16 text-center border border-slate-200 rounded px-1 py-0.5 text-xs
-                                                       focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 bg-white"
+                                            className={clsx(
+                                              'w-16 text-center border border-slate-200 rounded px-1 py-0.5 text-xs',
+                                              'focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500',
+                                              demo ? 'bg-slate-50 text-slate-400 cursor-not-allowed' : 'bg-white',
+                                            )}
                                           />
                                         )}
                                       </td>

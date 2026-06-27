@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
 import { UserMenu } from './UserMenu';
-import { SyncStatus } from './SyncStatus';
 import BrandLogo from './BrandLogo';
 
 // 業務の流れ（①設定 → ②データ入力 → ③積載計画）に沿った並び
@@ -139,9 +138,8 @@ export function Navbar() {
           </div>
         </div>
 
-        {/* 右：同期ステータス + ユーザーメニュー */}
+        {/* 右：ユーザーメニュー */}
         <div className="flex items-center gap-2">
-          <SyncStatus />
           <UserMenu />
         </div>
       </header>

@@ -26,6 +26,7 @@ import {
   SAMPLE_OPERATING_DAYS, SAMPLE_FACTORY_SCHEDULE,
 } from '../sampleData';
 import { idbGet, idbSet } from './idbKv';
+import { assertNotDemo } from '../demo';
 
 const DOC_KEY = 'dataset';
 
@@ -183,11 +184,13 @@ class LocalDataSource implements DataSource, LocalSyncApi {
 
   // ─── 工場 ────────────────────────────────────────────────
   async upsertFactory(f: Factory) {
+    assertNotDemo();
     await this.ensureLoaded();
     this.doc.factories = upsertByCode(this.doc.factories, f);
     return this.persist();
   }
   async deleteFactory(code: string) {
+    assertNotDemo();
     await this.ensureLoaded();
     this.doc.factories = this.doc.factories.filter((x) => x.code !== code);
     return this.persist();
@@ -195,11 +198,13 @@ class LocalDataSource implements DataSource, LocalSyncApi {
 
   // ─── 製品 ────────────────────────────────────────────────
   async upsertProduct(p: Product) {
+    assertNotDemo();
     await this.ensureLoaded();
     this.doc.products = upsertByCode(this.doc.products, p);
     return this.persist();
   }
   async upsertProducts(products: Product[]) {
+    assertNotDemo();
     await this.ensureLoaded();
     let arr = this.doc.products;
     for (const p of products) arr = upsertByCode(arr, p);
@@ -207,6 +212,7 @@ class LocalDataSource implements DataSource, LocalSyncApi {
     return this.persist();
   }
   async deleteProduct(code: string) {
+    assertNotDemo();
     await this.ensureLoaded();
     this.doc.products = this.doc.products.filter((p) => p.code !== code);
     return this.persist();
@@ -214,11 +220,13 @@ class LocalDataSource implements DataSource, LocalSyncApi {
 
   // ─── 倉庫 ────────────────────────────────────────────────
   async upsertWarehouse(w: Warehouse) {
+    assertNotDemo();
     await this.ensureLoaded();
     this.doc.warehouses = upsertByCode(this.doc.warehouses, w);
     return this.persist();
   }
   async deleteWarehouse(code: string) {
+    assertNotDemo();
     await this.ensureLoaded();
     this.doc.warehouses = this.doc.warehouses.filter((w) => w.code !== code);
     return this.persist();
@@ -226,11 +234,13 @@ class LocalDataSource implements DataSource, LocalSyncApi {
 
   // ─── トラック種別 ────────────────────────────────────────
   async upsertTruckType(t: TruckType) {
+    assertNotDemo();
     await this.ensureLoaded();
     this.doc.truckTypes = upsertByCode(this.doc.truckTypes, t);
     return this.persist();
   }
   async deleteTruckType(code: string) {
+    assertNotDemo();
     await this.ensureLoaded();
     this.doc.truckTypes = this.doc.truckTypes.filter((t) => t.code !== code);
     return this.persist();
@@ -238,11 +248,13 @@ class LocalDataSource implements DataSource, LocalSyncApi {
 
   // ─── パレット種別 ────────────────────────────────────────
   async upsertPalletType(pt: PalletType) {
+    assertNotDemo();
     await this.ensureLoaded();
     this.doc.palletTypes = upsertByCode(this.doc.palletTypes, pt);
     return this.persist();
   }
   async deletePalletType(code: string) {
+    assertNotDemo();
     await this.ensureLoaded();
     this.doc.palletTypes = this.doc.palletTypes.filter((p) => p.code !== code);
     return this.persist();
@@ -250,17 +262,20 @@ class LocalDataSource implements DataSource, LocalSyncApi {
 
   // ─── 生産計画 ────────────────────────────────────────────
   async upsertProductionQty(productCode: string, qty: number) {
+    assertNotDemo();
     await this.ensureLoaded();
     this.doc.productionPlan[productCode] = qty;
     return this.persist();
   }
   async upsertDailyProductionQty(productCode: string, date: string, qty: number) {
+    assertNotDemo();
     await this.ensureLoaded();
     const m = (this.doc.dailyProductionPlan[productCode] ??= {});
     if (qty > 0) m[date] = qty; else delete m[date];
     return this.persist();
   }
   async replaceAllDailyProductionPlan(dailyPlan: DailyProductionPlan) {
+    assertNotDemo();
     await this.ensureLoaded();
     this.doc.dailyProductionPlan = dailyPlan;
     return this.persist();
@@ -268,11 +283,13 @@ class LocalDataSource implements DataSource, LocalSyncApi {
 
   // ─── 基準在庫 ────────────────────────────────────────────
   async upsertBaseline(productCode: string, warehouseCode: string, qty: number) {
+    assertNotDemo();
     await this.ensureLoaded();
     setNested(this.doc.baselineStock, productCode, warehouseCode, qty);
     return this.persist();
   }
   async replaceAllBaselineStock(baseline: BaselineStock) {
+    assertNotDemo();
     await this.ensureLoaded();
     this.doc.baselineStock = baseline;
     return this.persist();
@@ -280,11 +297,13 @@ class LocalDataSource implements DataSource, LocalSyncApi {
 
   // ─── 全体在庫 ────────────────────────────────────────────
   async upsertInventoryStock(productCode: string, qty: number) {
+    assertNotDemo();
     await this.ensureLoaded();
     this.doc.inventoryStock[productCode] = qty;
     return this.persist();
   }
   async replaceAllInventoryStock(stock: InventoryStock) {
+    assertNotDemo();
     await this.ensureLoaded();
     this.doc.inventoryStock = stock;
     return this.persist();
@@ -292,11 +311,13 @@ class LocalDataSource implements DataSource, LocalSyncApi {
 
   // ─── 拠点別現在庫 ────────────────────────────────────────
   async upsertLocationStock(productCode: string, warehouseCode: string, qty: number) {
+    assertNotDemo();
     await this.ensureLoaded();
     setNested(this.doc.locationStock, productCode, warehouseCode, qty);
     return this.persist();
   }
   async replaceAllLocationStock(stock: LocationStock) {
+    assertNotDemo();
     await this.ensureLoaded();
     this.doc.locationStock = stock;
     return this.persist();
@@ -304,11 +325,13 @@ class LocalDataSource implements DataSource, LocalSyncApi {
 
   // ─── 輸送中在庫 ──────────────────────────────────────────
   async upsertInTransitStock(productCode: string, warehouseCode: string, qty: number) {
+    assertNotDemo();
     await this.ensureLoaded();
     setNested(this.doc.inTransitStock, productCode, warehouseCode, qty);
     return this.persist();
   }
   async replaceAllInTransitStock(stock: InTransitStock) {
+    assertNotDemo();
     await this.ensureLoaded();
     this.doc.inTransitStock = stock;
     return this.persist();
@@ -316,11 +339,13 @@ class LocalDataSource implements DataSource, LocalSyncApi {
 
   // ─── 予定出荷 ────────────────────────────────────────────
   async upsertPlannedSales(productCode: string, warehouseCode: string, qty: number) {
+    assertNotDemo();
     await this.ensureLoaded();
     setNested(this.doc.plannedSales, productCode, warehouseCode, qty);
     return this.persist();
   }
   async replaceAllPlannedSales(sales: PlannedSales) {
+    assertNotDemo();
     await this.ensureLoaded();
     this.doc.plannedSales = sales;
     return this.persist();
@@ -328,6 +353,7 @@ class LocalDataSource implements DataSource, LocalSyncApi {
 
   // ─── 出荷スケジュール ────────────────────────────────────
   async upsertShippingSchedule(factoryCode: string, warehouseCode: string, days: boolean[]) {
+    assertNotDemo();
     await this.ensureLoaded();
     const f = (this.doc.weeklyShippingSchedule[factoryCode] ??= {});
     f[warehouseCode] = days;
@@ -336,6 +362,7 @@ class LocalDataSource implements DataSource, LocalSyncApi {
 
   // ─── 稼働日 ──────────────────────────────────────────────
   async upsertOperatingDays(factoryCode: string, days: boolean[]) {
+    assertNotDemo();
     await this.ensureLoaded();
     this.doc.operatingDays[factoryCode] = days;
     return this.persist();
@@ -343,12 +370,14 @@ class LocalDataSource implements DataSource, LocalSyncApi {
 
   // ─── 非稼働日 ────────────────────────────────────────────
   async addNonWorkingDate(factoryCode: string, date: string) {
+    assertNotDemo();
     await this.ensureLoaded();
     const arr = (this.doc.nonWorkingDates[factoryCode] ??= []);
     if (!arr.includes(date)) arr.push(date);
     return this.persist();
   }
   async removeNonWorkingDate(factoryCode: string, date: string) {
+    assertNotDemo();
     await this.ensureLoaded();
     const arr = this.doc.nonWorkingDates[factoryCode];
     if (arr) this.doc.nonWorkingDates[factoryCode] = arr.filter((d) => d !== date);
@@ -357,17 +386,20 @@ class LocalDataSource implements DataSource, LocalSyncApi {
 
   // ─── 送り数手動上書き ────────────────────────────────────
   async upsertSendQtyManual(productCode: string, warehouseCode: string, qty: number) {
+    assertNotDemo();
     await this.ensureLoaded();
     setNested(this.doc.sendQtyManual, productCode, warehouseCode, qty);
     return this.persist();
   }
   async deleteSendQtyManual(productCode: string, warehouseCode: string) {
+    assertNotDemo();
     await this.ensureLoaded();
     const wh = this.doc.sendQtyManual[productCode];
     if (wh) delete wh[warehouseCode];
     return this.persist();
   }
   async replaceAllSendQtyManual(data: SendQtyManual) {
+    assertNotDemo();
     await this.ensureLoaded();
     this.doc.sendQtyManual = data;
     return this.persist();

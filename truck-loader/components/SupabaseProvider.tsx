@@ -141,13 +141,6 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     })();
   }, [loadFromDB, loadSampleData]);
 
-  // プッシュ通知の受信リスナー（ネイティブのみ。受信時にトースト表示）
-  useEffect(() => {
-    import('@/lib/push')
-      .then(({ initPushListeners }) => initPushListeners((title, body) => toast(`${title}${body ? '：' + body : ''}`, 'info')))
-      .catch(() => {});
-  }, []);
-
   if (!isLoaded) {
     return (
       <div className="flex items-center justify-center h-screen text-slate-400 text-sm gap-2">

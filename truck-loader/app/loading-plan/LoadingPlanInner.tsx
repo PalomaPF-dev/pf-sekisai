@@ -3,6 +3,7 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { useAppStore } from '@/lib/store';
 import { calcWeeklyPlans, calcSendQty } from '@/lib/calculations';
+import { useCalcSettings } from '@/lib/useCalcSettings';
 import { buildProductColors } from '@/lib/productColors';
 import { TruckDiagram } from '@/components/TruckDiagram';
 import { LoadingTable } from '@/components/LoadingTable';
@@ -10,6 +11,7 @@ import { toast } from '@/components/Toast';
 import { HelpTip } from '@/components/HelpTip';
 import { PrintableLoadingPlan } from '@/components/PrintableLoadingPlan';
 import { exportLoadingPlanPdf } from '@/lib/exportPdf';
+import { useDemo } from '@/lib/demo';
 import type { DayWarehousePlan, Warehouse } from '@/lib/types';
 import clsx from 'clsx';
 
@@ -61,6 +63,8 @@ export default function LoadingPlanInner() {
     weeklyShippingSchedule, inTransitStock, plannedSales, sendQtyManual,
     confirmShipment, setShippingDay, setSendQtyManual,
   } = useAppStore();
+  const demo = useDemo();
+  const calcSettings = useCalcSettings();
 
 
   const productColors = buildProductColors(products);
@@ -70,8 +74,8 @@ export default function LoadingPlanInner() {
 
   // 全製品の週間送り数（出荷確定用）
   const allSendQty = useMemo(
-    () => calcSendQty(products, warehouses, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales),
-    [products, warehouses, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales],
+    () => calcSendQty(products, warehouses, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales, calcSettings),
+    [products, warehouses, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales, calcSettings],
   );
 
   // 工場別・日別計画
@@ -79,9 +83,9 @@ export default function LoadingPlanInner() {
     () => calcWeeklyPlans(
       warehouses, products, truckTypes, factories,
       productionPlan, baselineStock, locationStock,
-      weeklyShippingSchedule, inTransitStock, plannedSales, sendQtyManual, palletTypes,
+      weeklyShippingSchedule, inTransitStock, plannedSales, sendQtyManual, palletTypes, calcSettings,
     ),
-    [warehouses, products, truckTypes, factories, productionPlan, baselineStock, locationStock, weeklyShippingSchedule, inTransitStock, plannedSales, sendQtyManual, palletTypes],
+    [warehouses, products, truckTypes, factories, productionPlan, baselineStock, locationStock, weeklyShippingSchedule, inTransitStock, plannedSales, sendQtyManual, palletTypes, calcSettings],
   );
 
   // ── 表示ビュー ─────────────────────────────────────────────────────────────
@@ -271,15 +275,17 @@ export default function LoadingPlanInner() {
           >
             {pdfBusy ? '作成中…' : '🖨 印刷・PDF'}
           </button>
-          <button
-            onClick={handleConfirmShipment}
-            className={clsx(
-              'flex-1 sm:flex-none px-4 py-2 sm:py-1.5 text-sm font-semibold rounded-lg transition-all',
-              confirmed ? 'bg-emerald-100 text-emerald-700 cursor-default' : 'bg-brand-600 text-white hover:bg-brand-700 active:scale-95',
-            )}
-          >
-            {confirmed ? '✓ 出荷確定済み' : '🚚 出荷確定'}
-          </button>
+          {!demo && (
+            <button
+              onClick={handleConfirmShipment}
+              className={clsx(
+                'flex-1 sm:flex-none px-4 py-2 sm:py-1.5 text-sm font-semibold rounded-lg transition-all',
+                confirmed ? 'bg-emerald-100 text-emerald-700 cursor-default' : 'bg-brand-600 text-white hover:bg-brand-700 active:scale-95',
+              )}
+            >
+              {confirmed ? '✓ 出荷確定済み' : '🚚 出荷確定'}
+            </button>
+          )}
         </div>
       </div>
 

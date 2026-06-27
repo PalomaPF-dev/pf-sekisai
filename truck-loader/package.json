@@ -20,7 +20,6 @@
     "@capacitor/ios": "^6.2.1",
     "@capacitor/network": "^6.0.4",
     "@capacitor/preferences": "^6.0.4",
-    "@capacitor/push-notifications": "^6.0.5",
     "@capacitor/screen-orientation": "^6.0.4",
     "@capacitor/share": "^6.0.4",
     "@capacitor/splash-screen": "^6.0.4",

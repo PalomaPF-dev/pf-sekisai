@@ -10,8 +10,6 @@ PODS:
     - Capacitor
   - CapacitorPreferences (6.0.4):
     - Capacitor
-  - CapacitorPushNotifications (6.0.5):
-    - Capacitor
   - CapacitorScreenOrientation (6.0.4):
     - Capacitor
   - CapacitorShare (6.0.4):
@@ -26,7 +24,6 @@ DEPENDENCIES:
   - "CapacitorFilesystem (from `../../node_modules/@capacitor/filesystem`)"
   - "CapacitorNetwork (from `../../node_modules/@capacitor/network`)"
   - "CapacitorPreferences (from `../../node_modules/@capacitor/preferences`)"
-  - "CapacitorPushNotifications (from `../../node_modules/@capacitor/push-notifications`)"
   - "CapacitorScreenOrientation (from `../../node_modules/@capacitor/screen-orientation`)"
   - "CapacitorShare (from `../../node_modules/@capacitor/share`)"
   - "CapacitorSplashScreen (from `../../node_modules/@capacitor/splash-screen`)"
@@ -44,8 +41,6 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/@capacitor/network"
   CapacitorPreferences:
     :path: "../../node_modules/@capacitor/preferences"
-  CapacitorPushNotifications:
-    :path: "../../node_modules/@capacitor/push-notifications"
   CapacitorScreenOrientation:
     :path: "../../node_modules/@capacitor/screen-orientation"
   CapacitorShare:
@@ -60,11 +55,10 @@ SPEC CHECKSUMS:
   CapacitorFilesystem: 5b9aec35c0212bd0064e26d278c93e925864f212
   CapacitorNetwork: 093efa3664b692a971bdd01be70523291cd6a87f
   CapacitorPreferences: 5848e0691b36b4bb4acc98e481ab56d451578d30
-  CapacitorPushNotifications: 35abece14371c57172e8321c9ccc8b6fa35fabfe
   CapacitorScreenOrientation: 9ac79362f7389af6fa70a76fdad84c4b1d8324e7
   CapacitorShare: 77ff779e3b7c6ae9fb5461e52cf7ef805d429491
   CapacitorSplashScreen: ef140a8b1ea7244e0c245ce2dd4ce5251e7ab86a
 
-PODFILE CHECKSUM: 0d3588b0bfb1edc7a63e414fee3573715c7140d2
+PODFILE CHECKSUM: 18731630bc27beccf0e5fa2644ad48bf7901069d
 
 COCOAPODS: 1.16.2

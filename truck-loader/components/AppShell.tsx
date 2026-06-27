@@ -8,6 +8,7 @@ import { usePathname } from 'next/navigation';
 import { Navbar } from '@/components/Navbar';
 import { SupabaseProvider } from '@/components/SupabaseProvider';
 import { TrialGate } from '@/components/TrialGate';
+import { DemoBanner } from '@/components/DemoBanner';
 
 // ナビ・データ読込を出さない「素の」ページ（ログイン・登録・公開法務/料金ページ）
 const BARE_PATHS = ['/login', '/register', '/privacy', '/terms', '/contact', '/pricing'];
@@ -23,6 +24,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <TrialGate>
+      <DemoBanner />
       <Navbar />
       <SupabaseProvider>
         {/* PCはサイドバー分(200px)右にずらす。モバイルは全幅（ドロワーで遷移） */}

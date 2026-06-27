@@ -27,10 +27,10 @@ export default function LoginPage() {
     if (result?.error) {
       setError('メールアドレスまたはパスワードが正しくありません。');
     } else {
-      // ログイン成功＝クラウド同期(サーバモード)へ切替。デモCookieは解除。
+      // ログイン成功。データは常に端末ローカル(IndexedDB)。デモCookieは解除。
       // データソースはモジュール読込時に確定するためフルリロードで反映する。
       try {
-        localStorage.setItem('truckloader.dataSource', 'server');
+        localStorage.setItem('truckloader.dataSource', 'local');
         document.cookie = 'truckloader.demo=; path=/; max-age=0';
       } catch (e) { console.warn('dataSource モード保存に失敗:', e); }
       window.location.href = '/';

@@ -16,10 +16,23 @@ import {
   DEFAULT_OPERATING_DAYS,
 } from './defaultData';
 import { getDataSource } from './dataSource';
+import { isDemoMode, notifyDemoBlocked } from './demo';
 
 // 永続化層（実行環境に応じて Server / Local を選択）。
 // store の各アクションはこの db を通して読み書きする。詳細は lib/dataSource/ 参照。
 const db = getDataSource();
+
+/**
+ * デモ（閲覧専用）なら true を返し、ナッジを表示する。
+ * 各ミューテーションアクションの先頭で `if (blockedByDemo()) return;` として使い、
+ * 楽観的な in-memory 更新も含めて一切のデータ変更を止める（＝閲覧専用）。
+ * 書込層(LocalDataSource)でも assertNotDemo() で二重に防御している。
+ */
+function blockedByDemo(): boolean {
+  if (!isDemoMode()) return false;
+  notifyDemoBlocked();
+  return true;
+}
 
 interface AppState {
   // ─── ロード状態 ────────────────────────────────────────────
@@ -200,6 +213,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
 
   // ─── 稼働日マスター ────────────────────────────────────────
   setOperatingDay: (factoryCode, dayIndex, active) => {
+    if (blockedByDemo()) return;
     set((s) => {
       const current = s.operatingDays[factoryCode] ?? [true, true, true, true, true, false, false];
       const newDays = [...current] as boolean[];
@@ -211,6 +225,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   },
 
   toggleNonWorkingDate: (factoryCode, date) => {
+    if (blockedByDemo()) return;
     set((s) => {
       const current = s.nonWorkingDates[factoryCode] ?? [];
       const isNonWorking = current.includes(date);
@@ -228,22 +243,26 @@ export const useAppStore = create<AppState>()((set, get) => ({
 
   // ─── 工場 ─────────────────────────────────────────────────
   addFactory: (f) => {
+    if (blockedByDemo()) return;
     set((s) => ({ factories: [...s.factories, f] }));
     db.upsertFactory(f).catch(console.error);
   },
 
   updateFactory: (f) => {
+    if (blockedByDemo()) return;
     set((s) => ({ factories: s.factories.map((x) => (x.code === f.code ? f : x)) }));
     db.upsertFactory(f).catch(console.error);
   },
 
   removeFactory: (code) => {
+    if (blockedByDemo()) return;
     set((s) => ({ factories: s.factories.filter((x) => x.code !== code) }));
     db.deleteFactory(code).catch(console.error);
   },
 
   // ─── 出荷スケジュール ──────────────────────────────────────
   setShippingDay: (factoryCode, warehouseCode, dayIndex, active) => {
+    if (blockedByDemo()) return;
     set((s) => {
       const schedule = s.weeklyShippingSchedule;
       const factorySchedule = schedule[factoryCode] ?? {};
@@ -261,6 +280,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
 
   // ─── 生産計画 ─────────────────────────────────────────────
   setProductionDays: (productCode, dateQtyMap) => {
+    if (blockedByDemo()) return;
     let newTotal = 0;
     set((s) => {
       const productDates = { ...(s.dailyProductionPlan[productCode] ?? {}) };
@@ -283,11 +303,13 @@ export const useAppStore = create<AppState>()((set, get) => ({
   },
 
   setProductionQty: (productCode, qty) => {
+    if (blockedByDemo()) return;
     set((s) => ({ productionPlan: { ...s.productionPlan, [productCode]: qty } }));
     db.upsertProductionQty(productCode, qty).catch(console.error);
   },
 
   importProductionPlan: (dailyPlan, plan) => {
+    if (blockedByDemo()) return;
     set(() => ({ dailyProductionPlan: dailyPlan, productionPlan: plan }));
     // DB: 日別計画を全件置換、週間計画を upsert
     db.replaceAllDailyProductionPlan(dailyPlan).catch(console.error);
@@ -297,6 +319,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   },
 
   clearProductionPlan: () => {
+    if (blockedByDemo()) return;
     const { products } = get();
     const emptyPlan = Object.fromEntries(products.map((p) => [p.code, 0]));
     set(() => ({ productionPlan: emptyPlan, dailyProductionPlan: {} }));
@@ -306,6 +329,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
 
   // ─── 拠点別 基準在庫数 ────────────────────────────────────
   setBaseline: (productCode, warehouseCode, qty) => {
+    if (blockedByDemo()) return;
     set((s) => ({
       baselineStock: {
         ...s.baselineStock,
@@ -316,37 +340,44 @@ export const useAppStore = create<AppState>()((set, get) => ({
   },
 
   importBaselineStockBulk: (baseline) => {
+    if (blockedByDemo()) return;
     set(() => ({ baselineStock: baseline }));
     db.replaceAllBaselineStock(baseline).catch(console.error);
   },
 
   clearBaselineStock: () => {
+    if (blockedByDemo()) return;
     set(() => ({ baselineStock: {} }));
     db.replaceAllBaselineStock({}).catch(console.error);
   },
 
   // ─── 在庫 ─────────────────────────────────────────────────
   setInventoryStock: (productCode, qty) => {
+    if (blockedByDemo()) return;
     set((s) => ({ inventoryStock: { ...s.inventoryStock, [productCode]: qty } }));
     db.upsertInventoryStock(productCode, qty).catch(console.error);
   },
 
   importInventoryStockBulk: (stock) => {
+    if (blockedByDemo()) return;
     set(() => ({ inventoryStock: stock }));
     db.replaceAllInventoryStock(stock).catch(console.error);
   },
 
   importLocationStockBulk: (stock) => {
+    if (blockedByDemo()) return;
     set(() => ({ locationStock: stock }));
     db.replaceAllLocationStock(stock).catch(console.error);
   },
 
   clearLocationStock: () => {
+    if (blockedByDemo()) return;
     set(() => ({ locationStock: {} }));
     db.replaceAllLocationStock({}).catch(console.error);
   },
 
   setPlannedSales: (productCode, warehouseCode, qty) => {
+    if (blockedByDemo()) return;
     set((s) => ({
       plannedSales: {
         ...s.plannedSales,
@@ -357,16 +388,19 @@ export const useAppStore = create<AppState>()((set, get) => ({
   },
 
   importPlannedSalesBulk: (sales) => {
+    if (blockedByDemo()) return;
     set(() => ({ plannedSales: sales }));
     db.replaceAllPlannedSales(sales).catch(console.error);
   },
 
   clearPlannedSales: () => {
+    if (blockedByDemo()) return;
     set(() => ({ plannedSales: {} }));
     db.replaceAllPlannedSales({}).catch(console.error);
   },
 
   setInTransitStock: (productCode, warehouseCode, qty) => {
+    if (blockedByDemo()) return;
     set((s) => ({
       inTransitStock: {
         ...s.inTransitStock,
@@ -377,21 +411,25 @@ export const useAppStore = create<AppState>()((set, get) => ({
   },
 
   importInTransitStockBulk: (stock) => {
+    if (blockedByDemo()) return;
     set(() => ({ inTransitStock: stock }));
     db.replaceAllInTransitStock(stock).catch(console.error);
   },
 
   clearInTransitStock: () => {
+    if (blockedByDemo()) return;
     set(() => ({ inTransitStock: {} }));
     db.replaceAllInTransitStock({}).catch(console.error);
   },
 
   confirmShipment: (sendQty) => {
+    if (blockedByDemo()) return;
     set(() => ({ inTransitStock: sendQty }));
     db.replaceAllInTransitStock(sendQty).catch(console.error);
   },
 
   setLocationStock: (productCode, warehouseCode, qty) => {
+    if (blockedByDemo()) return;
     set((s) => ({
       locationStock: {
         ...s.locationStock,
@@ -405,21 +443,25 @@ export const useAppStore = create<AppState>()((set, get) => ({
   // DBへの書き込みを先に await し、成功した場合のみメモリ state を更新する。
   // 失敗時はエラーを呼び出し側に throw するので、UI で握りつぶさず表示できる。
   addProduct: async (product) => {
+    if (blockedByDemo()) return;
     await db.upsertProduct(product);
     set((s) => ({ products: [...s.products, product] }));
   },
 
   updateProduct: async (product) => {
+    if (blockedByDemo()) return;
     await db.upsertProduct(product);
     set((s) => ({ products: s.products.map((p) => (p.code === product.code ? product : p)) }));
   },
 
   removeProduct: async (productCode) => {
+    if (blockedByDemo()) return;
     await db.deleteProduct(productCode);
     set((s) => ({ products: s.products.filter((p) => p.code !== productCode) }));
   },
 
   upsertProducts: async (incoming) => {
+    if (blockedByDemo()) return;
     // DBへの書き込みを先に実行し、成功した場合のみメモリ上の state を更新する。
     // これにより DB エラーが silent に握りつぶされず、呼び出し側が catch して
     // ユーザーに伝えられる。リロード時に in-memory と DB が乖離するのも防げる。
@@ -436,54 +478,64 @@ export const useAppStore = create<AppState>()((set, get) => ({
 
   // ─── 拠点 ─────────────────────────────────────────────────
   addWarehouse: (warehouse) => {
+    if (blockedByDemo()) return;
     set((s) => ({ warehouses: [...s.warehouses, warehouse] }));
     db.upsertWarehouse(warehouse).catch(console.error);
   },
 
   updateWarehouse: (warehouse) => {
+    if (blockedByDemo()) return;
     set((s) => ({ warehouses: s.warehouses.map((w) => (w.code === warehouse.code ? warehouse : w)) }));
     db.upsertWarehouse(warehouse).catch(console.error);
   },
 
   removeWarehouse: (warehouseCode) => {
+    if (blockedByDemo()) return;
     set((s) => ({ warehouses: s.warehouses.filter((w) => w.code !== warehouseCode) }));
     db.deleteWarehouse(warehouseCode).catch(console.error);
   },
 
   // ─── トラック種別 ─────────────────────────────────────────
   addTruckType: (truckType) => {
+    if (blockedByDemo()) return;
     set((s) => ({ truckTypes: [...s.truckTypes, truckType] }));
     db.upsertTruckType(truckType).catch(console.error);
   },
 
   updateTruckType: (truckType) => {
+    if (blockedByDemo()) return;
     set((s) => ({ truckTypes: s.truckTypes.map((t) => (t.code === truckType.code ? truckType : t)) }));
     db.upsertTruckType(truckType).catch(console.error);
   },
 
   removeTruckType: (code) => {
+    if (blockedByDemo()) return;
     set((s) => ({ truckTypes: s.truckTypes.filter((t) => t.code !== code) }));
     db.deleteTruckType(code).catch(console.error);
   },
 
   // ─── パレット種別 ─────────────────────────────────────────
   addPalletType: (palletType) => {
+    if (blockedByDemo()) return;
     set((s) => ({ palletTypes: [...s.palletTypes, palletType] }));
     db.upsertPalletType(palletType).catch(console.error);
   },
 
   updatePalletType: (palletType) => {
+    if (blockedByDemo()) return;
     set((s) => ({ palletTypes: s.palletTypes.map((p) => (p.code === palletType.code ? palletType : p)) }));
     db.upsertPalletType(palletType).catch(console.error);
   },
 
   removePalletType: (code) => {
+    if (blockedByDemo()) return;
     set((s) => ({ palletTypes: s.palletTypes.filter((p) => p.code !== code) }));
     db.deletePalletType(code).catch(console.error);
   },
 
   // ─── 送り数手動上書き ─────────────────────────────────────
   setSendQtyManual: (productCode, warehouseCode, qty) => {
+    if (blockedByDemo()) return;
     set((s) => ({
       sendQtyManual: {
         ...s.sendQtyManual,
@@ -493,6 +545,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     db.upsertSendQtyManual(productCode, warehouseCode, qty).catch(console.error);
   },
   clearSendQtyManualCell: (productCode, warehouseCode) => {
+    if (blockedByDemo()) return;
     set((s) => {
       const newMap = { ...s.sendQtyManual };
       if (newMap[productCode]) {
@@ -505,10 +558,12 @@ export const useAppStore = create<AppState>()((set, get) => ({
     db.deleteSendQtyManual(productCode, warehouseCode).catch(console.error);
   },
   importSendQtyManualBulk: (data) => {
+    if (blockedByDemo()) return;
     set(() => ({ sendQtyManual: data }));
     db.replaceAllSendQtyManual(data).catch(console.error);
   },
   clearSendQtyManual: () => {
+    if (blockedByDemo()) return;
     set(() => ({ sendQtyManual: {} }));
     db.replaceAllSendQtyManual({}).catch(console.error);
   },

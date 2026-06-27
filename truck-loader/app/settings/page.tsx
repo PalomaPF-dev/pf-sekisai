@@ -7,10 +7,9 @@ import { getCalcSettings, saveCalcSettings } from '@/lib/appSettings';
 import { parseProductsCSV, generateProductsTemplate, downloadCSV } from '@/lib/csv';
 import { buildEquipmentColorMap, buildProductColors, PRODUCT_PALETTE } from '@/lib/productColors';
 import * as db from '@/lib/db';
-import { PushNotificationSetup } from '@/components/PushNotificationSetup';
-import { CloudSyncLogin } from '@/components/CloudSyncLogin';
 import { BiometricLockSetting } from '@/components/BiometricLockSetting';
 import { toast } from '@/components/Toast';
+import { useDemo, notifyDemoBlocked } from '@/lib/demo';
 import clsx from 'clsx';
 
 type Tab = 'products' | 'warehouses' | 'pallets' | 'trucks' | 'factories' | 'operating' | 'stacking' | 'calc';
@@ -28,6 +27,9 @@ export default function SettingsPage() {
     upsertProducts,
     resetToDefaults,
   } = useAppStore();
+
+  // デモ（閲覧専用）。プライマリの追加/取込/保存操作を無効化する。
+  const demo = useDemo();
 
   // 器具名ごとの色マップ・製品コードごとの色マップ（描画用）
   const equipmentColorMap = useMemo(() => buildEquipmentColorMap(products), [products]);
@@ -69,6 +71,7 @@ export default function SettingsPage() {
   const [dedupResult, setDedupResult] = useState<string | null>(null);
 
   const handleDeduplicateProducts = useCallback(async () => {
+    if (notifyDemoBlocked()) return;
     setDeduping(true);
     setDedupResult(null);
     try {
@@ -219,6 +222,7 @@ export default function SettingsPage() {
   };
 
   const handleProductCsvImport = async () => {
+    if (notifyDemoBlocked()) return;
     if (!csvPreview) return;
     setCsvImportError(null);
     setCsvImporting(true);
@@ -241,32 +245,24 @@ export default function SettingsPage() {
           <h1 className="text-xl font-bold text-slate-800">マスタ設定</h1>
           <p className="text-sm text-slate-500 mt-0.5">製品・拠点のマスタデータを管理します</p>
         </div>
-        <button
-          onClick={() => {
-            if (!window.confirm('画面の表示をデフォルト状態に戻します。よろしいですか？\n（保存済みデータは再読み込みで復元されます）')) return;
-            resetToDefaults();
-            toast('デフォルトにリセットしました', 'info');
-          }}
-          className="text-xs text-slate-400 hover:text-red-500 border border-slate-200 hover:border-red-300
-                     px-3 py-1.5 rounded transition-colors"
-        >
-          デフォルトにリセット
-        </button>
-      </div>
-
-      {/* クラウド同期ログイン（ネイティブのトークン認証） */}
-      <div className="mb-6">
-        <CloudSyncLogin />
+        {!demo && (
+          <button
+            onClick={() => {
+              if (!window.confirm('画面の表示をデフォルト状態に戻します。よろしいですか？\n（保存済みデータは再読み込みで復元されます）')) return;
+              resetToDefaults();
+              toast('デフォルトにリセットしました', 'info');
+            }}
+            className="text-xs text-slate-400 hover:text-red-500 border border-slate-200 hover:border-red-300
+                       px-3 py-1.5 rounded transition-colors"
+          >
+            デフォルトにリセット
+          </button>
+        )}
       </div>
 
       {/* Face ID ロック（ネイティブのみ） */}
       <div className="mb-6">
         <BiometricLockSetting />
-      </div>
-
-      {/* プッシュ通知設定（フェーズ6） */}
-      <div className="mb-6">
-        <PushNotificationSetup />
       </div>
 
       {/* タブ */}
@@ -302,14 +298,16 @@ export default function SettingsPage() {
       {/* ── 工場マスタ ── */}
       {tab === 'factories' && (
         <div>
-          <div className="flex justify-end mb-3">
-            <button
-              onClick={() => setEditingFactory(newFactory())}
-              className="text-sm px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors"
-            >
-              + 工場を追加
-            </button>
-          </div>
+          {!demo && (
+            <div className="flex justify-end mb-3">
+              <button
+                onClick={() => setEditingFactory(newFactory())}
+                className="text-sm px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors"
+              >
+                + 工場を追加
+              </button>
+            </div>
+          )}
 
           <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
             <table className="w-full text-sm">
@@ -414,7 +412,8 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* CSVインポートパネル */}
+          {/* CSVインポートパネル（デモでは非表示） */}
+          {!demo && (
           <details className="mb-4 bg-slate-50 border border-slate-200 rounded-lg">
             <summary className="px-4 py-3 text-sm font-medium text-slate-600 cursor-pointer select-none hover:bg-slate-100 rounded-lg">
               📥 CSVで一括インポート
@@ -561,6 +560,7 @@ export default function SettingsPage() {
               )}
             </div>
           </details>
+          )}
 
           {/* ── 重複警告バナー ── */}
           {duplicateCodes.size > 0 && (
@@ -679,12 +679,14 @@ export default function SettingsPage() {
                       </div>
                     )}
                   </div>
-                  <button
-                    onClick={() => setEditingProduct(newProduct())}
-                    className="text-sm px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors shrink-0"
-                  >
-                    + 製品を追加
-                  </button>
+                  {!demo && (
+                    <button
+                      onClick={() => setEditingProduct(newProduct())}
+                      className="text-sm px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors shrink-0"
+                    >
+                      + 製品を追加
+                    </button>
+                  )}
                 </div>
 
                 {/* 器具名チップ */}
@@ -881,14 +883,16 @@ export default function SettingsPage() {
       {/* ── 拠点マスタ ── */}
       {tab === 'warehouses' && (
         <div>
-          <div className="flex justify-end mb-3">
-            <button
-              onClick={() => setEditingWarehouse(newWarehouse())}
-              className="text-sm px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors"
-            >
-              + 拠点を追加
-            </button>
-          </div>
+          {!demo && (
+            <div className="flex justify-end mb-3">
+              <button
+                onClick={() => setEditingWarehouse(newWarehouse())}
+                className="text-sm px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors"
+              >
+                + 拠点を追加
+              </button>
+            </div>
+          )}
 
           <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
             <table className="w-full text-sm">
@@ -954,14 +958,16 @@ export default function SettingsPage() {
       {/* ── パレット型マスタ ── */}
       {tab === 'pallets' && (
         <div>
-          <div className="flex justify-end mb-3">
-            <button
-              onClick={() => setEditingPallet(newPalletType())}
-              className="text-sm px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors"
-            >
-              + パレット型を追加
-            </button>
-          </div>
+          {!demo && (
+            <div className="flex justify-end mb-3">
+              <button
+                onClick={() => setEditingPallet(newPalletType())}
+                className="text-sm px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors"
+              >
+                + パレット型を追加
+              </button>
+            </div>
+          )}
 
           <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
             <table className="w-full text-sm">
@@ -1050,14 +1056,16 @@ export default function SettingsPage() {
       {/* ── トラックマスタ ── */}
       {tab === 'trucks' && (
         <div>
-          <div className="flex justify-end mb-3">
-            <button
-              onClick={() => setEditingTruck(newTruckType())}
-              className="text-sm px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors"
-            >
-              + トラックを追加
-            </button>
-          </div>
+          {!demo && (
+            <div className="flex justify-end mb-3">
+              <button
+                onClick={() => setEditingTruck(newTruckType())}
+                className="text-sm px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors"
+              >
+                + トラックを追加
+              </button>
+            </div>
+          )}
 
           <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-x-auto">
             <table className="w-full text-sm">
@@ -1162,6 +1170,7 @@ export default function SettingsPage() {
           palletTypes={palletTypes}
           truckTypes={truckTypes}
           onApply={async (updated) => {
+            if (notifyDemoBlocked()) return;
             updateProduct(updated);
             try { await db.upsertProduct(updated); } catch { /* ignore */ }
           }}
