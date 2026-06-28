@@ -272,16 +272,28 @@ export async function loadTruckTypes(): Promise<TruckType[]> {
 
 export async function upsertTruckType(t: TruckType) {
   const cid = await getCompanyId();
-  // 旧 max_pallets/cols/rows 列は残置だが書き込まない（内寸から自動算出するため不要）
+  // 旧 max_pallets/cols/rows 列は読まないが NOT NULL 制約が残っているため、
+  // 内寸から導いた安全値を書く（実際の容量はパレット寸法と内寸から積載計算時に自動算出）。
+  const lc = legacyTruckCols(t);
   await sql`
-    INSERT INTO truck_types (company_id, code, name, width_mm, depth_mm, height_mm)
-    VALUES (${cid}, ${t.code}, ${t.name}, ${t.widthMM}, ${t.depthMM}, ${t.heightMM})
+    INSERT INTO truck_types (company_id, code, name, max_pallets, cols, rows, width_mm, depth_mm, height_mm)
+    VALUES (${cid}, ${t.code}, ${t.name}, ${lc.maxPallets}, ${lc.cols}, ${lc.rows}, ${t.widthMM}, ${t.depthMM}, ${t.heightMM})
     ON CONFLICT (company_id, code) DO UPDATE SET
       name        = EXCLUDED.name,
+      max_pallets = EXCLUDED.max_pallets,
+      cols        = EXCLUDED.cols,
+      rows        = EXCLUDED.rows,
       width_mm    = EXCLUDED.width_mm,
       depth_mm    = EXCLUDED.depth_mm,
       height_mm   = EXCLUDED.height_mm
   `;
+}
+
+/** 休眠中の旧列(max_pallets/cols/rows)の NOT NULL を満たす安全値を内寸から導出 */
+function legacyTruckCols(t: { widthMM?: number; depthMM?: number }) {
+  const cols = Math.max(1, Math.floor((t.widthMM ?? 1100) / 1100));
+  const rows = Math.max(1, Math.floor((t.depthMM ?? 1100) / 1100));
+  return { cols, rows, maxPallets: cols * rows };
 }
 
 export async function deleteTruckType(code: string) {
@@ -723,13 +735,17 @@ import {
 export async function seedDefaultsForCompany(companyId: string): Promise<void> {
   const db = neon(process.env.DATABASE_URL!);
 
-  // Truck types（荷台内寸のみ。旧 max_pallets/cols/rows 列は書き込まない）
+  // Truck types（荷台内寸を設定。旧 max_pallets/cols/rows は NOT NULL のため安全値を補う）
   for (const t of DEFAULT_TRUCK_TYPES) {
+    const lc = legacyTruckCols(t);
     await db`
-      INSERT INTO truck_types (company_id, code, name, width_mm, depth_mm, height_mm)
-      VALUES (${companyId}, ${t.code}, ${t.name}, ${t.widthMM}, ${t.depthMM}, ${t.heightMM ?? 2300})
+      INSERT INTO truck_types (company_id, code, name, max_pallets, cols, rows, width_mm, depth_mm, height_mm)
+      VALUES (${companyId}, ${t.code}, ${t.name}, ${lc.maxPallets}, ${lc.cols}, ${lc.rows}, ${t.widthMM}, ${t.depthMM}, ${t.heightMM ?? 2300})
       ON CONFLICT (company_id, code) DO UPDATE SET
         name        = EXCLUDED.name,
+        max_pallets = EXCLUDED.max_pallets,
+        cols        = EXCLUDED.cols,
+        rows        = EXCLUDED.rows,
         width_mm    = EXCLUDED.width_mm,
         depth_mm    = EXCLUDED.depth_mm,
         height_mm   = EXCLUDED.height_mm
