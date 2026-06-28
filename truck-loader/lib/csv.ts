@@ -27,7 +27,7 @@ function parseCSVLine(line: string): string[] {
  *   - 前後空白除去・先頭BOM除去
  *   - 科学記法（例：1.06E+09）が安全な整数に復元できれば整数文字列に戻す
  *
- * CSVとマスタの突合せ時は両側に通すことで、Excelによる自動変換やコピペ時の
+ * CSVとマスターの突合せ時は両側に通すことで、Excelによる自動変換やコピペ時の
  * 文字種ゆれを吸収する。
  */
 function normalizeProductCode(s: string): string {
@@ -176,7 +176,7 @@ export function parseProductionCSV(
 
     const found = !!productMap[code];
     if (!found) {
-      warnings.push(`行${r + 1}: 製品コード「${code}」はマスタに存在しません（インポートはされます）`);
+      warnings.push(`行${r + 1}: 製品コード「${code}」はマスターに存在しません（インポートはされます）`);
     }
 
     // この製品の日付マップを既存値ベースで初期化
@@ -240,7 +240,7 @@ export function parseInventoryCSV(
 
     const found = !!productMap[code];
     if (!found) {
-      warnings.push(`行${r + 1}: 製品コード「${code}」はマスタに存在しません（インポートはされます）`);
+      warnings.push(`行${r + 1}: 製品コード「${code}」はマスターに存在しません（インポートはされます）`);
     }
 
     const qty = parseInt(cells[qtyIdx] ?? '', 10) || 0;
@@ -276,7 +276,7 @@ export function generateProductionTemplate(
   return '\uFEFF' + [header, ...rows].join('\r\n'); // BOM付きでExcel対応
 }
 
-// ─── 製品マスタ CSV ───────────────────────────────────────────────────
+// ─── 製品マスター CSV ───────────────────────────────────────────────────
 
 const DEFAULT_COLORS = [
   '#4A90D9','#2ECC71','#E67E22','#9B59B6',
@@ -284,18 +284,12 @@ const DEFAULT_COLORS = [
   '#3498DB','#27AE60','#D35400','#8E44AD',
 ];
 
-/** ポジ列の値を真偽値に正規化（○/true/1/yes を true として扱う、大文字小文字無視） */
-function parsePoji(raw: string | undefined): boolean {
-  const s = (raw ?? '').trim().toLowerCase();
-  return s === '○' || s === 'true' || s === '1' || s === 'yes';
-}
-
 /** ヘッダー文字列を正規化（先頭BOM除去 + 前後空白除去） */
 function normalizeHeader(raw: string): string {
   return raw.replace(/^﻿/, '').trim();
 }
 
-/** 製品マスタ CSV のキャノニカル列キー */
+/** 製品マスター CSV のキャノニカル列キー */
 type ProductColKey =
   | 'code'
   | 'name'
@@ -303,13 +297,10 @@ type ProductColKey =
   | 'palletType'
   | 'color'
   | 'factoryCode'
-  | 'equipmentCategory'
-  | 'equipmentName'
-  | 'poji'
-  | 'destination'
-  | 'productionMethod';
+  | 'equipmentName';
 
-/** ヘッダー名 → キャノニカルキーへのマッピング（カラーは別名「カラー」も許容） */
+/** ヘッダー名 → キャノニカルキーへのマッピング（カラーは別名「カラー」も許容）。
+ *  旧フォーマットの「器具区分/ポジ/仕向け/生産方式」列は未知列として無視される（後方互換）。 */
 const PRODUCT_HEADER_MAP: Record<string, ProductColKey> = {
   '製品コード': 'code',
   '製品名': 'name',
@@ -318,15 +309,11 @@ const PRODUCT_HEADER_MAP: Record<string, ProductColKey> = {
   'カラー(hex)': 'color',
   'カラー': 'color',
   '製造工場': 'factoryCode',
-  '器具区分': 'equipmentCategory',
   '器具名': 'equipmentName',
-  'ポジ': 'poji',
-  '仕向け': 'destination',
-  '生産方式': 'productionMethod',
 };
 
 /**
- * 製品マスタ CSV を解析する。
+ * 製品マスター CSV を解析する。
  *
  * 1行目ヘッダで列を判定する（列順は問わない・不要な列は省略可）。
  * 認識できる列名：
@@ -411,7 +398,7 @@ export function parseProductsCSV(
 
     const palletTypeRaw = getCell(cells, 'palletType') ?? '';
     if (colIdx.palletType !== undefined && palletTypeRaw && !palletCodes.has(palletTypeRaw)) {
-      rowWarnings.push(`パレット型「${palletTypeRaw}」はマスタに存在しません`);
+      rowWarnings.push(`パレット型「${palletTypeRaw}」はマスターに存在しません`);
     }
     const palletType = palletTypeRaw || existing?.palletType || 'P03';
 
@@ -425,21 +412,9 @@ export function parseProductsCSV(
     const factoryCode = colIdx.factoryCode !== undefined
       ? (getCell(cells, 'factoryCode') || existing?.factoryCode || 'F001')
       : (existing?.factoryCode ?? 'F001');
-    const equipmentCategory = colIdx.equipmentCategory !== undefined
-      ? (getCell(cells, 'equipmentCategory') ?? '')
-      : (existing?.equipmentCategory ?? '');
     const equipmentName = colIdx.equipmentName !== undefined
       ? (getCell(cells, 'equipmentName') ?? '')
       : (existing?.equipmentName ?? '');
-    const poji = colIdx.poji !== undefined
-      ? parsePoji(getCell(cells, 'poji'))
-      : (existing?.poji ?? false);
-    const destination = colIdx.destination !== undefined
-      ? (getCell(cells, 'destination') ?? '')
-      : (existing?.destination ?? '');
-    const productionMethod = colIdx.productionMethod !== undefined
-      ? (getCell(cells, 'productionMethod') ?? '')
-      : (existing?.productionMethod ?? '');
 
     const product: Product = {
       code,
@@ -448,11 +423,8 @@ export function parseProductsCSV(
       palletType,
       color,
       factoryCode,
-      equipmentCategory,
       equipmentName,
-      poji,
-      destination,
-      productionMethod,
+      allowStackOnTop: existing?.allowStackOnTop ?? true,
     };
 
     products.push(product);
@@ -465,11 +437,11 @@ export function parseProductsCSV(
   return { products, rows, warnings };
 }
 
-/** 製品マスタ CSV テンプレートを生成（全11列） */
+/** 製品マスター CSV テンプレートを生成 */
 export function generateProductsTemplate(products: Product[]): string {
   const header = [
     '製品コード', '製品名', '個/枚', 'パレット型', 'カラー(hex)',
-    '製造工場', '器具区分', '器具名', 'ポジ', '仕向け', '生産方式',
+    '製造工場', '器具名',
   ].join(',');
   const rows = products.map((p) =>
     [
@@ -479,11 +451,7 @@ export function generateProductsTemplate(products: Product[]): string {
       p.palletType,
       p.color,
       p.factoryCode ?? 'F001',
-      `"${p.equipmentCategory ?? ''}"`,
       `"${p.equipmentName ?? ''}"`,
-      p.poji ? '○' : '',
-      `"${p.destination ?? ''}"`,
-      `"${p.productionMethod ?? ''}"`,
     ].join(','),
   );
   return '\uFEFF' + [header, ...rows].join('\r\n');
@@ -614,7 +582,7 @@ export function parseLocationStockCSV(
 
     const found = !!productMap[code];
     if (!found) {
-      warnings.push(`行${r + 1}: 製品コード「${code}」はマスタに存在しません（インポートはされます）`);
+      warnings.push(`行${r + 1}: 製品コード「${code}」はマスターに存在しません（インポートはされます）`);
     }
 
     // 既存の拠点値を引き継ぎつつ CSV にある拠点列を上書き
@@ -704,7 +672,7 @@ export function parsePlannedSalesCSV(
 
     const found = !!productMap[code];
     if (!found) {
-      warnings.push(`行${r + 1}: 製品コード「${code}」はマスタに存在しません（インポートはされます）`);
+      warnings.push(`行${r + 1}: 製品コード「${code}」はマスターに存在しません（インポートはされます）`);
     }
 
     plannedSales[code] = { ...(plannedSales[code] ?? {}) };
@@ -790,7 +758,7 @@ export function parseInTransitStockCSV(
 
     const found = !!productMap[code];
     if (!found) {
-      warnings.push(`行${r + 1}: 製品コード「${code}」はマスタに存在しません（インポートはされます）`);
+      warnings.push(`行${r + 1}: 製品コード「${code}」はマスターに存在しません（インポートはされます）`);
     }
 
     inTransitStock[code] = { ...(inTransitStock[code] ?? {}) };
@@ -877,7 +845,7 @@ export function parseBaselineStockCSV(
 
     const found = !!productMap[code];
     if (!found) {
-      warnings.push(`行${r + 1}: 製品コード「${code}」はマスタに存在しません（インポートはされます）`);
+      warnings.push(`行${r + 1}: 製品コード「${code}」はマスターに存在しません（インポートはされます）`);
     }
 
     baseline[code] = { ...(baseline[code] ?? {}) };
@@ -960,7 +928,7 @@ export function parseSendQtyCSV(
     const code = normalizeProductCode(cells[codeColIdx] ?? '');
     if (!code) continue;
     const found = !!productMap[code];
-    if (!found) warnings.push(`行${r + 1}: 製品コード「${code}」はマスタに存在しません`);
+    if (!found) warnings.push(`行${r + 1}: 製品コード「${code}」はマスターに存在しません`);
 
     sendQty[code] = { ...(sendQty[code] ?? {}) };
     const whQty: Record<string, number> = {};
@@ -1121,7 +1089,7 @@ export function parseWeeklyProductionCSV(
 
     const product = productMap[code];
     const found = !!product;
-    if (!found) warnings.push(`行${r+1}: 製品コード「${code}」はマスタに存在しません`);
+    if (!found) warnings.push(`行${r+1}: 製品コード「${code}」はマスターに存在しません`);
 
     const factoryCode = product?.factoryCode ?? 'F001';
     const weekTotals: number[] = [];

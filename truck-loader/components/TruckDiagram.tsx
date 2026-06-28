@@ -72,11 +72,10 @@ export function TruckDiagram({ load, truckType, products, palletTypes, productCo
   // 理論的に上段が使えるか（パレット型の loadedHeightMM から最小高さを算出）
   const palletTypeMap = Object.fromEntries(palletTypes.map((pt) => [pt.code, pt]));
   const productMap    = Object.fromEntries(products.map((p) => [p.code, p]));
-  // 上段に積める可能性のある最小高さ（stackable=true の製品のみ対象）
-  const stackableProducts = products.filter((p) => p.stackable !== false);
-  const minProductH = stackableProducts.length > 0
-    ? Math.min(...stackableProducts.map((p) => palletTypeMap[p.palletType]?.loadedHeightMM ?? 1200))
-    : 9999; // 上段積み可能製品なし → 実質不可
+  // 上段に積める可能性のある最小高さ（上積み可否は下段側で判定するため全製品が候補）
+  const minProductH = products.length > 0
+    ? Math.min(...products.map((p) => palletTypeMap[p.palletType]?.loadedHeightMM ?? 1200))
+    : 9999;
   const hasStackable = floor.some((rowArr) =>
     rowArr.some((fp) => {
       if (!fp) return false;

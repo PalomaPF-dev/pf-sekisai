@@ -37,6 +37,33 @@ export async function POST(req: Request) {
       INSERT INTO inquiries (company, name, email, phone, message)
       VALUES (${company || null}, ${name}, ${email}, ${phone || null}, ${message})
     `;
+
+    if (process.env.RESEND_API_KEY) {
+      try {
+        await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: process.env.CONTACT_FROM || 'スマコウバ積載 <onboarding@resend.dev>',
+            to: [process.env.CONTACT_NOTIFY_TO || 'tyasuda83101028@gmail.com'],
+            reply_to: email,
+            subject: `【スマコウバ積載】お問い合わせ: ${company || name}`,
+            text:
+              `会社名: ${company || '(未記入)'}\n` +
+              `お名前: ${name}\n` +
+              `メール: ${email}\n` +
+              `電話: ${phone || '(未記入)'}\n\n` +
+              `--- お問い合わせ内容 ---\n${message}\n`,
+          }),
+        });
+      } catch (e) {
+        console.warn('[contact] email notify failed:', (e as Error).message);
+      }
+    }
+
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: 'failed', message: (e as Error).message }, { status: 500 });

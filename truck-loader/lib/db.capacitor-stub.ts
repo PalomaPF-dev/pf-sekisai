@@ -21,7 +21,7 @@ export const createCompany = stub('createCompany');
 export const createUser = stub('createUser');
 export const emailExists = stub('emailExists');
 
-// ─── マスタ・入力データ（読み書き） ───────────────────────
+// ─── マスター・入力データ（読み書き） ───────────────────────
 export const loadFactories = stub('loadFactories');
 export const upsertFactory = stub('upsertFactory');
 export const deleteFactory = stub('deleteFactory');

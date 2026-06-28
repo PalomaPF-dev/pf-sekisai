@@ -1,4 +1,4 @@
-// ─── マスタ型定義 ────────────────────────────────────────────────────
+// ─── マスター型定義 ────────────────────────────────────────────────────
 
 export interface Factory {
   code: string;
@@ -12,13 +12,8 @@ export interface Product {
   palletType: string;        // P01, P02, P03
   color: string;             // hex カラー
   factoryCode?: string;      // 製造工場コード（省略時は F001）
-  equipmentCategory?: string; // 器具区分
-  equipmentName?: string;     // 器具名
-  poji?: boolean;             // ポジ（○/×）
-  destination?: string;       // 仕向け（量販 / 一般 等）
-  productionMethod?: string;  // 生産方式
-  stackable?: boolean;        // 上段積み可：この製品を2段目に配置できる（省略時は true）
-  allowStackOnTop?: boolean;  // 上積み許可：この製品の上に別製品を積める（省略時は true）
+  equipmentName?: string;     // 器具名（色分け・フィルタ用）
+  allowStackOnTop?: boolean;  // 上積み可否：この製品の上に別の荷を積めるか（省略時は true）。不可なら最上段専用
   // 段ボール寸法（積付計算用）
   boxWidthMM?: number;        // 段ボール幅 (mm)
   boxDepthMM?: number;        // 段ボール奥行き (mm)

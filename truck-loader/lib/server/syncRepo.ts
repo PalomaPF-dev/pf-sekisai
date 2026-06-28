@@ -72,7 +72,7 @@ export async function loadSnapshotData(companyId: string): Promise<Record<string
 /** スナップショットを正規化テーブルへ反映（全削除→再投入）。更新時刻を記録。 */
 export async function saveSnapshotData(companyId: string, data: Record<string, unknown>, updatedAt: number): Promise<void> {
   await runWithCompany(companyId, async () => {
-    // マスタ（db.ts のマッピングを再利用）
+    // マスター（db.ts のマッピングを再利用）
     await sql`DELETE FROM factories WHERE company_id = ${companyId}`;
     for (const f of asArr<Factory>(data.factories)) await db.upsertFactory(f);
 

@@ -191,7 +191,7 @@ export default function SetupWizard() {
                     code: prod.code.trim(), name: prod.name.trim(), capacityPerPallet: prod.cap,
                     palletType: prod.palletType, color: COLORS[s.products.length % COLORS.length],
                     factoryCode: prod.factoryCode || s.factories[0]?.code || 'F001',
-                    stackable: true, allowStackOnTop: true,
+                    allowStackOnTop: true,
                   });
                   setProd({ code: '', name: '', cap: 0, palletType: '', factoryCode: '' });
                 }}

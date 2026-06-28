@@ -162,10 +162,10 @@ export default function SchedulePage() {
       </div>
 
       {!factory ? (
-        <p className="text-sm text-slate-400 italic">工場マスタに工場が登録されていません。</p>
+        <p className="text-sm text-slate-400 italic">工場マスターに工場が登録されていません。</p>
       ) : factoryProducts.length === 0 ? (
         <div className="card p-4 text-sm" style={{ background: '#fffbeb', borderColor: '#fde68a', color: '#92400e' }}>
-          「{factory.name}」に割り当てられた製品がありません。マスタ設定の製品マスタから出荷工場を設定してください。
+          「{factory.name}」に割り当てられた製品がありません。マスター設定の製品マスターから出荷工場を設定してください。
         </div>
       ) : (
         <>

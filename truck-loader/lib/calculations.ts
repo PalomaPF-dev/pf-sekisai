@@ -272,10 +272,8 @@ export function calcWarehousePlan(
   const minLoadedH = shippedProds.length > 0
     ? Math.min(...shippedProds.map((p) => palletTypeMap[p.palletType]?.loadedHeightMM ?? 1200))
     : 1200;
-  // 2段積み条件: 上段に積める製品が存在 + 上積み許可の製品が存在（高さは車種ごとに判定）
-  const hasUpperStackable  = shippedProds.some((p) => p.stackable !== false);
-  const hasBottomStackable = shippedProds.some((p) => p.allowStackOnTop !== false);
-  const canStackProducts = hasUpperStackable && hasBottomStackable;
+  // 段積み条件: 「上積み可否」の製品が1つでもあれば段積みを試みる（高さは車種ごとに判定）
+  const canStackProducts = shippedProds.some((p) => p.allowStackOnTop !== false);
 
   // 製品コード → 1パレットあたり重量(kg)（boxWeightKg×パレット容量。0=重量データなし）
   const productMap = Object.fromEntries(products.map((p) => [p.code, p]));
@@ -645,15 +643,13 @@ export function calcStackingLayout(
       if (queue.length === 0) break outer2;
       const fp = floor[row][col];
       if (!fp) continue; // 床が空 → 上段も不可
-      // 下段製品の「上積み許可」チェック
+      // 下段製品の「上積み可否」チェック（この製品の上に荷を積めるか）
       const floorProd = productMap[fp.productCode];
       if (floorProd?.allowStackOnTop === false) continue;
-      // 上段候補製品の「上段積み可」チェック（スキップして次の候補を探す）
+      // 高さが許す候補を上段へ（上積み可否は下段側の条件のみで判定）
       let placed = false;
       for (let qi = 0; qi < queue.length; qi++) {
         const candidate = queue[qi];
-        const candidateProd = productMap[candidate.productCode];
-        if (candidateProd?.stackable === false) continue;
         if (fp.loadedHeightMM + candidate.loadedHeightMM > TRUCK_H) continue;
         // 条件を満たす候補を上段に配置
         upper[row][col] = { ...candidate, orderNum: orderNum++ };

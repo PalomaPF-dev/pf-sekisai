@@ -105,7 +105,6 @@ export default function SettingsPage() {
   const newProduct = (): Product => ({
     code: '', name: '', capacityPerPallet: 40, palletType: 'P03', color: PRODUCT_PALETTE[0],
     factoryCode: factories[0]?.code ?? 'F001',
-    stackable: true,
     allowStackOnTop: true,
   });
 
@@ -242,8 +241,8 @@ export default function SettingsPage() {
     <div className="max-w-4xl mx-auto px-4 py-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-slate-800">マスタ設定</h1>
-          <p className="text-sm text-slate-500 mt-0.5">製品・拠点のマスタデータを管理します</p>
+          <h1 className="text-xl font-bold text-slate-800">マスター設定</h1>
+          <p className="text-sm text-slate-500 mt-0.5">製品・拠点のマスターデータを管理します</p>
         </div>
         {!demo && (
           <button
@@ -268,13 +267,13 @@ export default function SettingsPage() {
       {/* タブ */}
       <div className="flex gap-1 mb-4 border-b border-slate-200">
         {([
-          { key: 'products',   label: '📦 製品マスタ' },
+          { key: 'products',   label: '📦 製品マスター' },
           { key: 'stacking',   label: '🧮 積付計算' },
-          { key: 'warehouses', label: '🏭 拠点マスタ' },
+          { key: 'warehouses', label: '🏭 拠点マスター' },
           { key: 'pallets',    label: '🪵 パレット型' },
-          { key: 'trucks',     label: '🚚 トラックマスタ' },
-          { key: 'factories',  label: '🏭 工場マスタ' },
-          { key: 'operating',  label: '📅 稼働日マスタ' },
+          { key: 'trucks',     label: '🚚 トラックマスター' },
+          { key: 'factories',  label: '🏭 工場マスター' },
+          { key: 'operating',  label: '📅 稼働日マスター' },
           { key: 'calc',       label: '⚖️ 計算設定' },
         ] as { key: Tab; label: string }[]).map(({ key, label }) => (
           <button
@@ -295,7 +294,7 @@ export default function SettingsPage() {
       {/* ── 計算設定 ── */}
       {tab === 'calc' && <CalcSettingsPanel />}
 
-      {/* ── 工場マスタ ── */}
+      {/* ── 工場マスター ── */}
       {tab === 'factories' && (
         <div>
           {!demo && (
@@ -386,10 +385,10 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* ── 製品マスタ ── */}
+      {/* ── 製品マスター ── */}
       {tab === 'products' && (
         <div>
-          {/* 製品マスタ操作のエラー（追加・更新・削除） */}
+          {/* 製品マスター操作のエラー（追加・更新・削除） */}
           {productOpError && (
             <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
               <div className="flex items-start gap-2">
@@ -426,7 +425,7 @@ export default function SettingsPage() {
                   onClick={() =>
                     downloadCSV(
                       generateProductsTemplate(products),
-                      '製品マスタ.csv',
+                      '製品マスター.csv',
                     )
                   }
                   className="text-xs px-3 py-1.5 bg-slate-700 text-white rounded hover:bg-slate-800 transition-colors"
@@ -438,12 +437,9 @@ export default function SettingsPage() {
               {/* フォーマット説明 */}
               <div className="mb-3 text-xs text-slate-500 bg-white border border-slate-200 rounded p-2">
                 <span className="font-medium">認識する列名：</span>
-                <code className="ml-1 text-slate-700">製品コード, 製品名, 個/枚, パレット型, カラー(hex), 製造工場, 器具区分, 器具名, ポジ, 仕向け, 生産方式</code>
+                <code className="ml-1 text-slate-700">製品コード, 製品名, 個/枚, パレット型, カラー(hex), 製造工場, 器具名</code>
                 <div className="mt-1 text-slate-400">
-                  ※ 1行目のヘッダー名で列を判定します。<strong>列順は問いません</strong>。不要な列は省略可（CSVに含まれない列は既存値が保持されます）。認識できない列は無視されます。
-                </div>
-                <div className="mt-1 text-slate-400">
-                  ※ ポジは <code className="text-slate-600">○</code>（または true / 1 / yes）で true、空欄で false。
+                  ※ 1行目のヘッダー名で列を判定します。<strong>列順は問いません</strong>。不要な列は省略可（CSVに含まれない列は既存値が保持されます）。認識できない列（旧フォーマットの器具区分/ポジ/仕向け/生産方式など）は無視されます。
                 </div>
               </div>
 
@@ -540,7 +536,7 @@ export default function SettingsPage() {
                     >
                       {csvImported ? '✓ インポート済み' : csvImporting ? '保存中…' : 'インポートする'}
                     </button>
-                    {csvImported && <span className="text-xs text-emerald-600">製品マスタに反映されました</span>}
+                    {csvImported && <span className="text-xs text-emerald-600">製品マスターに反映されました</span>}
                     <span className="text-xs text-slate-400 ml-auto">※既存の製品コードは上書き更新、新規コードは末尾に追加されます</span>
                   </div>
                   {csvImportError && (
@@ -749,11 +745,7 @@ export default function SettingsPage() {
                   <th className="px-3 py-2.5 text-left font-semibold">商品名</th>
                   <th className="px-3 py-2.5 text-right font-semibold">個/パレット</th>
                   <th className="px-3 py-2.5 text-left font-semibold">パレット型</th>
-                  <th className="px-3 py-2.5 text-center font-semibold">器具区分</th>
-                  <th className="px-3 py-2.5 text-center font-semibold">ポジ</th>
-                  <th className="px-3 py-2.5 text-left font-semibold">仕向け</th>
-                  <th className="px-3 py-2.5 text-center font-semibold">生産方式</th>
-                  <th className="px-3 py-2.5 text-center font-semibold" title="上段積み可 / 上積み許可">2段積み</th>
+                  <th className="px-3 py-2.5 text-center font-semibold" title="この製品の上に荷を積めるか">上積み可否</th>
                   <th className="px-3 py-2.5 text-right font-semibold">操作</th>
                 </tr>
               </thead>
@@ -835,16 +827,8 @@ export default function SettingsPage() {
                                 <td className="px-3 py-2 font-medium">{p.name}</td>
                                 <td className="px-3 py-2 text-right">{p.capacityPerPallet}</td>
                                 <td className="px-3 py-2 text-slate-500 text-xs">{p.palletType}</td>
-                                <td className="px-3 py-2 text-center text-slate-600 text-xs">{p.equipmentCategory ?? '—'}</td>
                                 <td className="px-3 py-2 text-center">
-                                  {p.poji
-                                    ? <span className="text-emerald-600 font-bold">○</span>
-                                    : <span className="text-slate-300">—</span>}
-                                </td>
-                                <td className="px-3 py-2 text-slate-600 text-xs">{p.destination ?? '—'}</td>
-                                <td className="px-3 py-2 text-center text-slate-600 text-xs">{p.productionMethod ?? '—'}</td>
-                                <td className="px-3 py-2 text-center">
-                                  <StackingBadge stackable={p.stackable} allowStackOnTop={p.allowStackOnTop} />
+                                  <StackingBadge allowStackOnTop={p.allowStackOnTop} />
                                 </td>
                                 <td className="px-3 py-2 text-right whitespace-nowrap">
                                   <button onClick={() => setEditingProduct({ ...p })} className="text-xs text-brand-600 hover:underline mr-3">編集</button>
@@ -880,7 +864,7 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* ── 拠点マスタ ── */}
+      {/* ── 拠点マスター ── */}
       {tab === 'warehouses' && (
         <div>
           {!demo && (
@@ -955,7 +939,7 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* ── パレット型マスタ ── */}
+      {/* ── パレット型マスター ── */}
       {tab === 'pallets' && (
         <div>
           {!demo && (
@@ -1053,7 +1037,7 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* ── トラックマスタ ── */}
+      {/* ── トラックマスター ── */}
       {tab === 'trucks' && (
         <div>
           {!demo && (
@@ -1177,7 +1161,7 @@ export default function SettingsPage() {
         />
       )}
 
-      {/* ── 稼働日マスタ ── */}
+      {/* ── 稼働日マスター ── */}
       {tab === 'operating' && (
         <div className="flex flex-col gap-6">
           <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-xs text-amber-800 leading-relaxed">
@@ -1401,42 +1385,19 @@ function OperatingCalendar({
 }
 
 // ─── 2段積みバッジ ────────────────────────────────────────────────────
-function StackingBadge({
-  stackable,
-  allowStackOnTop,
-}: {
-  stackable?: boolean;
-  allowStackOnTop?: boolean;
-}) {
-  const canUpper = stackable !== false;
-  const canBottom = allowStackOnTop !== false;
-  if (canUpper && canBottom) {
+function StackingBadge({ allowStackOnTop }: { allowStackOnTop?: boolean }) {
+  // 上積み可否：この製品の上に荷を積めるか
+  if (allowStackOnTop !== false) {
     return (
       <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">
-        ✓ 両可
-      </span>
-    );
-  }
-  if (!canUpper && !canBottom) {
-    return (
-      <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-600">
-        ✕ 床面のみ
+        ✓ 上積み可
       </span>
     );
   }
   return (
-    <div className="flex flex-col gap-0.5 items-center">
-      {!canUpper && (
-        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
-          上段×
-        </span>
-      )}
-      {!canBottom && (
-        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700">
-          上積×
-        </span>
-      )}
-    </div>
+    <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700">
+      ✕ 上積み不可
+    </span>
   );
 }
 
@@ -1716,47 +1677,12 @@ function ProductModal({
               ))}
             </select>
           </Field>
-          <Field label="器具区分">
-            <input
-              className={INPUT_CLASS}
-              value={product.equipmentCategory ?? ''}
-              onChange={(e) => onChange({ ...product, equipmentCategory: e.target.value })}
-              placeholder="例: 101"
-            />
-          </Field>
           <Field label="器具名" hint="同じ器具名の製品は同じ色で表示されます">
             <input
               className={INPUT_CLASS}
               value={product.equipmentName ?? ''}
               onChange={(e) => onChange({ ...product, equipmentName: e.target.value })}
               placeholder="例: 元止め湯沸"
-            />
-          </Field>
-          <Field label="ポジ">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={product.poji ?? false}
-                onChange={(e) => onChange({ ...product, poji: e.target.checked })}
-                className="w-4 h-4 accent-brand-600"
-              />
-              <span className="text-sm text-slate-600">{product.poji ? '○' : '—'}</span>
-            </label>
-          </Field>
-          <Field label="仕向け">
-            <input
-              className={INPUT_CLASS}
-              value={product.destination ?? ''}
-              onChange={(e) => onChange({ ...product, destination: e.target.value })}
-              placeholder="例: 量販 / 一般"
-            />
-          </Field>
-          <Field label="生産方式">
-            <input
-              className={INPUT_CLASS}
-              value={product.productionMethod ?? ''}
-              onChange={(e) => onChange({ ...product, productionMethod: e.target.value })}
-              placeholder="例: A"
             />
           </Field>
           <Field label="パレット型">
@@ -1817,41 +1743,24 @@ function ProductModal({
             </p>
           </div>
 
-          {/* 2段積み設定 */}
+          {/* 積み重ね設定 */}
           <div className="border-t border-slate-100 pt-3">
-            <p className="text-xs font-semibold text-slate-600 mb-2">2段積み条件</p>
-            <div className="flex flex-col gap-2">
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={product.stackable !== false}
-                  onChange={(e) => onChange({ ...product, stackable: e.target.checked })}
-                  className="w-4 h-4 mt-0.5 accent-brand-600"
-                />
-                <div>
-                  <span className="text-sm text-slate-700 font-medium">上段積み可</span>
-                  <p className="text-[10px] text-slate-400 mt-0.5 leading-relaxed">
-                    この製品を2段目（上段）に積めます。<br />
-                    OFFにすると、この製品は常に床面（1段目）のみに配置されます。
-                  </p>
-                </div>
-              </label>
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={product.allowStackOnTop !== false}
-                  onChange={(e) => onChange({ ...product, allowStackOnTop: e.target.checked })}
-                  className="w-4 h-4 mt-0.5 accent-brand-600"
-                />
-                <div>
-                  <span className="text-sm text-slate-700 font-medium">上積み許可</span>
-                  <p className="text-[10px] text-slate-400 mt-0.5 leading-relaxed">
-                    この製品の上に別の製品を積めます。<br />
-                    OFFにすると、この製品は必ず最上段に置かれ、上には何も積みません。
-                  </p>
-                </div>
-              </label>
-            </div>
+            <p className="text-xs font-semibold text-slate-600 mb-2">積み重ね条件</p>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={product.allowStackOnTop !== false}
+                onChange={(e) => onChange({ ...product, allowStackOnTop: e.target.checked })}
+                className="w-4 h-4 mt-0.5 accent-brand-600"
+              />
+              <div>
+                <span className="text-sm text-slate-700 font-medium">上積み可否（この製品の上に荷を積める）</span>
+                <p className="text-[10px] text-slate-400 mt-0.5 leading-relaxed">
+                  ONにすると、この製品の上に別の荷を積み重ねられます（高さが許す限り段数無制限）。<br />
+                  OFFにすると、この製品は必ず最上段に置かれ、上には何も積みません。
+                </p>
+              </div>
+            </label>
           </div>
 
           {/* 表示カラー（器具名から自動設定） */}
@@ -2004,7 +1913,7 @@ function CalcSettingsPanel() {
           </label>
           <label className="flex items-start gap-2 text-sm cursor-pointer">
             <input type="radio" name="distMode" className="mt-1" checked={s.distributionMode === 'priority'} onChange={() => update({ distributionMode: 'priority' })} />
-            <span><b>優先度順に満たす</b><br /><span className="text-xs text-slate-500">優先度の高い拠点（拠点マスタで設定）から不足を満タンにし、生産が尽きたら以降は0</span></span>
+            <span><b>優先度順に満たす</b><br /><span className="text-xs text-slate-500">優先度の高い拠点（拠点マスターで設定）から不足を満タンにし、生産が尽きたら以降は0</span></span>
           </label>
         </div>
       </section>
@@ -2041,7 +1950,7 @@ function CalcSettingsPanel() {
             </Field>
             <p className="col-span-2 text-xs text-slate-500 leading-relaxed">
               基準在庫 = ⌈ (予定出荷 ÷ 週の出荷日数) ×（拠点のリードタイム日数 ＋ 安全在庫日数） ⌉<br />
-              ※ リードタイムは拠点マスタで拠点ごとに設定します。
+              ※ リードタイムは拠点マスターで拠点ごとに設定します。
             </p>
           </div>
         )}
@@ -2483,7 +2392,7 @@ function StackingCalculator({
       <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-xs text-blue-800 leading-relaxed">
         <strong>📐 積付計算について：</strong>
         段ボール梱包サイズ（W×D×H）とパレットサイズから、パレット1枚あたりの最適な個数を自動算出します。<br />
-        縦横2通りの向きを試し、より多く積めるほうを採用。「図を見る」で配置図を表示、「適用」で製品マスタの<strong>個/パレット</strong>に反映されます。
+        縦横2通りの向きを試し、より多く積めるほうを採用。「図を見る」で配置図を表示、「適用」で製品マスターの<strong>個/パレット</strong>に反映されます。
       </div>
 
       {/* グローバル設定 */}

@@ -121,12 +121,7 @@ export async function loadProducts(): Promise<Product[]> {
       palletType: r.pallet_type as string,
       color: r.color as string,
       factoryCode: (r.factory_code as string | null) ?? '',
-      equipmentCategory: (r.equipment_category as string | null) ?? '',
       equipmentName: (r.equipment_name as string | null) ?? '',
-      poji: (r.poji as boolean | null) ?? false,
-      destination: (r.destination as string | null) ?? '',
-      productionMethod: (r.production_method as string | null) ?? '',
-      stackable: (r.stackable as boolean | null) ?? true,
       allowStackOnTop: (r.allow_stack_on_top as boolean | null) ?? true,
       boxWidthMM: (r.box_width_mm as number | null) ?? undefined,
       boxDepthMM: (r.box_depth_mm as number | null) ?? undefined,
@@ -145,15 +140,13 @@ export async function upsertProduct(p: Product) {
   await sql`
     INSERT INTO products (
       company_id, code, name, capacity_per_pallet, pallet_type, color,
-      factory_code, equipment_category, equipment_name,
-      poji, destination, production_method,
-      stackable, allow_stack_on_top,
+      factory_code, equipment_name,
+      allow_stack_on_top,
       box_width_mm, box_depth_mm, box_height_mm, box_weight_kg
     ) VALUES (
       ${cid}, ${p.code}, ${p.name}, ${p.capacityPerPallet}, ${p.palletType}, ${p.color},
-      ${p.factoryCode ?? ''}, ${p.equipmentCategory ?? ''}, ${p.equipmentName ?? ''},
-      ${p.poji ?? false}, ${p.destination ?? ''}, ${p.productionMethod ?? ''},
-      ${p.stackable ?? true}, ${p.allowStackOnTop ?? true},
+      ${p.factoryCode ?? ''}, ${p.equipmentName ?? ''},
+      ${p.allowStackOnTop ?? true},
       ${p.boxWidthMM ?? null}, ${p.boxDepthMM ?? null}, ${p.boxHeightMM ?? null}, ${p.boxWeightKg ?? null}
     )
     ON CONFLICT (company_id, code) DO UPDATE SET
@@ -162,12 +155,7 @@ export async function upsertProduct(p: Product) {
       pallet_type         = EXCLUDED.pallet_type,
       color               = EXCLUDED.color,
       factory_code        = EXCLUDED.factory_code,
-      equipment_category  = EXCLUDED.equipment_category,
       equipment_name      = EXCLUDED.equipment_name,
-      poji                = EXCLUDED.poji,
-      destination         = EXCLUDED.destination,
-      production_method   = EXCLUDED.production_method,
-      stackable           = EXCLUDED.stackable,
       allow_stack_on_top  = EXCLUDED.allow_stack_on_top,
       box_width_mm        = EXCLUDED.box_width_mm,
       box_depth_mm        = EXCLUDED.box_depth_mm,
@@ -215,15 +203,13 @@ export async function deduplicateProducts(): Promise<number> {
     await sql`
       INSERT INTO products (
         company_id, code, name, capacity_per_pallet, pallet_type, color,
-        factory_code, equipment_category, equipment_name,
-        poji, destination, production_method,
-        stackable, allow_stack_on_top,
+        factory_code, equipment_name,
+        allow_stack_on_top,
         box_width_mm, box_depth_mm, box_height_mm, box_weight_kg
       ) VALUES (
         ${cid}, ${keep.code}, ${keep.name}, ${keep.capacity_per_pallet}, ${keep.pallet_type}, ${keep.color},
-        ${keep.factory_code ?? ''}, ${keep.equipment_category ?? ''}, ${keep.equipment_name ?? ''},
-        ${keep.poji ?? false}, ${keep.destination ?? ''}, ${keep.production_method ?? ''},
-        ${keep.stackable ?? true}, ${keep.allow_stack_on_top ?? true},
+        ${keep.factory_code ?? ''}, ${keep.equipment_name ?? ''},
+        ${keep.allow_stack_on_top ?? true},
         ${keep.box_width_mm ?? null}, ${keep.box_depth_mm ?? null},
         ${keep.box_height_mm ?? null}, ${keep.box_weight_kg ?? null}
       )

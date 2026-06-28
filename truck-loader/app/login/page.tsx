@@ -15,20 +15,11 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
     setLoading(true);
-
-    const result = await signIn('credentials', {
-      email,
-      password,
-      redirect: false,
-    });
-
+    const result = await signIn('credentials', { email, password, redirect: false });
     setLoading(false);
-
     if (result?.error) {
       setError('メールアドレスまたはパスワードが正しくありません。');
     } else {
-      // ログイン成功。データは常に端末ローカル(IndexedDB)。デモCookieは解除。
-      // データソースはモジュール読込時に確定するためフルリロードで反映する。
       try {
         localStorage.setItem('truckloader.dataSource', 'local');
         document.cookie = 'truckloader.demo=; path=/; max-age=0';
@@ -37,10 +28,8 @@ export default function LoginPage() {
     }
   }
 
-  // ログインせずにデモ（ローカルモード＋サンプルデータ投入）で全機能を体験
   function startDemo() {
     try {
-      // デモCookieでミドルウェアのログインゲートを通過（ローカル＋サンプル）
       document.cookie = 'truckloader.demo=1; path=/; max-age=86400; samesite=lax';
       localStorage.setItem('truckloader.dataSource', 'local');
       localStorage.setItem('truckloader.autoSeedDemo', '1');
@@ -49,146 +38,91 @@ export default function LoginPage() {
   }
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: '#f5f7fa',
-      }}
-    >
-      <div
-        style={{
-          background: 'white',
-          borderRadius: 12,
-          boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-          padding: '48px 40px',
-          width: '100%',
-          maxWidth: 400,
-        }}
-      >
-        {/* ロゴ・タイトル */}
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <BrandLogo size={56} rounded={14} style={{ marginBottom: 16 }} />
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#111827', marginBottom: 4 }}>
-            スマコウバ積載
-          </h1>
-          <p style={{ fontSize: 14, color: '#6b7280' }}>アカウントにログイン</p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="mb-4 inline-block">
+            <BrandLogo size={64} rounded={16} className="shadow-lg" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-800">スマコウバ積載</h1>
+          <p className="mt-1 text-sm text-gray-500">トラック積載計画を自動計算</p>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
-              メールアドレス
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              placeholder="example@company.com"
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                border: '1px solid #d1d5db',
-                borderRadius: 8,
-                fontSize: 14,
-                color: '#111827',
-                outline: 'none',
-                boxSizing: 'border-box',
-              }}
-            />
-          </div>
+        <div className="bg-white rounded-2xl shadow-xl px-8 py-8">
+          <h2 className="text-lg font-semibold text-gray-800 mb-6">ログイン</h2>
 
-          <div style={{ marginBottom: 24 }}>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
-              パスワード
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              placeholder="パスワードを入力"
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                border: '1px solid #d1d5db',
-                borderRadius: 8,
-                fontSize: 14,
-                color: '#111827',
-                outline: 'none',
-                boxSizing: 'border-box',
-              }}
-            />
-          </div>
-
-          {error && (
-            <div
-              style={{
-                background: '#fef2f2',
-                border: '1px solid #fecaca',
-                borderRadius: 8,
-                padding: '10px 14px',
-                marginBottom: 16,
-                fontSize: 13,
-                color: '#dc2626',
-              }}
-            >
-              {error}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                メールアドレス
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                placeholder="example@company.com"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+              />
             </div>
-          )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              width: '100%',
-              padding: '11px 0',
-              background: loading ? '#93c5fd' : '#2563eb',
-              color: 'white',
-              border: 'none',
-              borderRadius: 8,
-              fontSize: 15,
-              fontWeight: 600,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              transition: 'background 0.15s',
-            }}
-          >
-            {loading ? 'ログイン中...' : 'ログイン'}
-          </button>
-        </form>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                パスワード
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                placeholder="••••••••"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+              />
+            </div>
 
-        <p style={{ textAlign: 'center', marginTop: 20, fontSize: 13, color: '#6b7280' }}>
-          アカウントをお持ちでない方は{' '}
-          <Link href="/register" style={{ color: '#2563eb', fontWeight: 600, textDecoration: 'none' }}>
-            新規登録
-          </Link>
+            {error && (
+              <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {loading ? 'ログイン中...' : 'ログイン'}
+            </button>
+          </form>
+
+          <div className="mt-6 text-center text-sm text-gray-500">
+            アカウントをお持ちでない方は{' '}
+            <Link href="/register" className="text-blue-600 hover:underline font-medium">
+              新規登録
+            </Link>
+          </div>
+
+          <div className="mt-5 pt-5 border-t border-gray-100">
+            <button
+              type="button"
+              onClick={startDemo}
+              className="flex items-center justify-center gap-2 w-full rounded-lg border-2 border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-800 hover:bg-amber-100 transition-colors"
+            >
+              🚚 ログインせずにデモを見る
+            </button>
+            <p className="mt-2 text-center text-[11px] text-gray-400">
+              サンプルデータで全機能を体験できます（登録不要）
+            </p>
+          </div>
+        </div>
+
+        <p className="mt-6 text-center text-xs text-gray-400">
+          拠点間の出荷配車・積載計画を見える化するクラウドツール
         </p>
-
-        {/* ログイン不要のデモ導線 */}
-        <div style={{ borderTop: '1px solid #f0f0f0', marginTop: 24, paddingTop: 20 }}>
-          <button
-            type="button"
-            onClick={startDemo}
-            style={{
-              width: '100%',
-              padding: '11px 0',
-              background: '#fffbeb',
-              color: '#92400e',
-              border: '1px solid #fcd34d',
-              borderRadius: 8,
-              fontSize: 14,
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
-          >
-            🚚 ログインせずにデモを見る
-          </button>
-          <p style={{ textAlign: 'center', marginTop: 8, fontSize: 12, color: '#9ca3af' }}>
-            サンプルデータで全機能を体験できます（登録不要）
-          </p>
+        <div className="mt-3 flex justify-center gap-4 text-xs text-gray-400">
+          <Link href="/pricing" className="hover:text-gray-600 hover:underline">料金プラン</Link>
+          <Link href="/privacy" className="hover:text-gray-600 hover:underline">プライバシーポリシー</Link>
+          <Link href="/support" className="hover:text-gray-600 hover:underline">サポート</Link>
         </div>
       </div>
     </div>
