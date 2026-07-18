@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { signIn } from '@/lib/authClient';
 import Link from 'next/link';
 import BrandLogo from '@/components/BrandLogo';
-import WebOnly from '@/components/WebOnly';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -96,16 +95,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* ネイティブ(iOS)では新規登録(アカウント作成)導線を出さない（App Store 3.1.3(a)/3.1.1） */}
-          <WebOnly>
-            <div className="mt-6 text-center text-sm text-gray-500">
-              アカウントをお持ちでない方は{' '}
-              <Link href="/register" className="text-indigo-600 hover:underline font-medium">
-                新規登録
-              </Link>
-            </div>
-          </WebOnly>
-
           <div className="mt-5 pt-5 border-t border-gray-100">
             <button
               type="button"
@@ -124,11 +113,6 @@ export default function LoginPage() {
           拠点間の出荷配車・積載計画を見える化するクラウドツール
         </p>
         <div className="mt-3 flex justify-center gap-4 text-xs text-gray-400">
-          {/* ネイティブ(iOS)では料金プラン(外部課金導線)へのリンクを出さない（App Store 3.1.3(a)/3.1.1） */}
-          <WebOnly>
-            <Link href="/pricing" className="hover:text-gray-600 hover:underline">料金プラン</Link>
-          </WebOnly>
-          <Link href="/privacy" className="hover:text-gray-600 hover:underline">プライバシーポリシー</Link>
           <Link href="/support" className="hover:text-gray-600 hover:underline">サポート</Link>
         </div>
       </div>

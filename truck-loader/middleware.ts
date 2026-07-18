@@ -5,7 +5,7 @@ import { withAuth } from 'next-auth/middleware';
  *   - ログイン済み(token あり) → 許可
  *   - デモCookie(truckloader.demo=1) あり → 許可（/login のデモボタンが付与。ローカル＋サンプル）
  *   - どちらも無い匿名 → /login へリダイレクト
- * 公開ページ(/login,/register,/privacy,/terms,/contact,/pricing)と自前認証APIは matcher から除外。
+ * 公開ページ(/login)と自前認証APIは matcher から除外。
  * ネイティブ(Capacitor 静的export)では middleware は無効（オフライン動作）。
  */
 export default withAuth({
@@ -20,6 +20,6 @@ export default withAuth({
 
 export const config = {
   matcher: [
-    '/((?!login|register|privacy|contact|terms|pricing|api/auth|api/register|api/sync|api/account|api/push|api/contact|api/subscription|api/checkout|api/customer-portal|api/stripe-webhook|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|ico)).*)',
+    '/((?!login|api/auth|api/sync|api/account|api/push|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|ico)).*)',
   ],
 };

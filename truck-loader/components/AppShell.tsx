@@ -10,8 +10,8 @@ import { SupabaseProvider } from '@/components/SupabaseProvider';
 import { TrialGate } from '@/components/TrialGate';
 import { DemoBanner } from '@/components/DemoBanner';
 
-// ナビ・データ読込を出さない「素の」ページ（ログイン・登録・公開法務/料金ページ）
-const BARE_PATHS = ['/login', '/register', '/privacy', '/terms', '/contact', '/pricing'];
+// ナビ・データ読込を出さない「素の」ページ（ログイン）
+const BARE_PATHS = ['/login'];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || '/';
