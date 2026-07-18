@@ -98,7 +98,7 @@ export function PrintableLoadingPlan({ factoryName, weekLabel, plans, warehouses
           <div style={{ fontSize: 18, fontWeight: 800 }}>積載計画書 — {factoryName}</div>
           <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>{weekLabel}</div>
         </div>
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Paloma積載</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>PF積載</div>
       </div>
 
       {/* ── 全体スケジュール ── */}

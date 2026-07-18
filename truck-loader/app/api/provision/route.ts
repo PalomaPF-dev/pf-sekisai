@@ -1,0 +1,188 @@
+import { NextResponse } from 'next/server';
+import { randomBytes, timingSafeEqual } from 'crypto';
+import {
+  createInvitedUser,
+  ensureAuthSchema,
+  getOrCreateCompanyByName,
+  PROVISION_COMPANY_NAME,
+} from '@/lib/authDb';
+import { sql } from '@/lib/neon';
+import { ensurePasswordResetSchema, hashResetToken } from '@/lib/passwordReset';
+
+export const runtime = 'nodejs';
+
+/**
+ * ポータルからの一括アカウント発行API（内部用・UIなし）。
+ * 認証はセッションではなく共有キー PF_PROVISION_KEY（未設定なら 503 で無効化）。
+ * 複数ユーザーをまとめて発行し、パスワード設定（招待）リンクを返す。
+ * pf-keisoku の /api/provision を sekisai の db 層に合わせて移植したもの。
+ */
+
+// 招待リンクの有効期限は7日
+const INVITE_TOKEN_TTL_MINUTES = 7 * 24 * 60;
+// 1リクエストで発行できる上限件数
+const MAX_USERS_PER_REQUEST = 200;
+
+const isEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+// 社員番号は半角英数と - _ のみ（1〜64文字）
+const isLoginId = (s: string) => /^[A-Za-z0-9_-]{1,64}$/.test(s);
+
+/** リンクの base URL（NEXTAUTH_URL 優先）。 */
+const inviteLinkBase = () =>
+  (process.env.NEXTAUTH_URL || 'https://sekisai.paloma-pf.com').replace(/\/+$/, '');
+
+/** タイミング安全なキー比較（長さ違いは即 false 扱い）。 */
+function safeKeyEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ab.length !== bb.length) return false;
+  return timingSafeEqual(ab, bb);
+}
+
+type ProvisionResult = {
+  loginId: string;
+  status: 'created' | 'exists' | 'error';
+  inviteUrl?: string;
+  message?: string;
+};
+
+/** 招待メール送信（RESEND_API_KEY 設定時のみ）。失敗しても throw しない。 */
+async function sendInviteMail(name: string, email: string, inviteUrl: string): Promise<void> {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('[provision] RESEND_API_KEY 未設定のため招待メール未送信');
+    return;
+  }
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${(process.env.RESEND_API_KEY || '').trim()}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from:
+          process.env.CONTACT_FROM ||
+          process.env.ALERT_MAIL_FROM ||
+          'PF積載 <noreply@paloma-pf.com>',
+        to: [email],
+        subject: '【PF積載】アカウント発行のご案内',
+        text:
+          `${name} 様\n\n` +
+          `PF積載の管理者からアカウントが発行されました。\n` +
+          `以下のリンクから7日以内にパスワードを設定してください。\n\n` +
+          `${inviteUrl}\n\n` +
+          `パスワードを設定すると、そのままログインできるようになります。\n` +
+          `心当たりがない場合は、このメールを破棄してください。\n\n` +
+          `— PF積載`,
+        ...(process.env.MAIL_REPLY_TO?.trim() ? { reply_to: process.env.MAIL_REPLY_TO.trim() } : {}),
+      }),
+    });
+    if (!res.ok) {
+      const t = (await res.text().catch(() => '')).slice(0, 200);
+      console.warn('[provision] invite mail Resend error', res.status, t);
+    }
+  } catch (e) {
+    console.warn('[provision] invite mail send failed:', (e as Error).message);
+  }
+}
+
+export async function POST(req: Request) {
+  const provisionKey = process.env.PF_PROVISION_KEY;
+  if (!provisionKey) {
+    return NextResponse.json({ message: 'provision未設定' }, { status: 503 });
+  }
+
+  const body = await req.json().catch(() => ({}));
+  const key = typeof body.key === 'string' ? body.key : '';
+  if (!safeKeyEqual(key, provisionKey)) {
+    return NextResponse.json({ message: '認証に失敗しました。' }, { status: 401 });
+  }
+
+  const users = body.users;
+  if (!Array.isArray(users) || users.length === 0) {
+    return NextResponse.json({ message: 'users を指定してください。' }, { status: 400 });
+  }
+  if (users.length > MAX_USERS_PER_REQUEST) {
+    return NextResponse.json(
+      { message: `一度に発行できるのは最大${MAX_USERS_PER_REQUEST}件です。` },
+      { status: 400 }
+    );
+  }
+  const regenerateLinks = body.regenerateLinks === true;
+
+  try {
+    await ensureAuthSchema();
+    await ensurePasswordResetSchema();
+    const companyId = await getOrCreateCompanyByName(PROVISION_COMPANY_NAME);
+
+    const results: ProvisionResult[] = [];
+    for (const u of users) {
+      const loginId = (u?.loginId ?? '').toString().trim();
+      try {
+        if (!isLoginId(loginId)) {
+          results.push({
+            loginId,
+            status: 'error',
+            message: '社員番号は半角英数字とハイフン・アンダースコア（1〜64文字）で入力してください。',
+          });
+          continue;
+        }
+        if (loginId === 'admin') {
+          results.push({ loginId, status: 'error', message: "社員番号 'admin' は発行できません。" });
+          continue;
+        }
+        const name = (u?.name ?? '').toString().trim();
+        const email = ((u?.email ?? '').toString().trim().toLowerCase() as string) || null;
+        if (email && (!isEmail(email) || email.length > 254)) {
+          results.push({ loginId, status: 'error', message: 'メールアドレスの形式が正しくありません。' });
+          continue;
+        }
+
+        // 既存ユーザー（login_id 一致）: regenerateLinks のときだけ設定リンクを再発行
+        const existing = await sql`SELECT id FROM users WHERE login_id = ${loginId} LIMIT 1`;
+        if (existing.length > 0) {
+          const userId = existing[0].id as string;
+          if (!regenerateLinks) {
+            results.push({ loginId, status: 'exists' });
+            continue;
+          }
+          const token = randomBytes(32).toString('hex');
+          await sql`
+            INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+            VALUES (${userId}, ${hashResetToken(token)},
+                    NOW() + make_interval(mins => ${INVITE_TOKEN_TTL_MINUTES}))`;
+          results.push({
+            loginId,
+            status: 'exists',
+            inviteUrl: `${inviteLinkBase()}/password-reset/confirm?token=${token}`,
+          });
+          continue;
+        }
+
+        if (!name) {
+          results.push({ loginId, status: 'error', message: 'お名前を入力してください。' });
+          continue;
+        }
+
+        // 新規発行: 招待ユーザー作成 → 設定リンク発行 →（メールがあれば）送信
+        const userId = await createInvitedUser(companyId, loginId, email, name);
+        const token = randomBytes(32).toString('hex');
+        await sql`
+          INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+          VALUES (${userId}, ${hashResetToken(token)},
+                  NOW() + make_interval(mins => ${INVITE_TOKEN_TTL_MINUTES}))`;
+        const inviteUrl = `${inviteLinkBase()}/password-reset/confirm?token=${token}`;
+        if (email) await sendInviteMail(name, email, inviteUrl);
+        results.push({ loginId, status: 'created', inviteUrl });
+      } catch (e) {
+        // email 一意制約違反などもここに落として続行
+        results.push({ loginId, status: 'error', message: (e as Error).message });
+      }
+    }
+
+    return NextResponse.json({ results });
+  } catch (err) {
+    console.error('[provision] error:', err);
+    return NextResponse.json({ message: '一括発行に失敗しました。' }, { status: 500 });
+  }
+}

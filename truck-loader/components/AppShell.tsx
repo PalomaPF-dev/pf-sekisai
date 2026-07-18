@@ -11,7 +11,7 @@ import { TrialGate } from '@/components/TrialGate';
 import { DemoBanner } from '@/components/DemoBanner';
 
 // ナビ・データ読込を出さない「素の」ページ（ログイン）
-const BARE_PATHS = ['/login'];
+const BARE_PATHS = ['/login', '/password-reset', '/first-login'];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || '/';
