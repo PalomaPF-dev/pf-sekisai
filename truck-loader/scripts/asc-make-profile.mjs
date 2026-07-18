@@ -7,7 +7,7 @@ const ISSUER = 'b495bc82-4182-4292-8e58-938b378a2e4d';
 const P8 = process.env.HOME + '/.appstoreconnect/private_keys/AuthKey_PABJUM2FM4.p8';
 const BUNDLE = 'com.tetsuyayasuda.truckloader';
 const CERT_ID = 'R6X9DD2J4G'; // IOS_DISTRIBUTION
-const PROFILE_NAME = 'Sumakouba TruckLoader AppStore';
+const PROFILE_NAME = 'Paloma TruckLoader AppStore';
 const OUT = process.argv[2] || 'build/truckloader_appstore.mobileprovision';
 
 const key = await importPKCS8(readFileSync(P8, 'utf8'), 'ES256');
