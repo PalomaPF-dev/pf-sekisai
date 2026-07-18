@@ -31,6 +31,10 @@ export async function ensureAuthSchema(): Promise<void> {
   // 招待（管理者がアカウントを発行する）モデル用の列（冪等追加）。
   // pending=true は招待済み・パスワード未設定。
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS pending BOOLEAN NOT NULL DEFAULT false`;
+  // 役割（ポータル provision v2 で連携・冪等追加）。admin=管理者 / member=一般。
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'member'`;
+  // 承認者の社員番号（ポータル provision v2 で連携・冪等追加）。NULL = 未設定。
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS approver_login_id TEXT`;
   // 社員番号ログイン用の login_id 列（冪等追加）。メールアドレスは任意項目に変更（NOT NULL 解除）。
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS login_id TEXT`;
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS users_login_id_idx ON users(login_id)`;
@@ -69,12 +73,14 @@ export async function createInvitedUser(
   loginId: string,
   email: string | null,
   name: string,
+  role: 'admin' | 'member' = 'member',
+  approverLoginId: string | null = null,
 ): Promise<string> {
   // ランダムな使えないパスワード（招待完了までログイン不可）
   const passwordHash = await bcrypt.hash(crypto.randomBytes(24).toString('hex'), 12);
   const rows = await sql`
-    INSERT INTO users (company_id, login_id, email, name, password_hash, pending)
-    VALUES (${companyId}, ${loginId}, ${email}, ${name}, ${passwordHash}, true)
+    INSERT INTO users (company_id, login_id, email, name, password_hash, pending, role, approver_login_id)
+    VALUES (${companyId}, ${loginId}, ${email}, ${name}, ${passwordHash}, true, ${role}, ${approverLoginId})
     RETURNING id
   `;
   return rows[0].id as string;
