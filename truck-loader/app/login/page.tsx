@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { signIn } from '@/lib/authClient';
 import Link from 'next/link';
 
@@ -10,6 +10,18 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // 戻る操作などでページが復元されたとき、押していないのに「ログイン中…」のまま
+  // 表示される状態バグを防ぐ（bfcache 復元時にローディング状態をリセット）
+  useEffect(() => {
+    const reset = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        setLoading(false);
+      }
+    };
+    window.addEventListener('pageshow', reset);
+    return () => window.removeEventListener('pageshow', reset);
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -33,6 +45,7 @@ export default function LoginPage() {
     }
   }
 
+  /** 「ログインせずにデモを見る」: デモモードを設定して即入る（社内紹介用）。 */
   function startDemo() {
     try {
       document.cookie = 'truckloader.demo=1; path=/; max-age=86400; samesite=lax';
@@ -92,37 +105,39 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full rounded-lg bg-[#9162f4] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#7750c8] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {loading ? 'ログイン中...' : 'ログイン'}
+              {loading ? 'ログイン中…' : 'ログイン'}
             </button>
           </form>
 
-          {/* 社内紹介用: サンプルデータで全機能を体験（実データには影響しない） */}
-          <div className="mt-5 pt-5 border-t border-gray-100">
-            <button
-              type="button"
-              onClick={startDemo}
-              className="flex items-center justify-center gap-2 w-full rounded-lg border-2 border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-800 hover:bg-amber-100 transition-colors"
-            >
-              🚚 ログインせずにデモを見る
-            </button>
-            <p className="mt-2 text-center text-[11px] text-gray-400">
-              サンプルデータで全機能を体験できます（登録不要）
-            </p>
-          </div>
+          {/* 社内紹介用: サンプルデータでワンクリック体験（実データには影響しない） */}
+          <button
+            type="button"
+            onClick={startDemo}
+            disabled={loading}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-[#e5e5e5] bg-white px-4 py-2.5 text-sm font-semibold text-[#555555] transition-colors hover:bg-[#f7f7f5] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            ログインせずにデモを見る
+          </button>
 
-          {/* 初回ログイン（管理者発行アカウントの自己パスワード設定）への導線 */}
-          <div className="mt-4 rounded-lg border border-[#9162f4]/40 bg-[#9162f4]/5 px-3 py-2.5 text-center">
-            <Link href="/first-login" className="text-sm font-semibold text-[#9162f4] hover:underline">
+          {/* ポータルで発行された社員番号アカウント（pending）の初回パスワード設定 */}
+          <div className="mt-4 rounded-lg border border-[#9162f4]/40 bg-[#f5f0fe] px-3 py-2.5 text-center text-sm">
+            <Link href="/first-login" className="font-semibold text-[#9162f4] hover:underline">
               初めてログインする方はこちら（パスワード設定）
             </Link>
           </div>
 
-          <div className="mt-4 text-center text-sm">
+          <div className="mt-3 text-center text-sm">
             <Link href="/password-reset" className="text-[#9162f4] hover:underline">
-              パスワードを忘れた／設定する方はこちら
+              パスワードをお忘れの方はこちら
             </Link>
             <p className="mt-1 text-xs text-[#707070]">
-              メール未登録の方は管理者にお問い合わせください
+              メール未登録の方は
+              <a
+                href="mailto:info@paloma-pf.com"
+                className="text-[#707070] underline decoration-dotted underline-offset-2 transition-colors hover:text-[#9162f4] hover:decoration-solid"
+              >
+                管理者にお問い合わせください
+              </a>
             </p>
           </div>
         </div>
@@ -130,8 +145,13 @@ export default function LoginPage() {
         <p className="mt-6 text-center text-xs text-[#707070]">
           拠点間の出荷配車・積載計画を見える化するクラウドツール
         </p>
-        <div className="mt-3 flex justify-center gap-4 text-xs text-[#707070]">
-          <Link href="/support" className="hover:text-gray-600 hover:underline">サポート</Link>
+        <div className="mt-3 text-center">
+          <a
+            href="https://portal.paloma-pf.com"
+            className="text-sm text-[#707070] transition-colors hover:text-[#9162f4]"
+          >
+            ← ポータルへ戻る
+          </a>
         </div>
       </div>
       </div>
