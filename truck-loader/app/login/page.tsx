@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { signIn } from '@/lib/authClient';
 import Link from 'next/link';
+import ContactAdminModal from '@/components/ContactAdminModal';
 
 export default function LoginPage() {
   // credentials のフィールド名は互換のため email（中身は社員番号 or 従来のメールアドレス）
@@ -132,12 +133,7 @@ export default function LoginPage() {
             </Link>
             <p className="mt-1 text-xs text-[#707070]">
               メール未登録の方は
-              <a
-                href="mailto:info@paloma-pf.com"
-                className="text-[#707070] underline decoration-dotted underline-offset-2 transition-colors hover:text-[#9162f4] hover:decoration-solid"
-              >
-                管理者にお問い合わせください
-              </a>
+              <ContactAdminModal />
             </p>
           </div>
         </div>
