@@ -36,7 +36,7 @@ export async function POST(req: Request) {
 
   try {
     const results = await sendApns(tokens, {
-      title: body.title ?? 'Paloma積載',
+      title: body.title ?? 'PF積載',
       body: body.body ?? 'テスト通知です 🚚',
     });
     return NextResponse.json({ ok: true, sent: results.filter((r) => r.ok).length, total: tokens.length, results });

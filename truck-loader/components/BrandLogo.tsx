@@ -1,6 +1,6 @@
 import React from "react";
 
-// ── ブランドロゴ（Paloma積載）──────────────────────────────
+// ── ブランドロゴ（PF積載）──────────────────────────────
 // アイコンと同じ意匠：青グラデの角丸に白い「ス」＋右下に小さなトラック。
 // 計画＝工場 / 負荷＝工場 と同コンセプト（各アプリのモチーフ違い）。
 // インラインSVGなので画面・印刷の両方で表示される。
@@ -22,7 +22,7 @@ export default function BrandLogo({
       viewBox="0 0 100 100"
       className={className}
       role="img"
-      aria-label="Paloma積載"
+      aria-label="PF積載"
       style={{ WebkitPrintColorAdjust: "exact", printColorAdjust: "exact", ...style }}
     >
       <defs>

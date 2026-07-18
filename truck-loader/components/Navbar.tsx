@@ -130,7 +130,7 @@ export function Navbar() {
           <BrandLogo size={36} rounded={9} style={{ flexShrink: 0 }} />
           <div>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', lineHeight: 1.2 }}>
-              Paloma積載
+              PF積載
             </div>
             <div className="hidden sm:block" style={{ fontSize: 11, color: '#6b7280', lineHeight: 1.2 }}>
               トラック配車・積み付け計算
@@ -166,7 +166,7 @@ export function Navbar() {
           <div className="absolute inset-0 bg-black/30" onClick={() => setMobileOpen(false)} aria-hidden />
           <aside className="absolute left-0 top-0 flex h-full w-64 flex-col bg-white pb-4 shadow-2xl" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
             <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3.5">
-              <span className="text-sm font-bold text-gray-800">Paloma積載</span>
+              <span className="text-sm font-bold text-gray-800">PF積載</span>
               <button
                 type="button"
                 aria-label="メニューを閉じる"
