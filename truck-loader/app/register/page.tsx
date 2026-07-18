@@ -79,7 +79,7 @@ export default function RegisterPage() {
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <BrandLogo size={56} rounded={14} style={{ marginBottom: 16 }} />
           <h1 style={{ fontSize: 22, fontWeight: 700, color: '#111827', marginBottom: 4 }}>
-            スマコウバ積載
+            Paloma積載
           </h1>
           <p style={{ fontSize: 14, color: '#6b7280' }}>新規アカウント登録（無料）</p>
         </div>

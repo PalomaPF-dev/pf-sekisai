@@ -5,8 +5,8 @@ import NativeRedirect from '@/components/NativeRedirect';
 import ContactFooterLinks from '@/components/ContactFooterLinks';
 
 export const metadata: Metadata = {
-  title: 'お問い合わせ｜スマコウバ積載',
-  description: 'スマコウバ積載のお問い合わせ。導入のご相談・お見積り・ご質問など。',
+  title: 'お問い合わせ｜Paloma積載',
+  description: 'Paloma積載のお問い合わせ。導入のご相談・お見積り・ご質問など。',
 };
 
 // App Store 申請の「サポートURL」用に未ログインで閲覧できる公開ページ（お問い合わせフォーム）。
@@ -44,7 +44,7 @@ export default function ContactPage() {
 
       {/* ネイティブ(iOS)では料金プラン(外部課金導線)へのリンクを出さない（App Store 3.1.3(a)/3.1.1） */}
       <ContactFooterLinks />
-      <p className="mt-3 text-center text-[11px] text-gray-400">運営：スマコウバ運営事務局</p>
+      <p className="mt-3 text-center text-[11px] text-gray-400">運営：Paloma</p>
     </div>
   );
 }

@@ -5,8 +5,8 @@ import NativeRedirect from '@/components/NativeRedirect';
 import PricingCards from '@/components/PricingCards';
 
 export const metadata: Metadata = {
-  title: '料金プラン｜スマコウバ積載',
-  description: 'スマコウバ積載の料金プラン（月額／年額）。トラック積載計画を自動計算。30日間無料トライアル。',
+  title: '料金プラン｜Paloma積載',
+  description: 'Paloma積載の料金プラン（月額／年額）。トラック積載計画を自動計算。30日間無料トライアル。',
 };
 
 const FEATURES = [
@@ -25,7 +25,7 @@ export default function PricingPage() {
         {/* ヘッダー */}
         <div className="text-center mb-8">
           <BrandLogo size={52} rounded={14} className="mx-auto mb-3 shadow" />
-          <h1 className="text-2xl font-bold text-gray-900">スマコウバ積載 料金プラン</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Paloma積載 料金プラン</h1>
           <p className="text-sm text-gray-500 mt-2">
             出荷拠点ごとの必要在庫に対して、生産品をどれだけ送ればいいか自動計算。複数拠点の積載計画をまとめて管理できます。
             <br className="hidden sm:block" />
@@ -65,12 +65,12 @@ export default function PricingPage() {
 
         {/* フッター */}
         <div className="mt-8 text-center text-xs text-gray-400 space-x-4">
-          <Link href="/" className="text-indigo-600 hover:underline">スマコウバ積載</Link>
+          <Link href="/" className="text-indigo-600 hover:underline">Paloma積載</Link>
           <Link href="/support" className="text-indigo-600 hover:underline">サポート</Link>
           <Link href="/privacy" className="text-indigo-600 hover:underline">プライバシーポリシー</Link>
-          <a href="https://www.sumakouba.com/tokushoho.html" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">特定商取引法に基づく表記</a>
+          <a href="https://www.paloma-pf.com/tokushoho.html" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">特定商取引法に基づく表記</a>
         </div>
-        <p className="text-center text-[11px] text-gray-400 mt-3">運営：スマコウバ運営事務局</p>
+        <p className="text-center text-[11px] text-gray-400 mt-3">運営：Paloma</p>
       </div>
     </main>
   );

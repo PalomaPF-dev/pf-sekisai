@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import TermsPlanNote from '@/components/TermsPlanNote';
 
 export const metadata: Metadata = {
-  title: '利用規約｜スマコウバ積載',
-  description: 'スマコウバ積載の利用規約（EULA）・サブスクリプション条件',
+  title: '利用規約｜Paloma積載',
+  description: 'Paloma積載の利用規約（EULA）・サブスクリプション条件',
 };
 
 // App Store のサブスク要件(GL 3.1.2)で必要な「利用規約(EULA)」公開ページ。
@@ -12,12 +12,12 @@ export default function TermsPage() {
   return (
     <div className="mx-auto max-w-3xl px-5 py-10 text-gray-800 leading-relaxed">
       <h1 className="text-2xl font-bold text-gray-900">利用規約（EULA）</h1>
-      <p className="mt-1 text-sm text-gray-500">スマコウバ積載（トラック配車・積み付け計算）</p>
+      <p className="mt-1 text-sm text-gray-500">Paloma積載（トラック配車・積み付け計算）</p>
       <p className="mt-1 text-sm text-gray-500">最終更新日：2026年6月20日</p>
 
       <p className="mt-6">
-        本利用規約（以下「本規約」）は、スマコウバ運営事務局（以下「当方」）が提供するモバイルアプリ
-        「スマコウバ積載」（以下「本アプリ」）の利用条件を定めるものです。利用者は本アプリを利用することで本規約に同意したものとみなされます。
+        本利用規約（以下「本規約」）は、Paloma（以下「当方」）が提供するモバイルアプリ
+        「Paloma積載」（以下「本アプリ」）の利用条件を定めるものです。利用者は本アプリを利用することで本規約に同意したものとみなされます。
       </p>
 
       <h2 className="mt-8 text-lg font-bold text-gray-900">1. ライセンス</h2>
@@ -65,12 +65,12 @@ export default function TermsPage() {
 
       <h2 className="mt-8 text-lg font-bold text-gray-900">8. お問い合わせ</h2>
       <p className="mt-2">
-        スマコウバ運営事務局
+        Paloma
         <br />
         メール：<a className="text-indigo-600 underline" href="mailto:sophie83101028@gmail.com">sophie83101028@gmail.com</a>
       </p>
 
-      <p className="mt-10 text-xs text-gray-400">© 2026 スマコウバ運営事務局</p>
+      <p className="mt-10 text-xs text-gray-400">© 2026 Paloma</p>
     </div>
   );
 }
