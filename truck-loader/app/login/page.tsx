@@ -45,7 +45,7 @@ export default function LoginPage() {
           <div className="mb-4 inline-block">
             <BrandLogo size={64} rounded={16} className="shadow-lg" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-800">スマコウバ積載</h1>
+          <h1 className="text-2xl font-bold text-gray-800">Paloma積載</h1>
           <p className="mt-1 text-sm text-gray-500">トラック積載計画を自動計算</p>
         </div>
 

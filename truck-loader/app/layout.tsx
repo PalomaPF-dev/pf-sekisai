@@ -7,8 +7,8 @@ import { OrientationController } from '@/components/OrientationController';
 import { BiometricLock } from '@/components/BiometricLock';
 
 export const metadata: Metadata = {
-  title: 'スマコウバ積載',
-  description: '中小製造業向け スマコウバ積載 — 在庫基準から最適なトラックと積み方を自動算出・可視化',
+  title: 'Paloma積載',
+  description: '中小製造業向け Paloma積載 — 在庫基準から最適なトラックと積み方を自動算出・可視化',
 };
 
 // viewport-fit=cover で env(safe-area-inset-*) を有効化（ノッチ/Dynamic Island対応）

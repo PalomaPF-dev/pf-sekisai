@@ -134,7 +134,7 @@ function LockScreen({ ent, native }: { ent: Ent | null; native: boolean }) {
         <h1 className="text-xl font-bold text-gray-900">無料トライアル期間が終了しました</h1>
         <p className="mt-3 text-sm text-gray-600 max-w-md leading-relaxed">
           引き続きアプリをご利用いただけます。法人でのご利用に関するご案内は、Web版
-          （sumakouba-truck-loader.vercel.app）をご覧ください。
+          （sekisai.paloma-pf.com）をご覧ください。
         </p>
       </div>
     );
@@ -144,7 +144,7 @@ function LockScreen({ ent, native }: { ent: Ent | null; native: boolean }) {
       <BrandLogo size={56} rounded={14} className="mb-4" />
       <h1 className="text-xl font-bold text-gray-900">無料トライアルが終了しました</h1>
       <p className="mt-3 text-sm text-gray-600 max-w-md leading-relaxed">
-        引き続きスマコウバ積載をご利用いただくには、ご契約が必要です。
+        引き続きPaloma積載をご利用いただくには、ご契約が必要です。
         Standard プランはカード決済ですぐにご利用を再開できます。
       </p>
       <div className="mt-6 flex flex-col gap-2 w-full max-w-xs">
@@ -198,7 +198,7 @@ function NativeLoginGate({ onDone }: { onDone: () => void }) {
       <div className="w-full max-w-sm rounded-2xl bg-white p-7 shadow">
         <div className="text-center mb-6">
           <BrandLogo size={56} rounded={14} className="mx-auto mb-3" />
-          <h1 className="text-lg font-bold text-gray-900">スマコウバ積載</h1>
+          <h1 className="text-lg font-bold text-gray-900">Paloma積載</h1>
           <p className="text-xs text-gray-500 mt-1">ログインして利用を開始</p>
         </div>
         <div className="flex flex-col gap-3">

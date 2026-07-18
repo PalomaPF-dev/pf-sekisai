@@ -11,7 +11,7 @@ const html = `<!doctype html><html><head><meta charset=utf-8><style>html,body{ma
 <body>
   <div style="width:2732px;height:2732px;background:linear-gradient(135deg,#6366f1 0%,#3b82f6 50%,#06b6d4 100%);display:flex;flex-direction:column;align-items:center;justify-content:center">
     <span style="font-family:${JP};font-weight:900;font-size:900px;color:#fff;line-height:1;letter-spacing:-20px;margin-bottom:40px">ス</span>
-    <span style="font-family:${JP};font-weight:800;font-size:180px;color:#fff;letter-spacing:8px">スマコウバ積載</span>
+    <span style="font-family:${JP};font-weight:800;font-size:180px;color:#fff;letter-spacing:8px">Paloma積載</span>
   </div>
 </body></html>`;
 

@@ -23,7 +23,7 @@ export function BiometricLock() {
   const tryUnlock = useCallback(async () => {
     if (busy) return;
     setBusy(true);
-    const ok = await authenticateBiometric('スマコウバ積載のロックを解除します');
+    const ok = await authenticateBiometric('Paloma積載のロックを解除します');
     setBusy(false);
     if (ok) setLockedBoth(false);
   }, [busy, setLockedBoth]);

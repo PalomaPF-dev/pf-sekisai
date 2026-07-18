@@ -10,7 +10,7 @@
 import { getToken, setToken, clearToken } from './token';
 
 // 本番API(Vercel)のオリジン。ネイティブ(Capacitor)は別オリジンのため絶対URLが必須。
-const PROD_API_ORIGIN = 'https://sumakouba-truck-loader.vercel.app';
+const PROD_API_ORIGIN = 'https://sekisai.paloma-pf.com';
 
 export function syncApiBase(): string {
   if (process.env.NEXT_PUBLIC_SYNC_API) return process.env.NEXT_PUBLIC_SYNC_API;

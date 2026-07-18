@@ -1,4 +1,4 @@
-// スマコウバ積載 アイコン候補を複数生成（1024・α無し）。
+// Paloma積載 アイコン候補を複数生成（1024・α無し）。
 import puppeteer from 'puppeteer-core';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';

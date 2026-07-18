@@ -15,7 +15,7 @@ export function getStripe(): Stripe {
   return _stripe;
 }
 
-export const APP_URL = process.env.APP_URL || 'https://sumakouba-truck-loader.vercel.app';
+export const APP_URL = process.env.APP_URL || 'https://sekisai.paloma-pf.com';
 export const PRICES: Record<string, string | undefined> = {
   standard_monthly: process.env.STRIPE_PRICE_STANDARD_MONTHLY,
   standard_yearly: process.env.STRIPE_PRICE_STANDARD_YEARLY,

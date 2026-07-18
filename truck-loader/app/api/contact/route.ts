@@ -47,10 +47,10 @@ export async function POST(req: Request) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            from: process.env.CONTACT_FROM || 'スマコウバ積載 <onboarding@resend.dev>',
-            to: [process.env.CONTACT_NOTIFY_TO || 'tyasuda83101028@gmail.com'],
+            from: process.env.CONTACT_FROM || 'Paloma積載 <noreply@paloma-pf.com>',
+            to: [process.env.CONTACT_NOTIFY_TO || 'info@paloma-pf.com'],
             reply_to: email,
-            subject: `【スマコウバ積載】お問い合わせ: ${company || name}`,
+            subject: `【Paloma積載】お問い合わせ: ${company || name}`,
             text:
               `会社名: ${company || '(未記入)'}\n` +
               `お名前: ${name}\n` +
