@@ -20,6 +20,6 @@ export default withAuth({
 
 export const config = {
   matcher: [
-    '/((?!login|password-reset|first-login|api/auth|api/provision|api/password-reset|api/first-login|api/contact-admin|api/sync|api/account|api/push|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|ico)).*)',
+    '/((?!login|password-reset|first-login|api/auth|api/sso|api/provision|api/password-reset|api/first-login|api/contact-admin|api/sync|api/account|api/push|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|ico)).*)',
   ],
 };
