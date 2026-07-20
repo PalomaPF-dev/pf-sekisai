@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { signIn } from '@/lib/authClient';
 import Link from 'next/link';
 import ContactAdminModal from '@/components/ContactAdminModal';
@@ -55,6 +55,18 @@ export default function LoginPage() {
     } catch (e) { console.warn('デモ設定の保存に失敗:', e); }
     window.location.href = '/';
   }
+
+  // ポータルの「サンプル事例」リンク（/login?demo=1）から来たときはデモを自動開始する
+  const autoDemoFired = useRef(false);
+  useEffect(() => {
+    if (autoDemoFired.current || loading) return;
+    const demo = new URLSearchParams(window.location.search).get('demo');
+    if (demo !== '1') return;
+    autoDemoFired.current = true;
+    startDemo();
+    // マウント時に一度だけ判定する
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="flex min-h-screen flex-col bg-[#f7f7f5]">
