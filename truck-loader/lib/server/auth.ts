@@ -15,6 +15,8 @@ export interface AuthCtx {
   userId: string;
   companyId: string;
   companyName?: string;
+  /** 'admin' のみマスタ（工場/製品/倉庫/トラック/パレット種別）を書き換え可能。未設定は 'member' 相当。 */
+  role?: 'admin' | 'member';
 }
 
 function secretKey(): Uint8Array {
@@ -25,7 +27,7 @@ function secretKey(): Uint8Array {
 
 /** ログインユーザー情報から30日有効のアクセストークン（JWT/HS256）を発行 */
 export async function signAuthToken(ctx: AuthCtx): Promise<string> {
-  return new SignJWT({ companyId: ctx.companyId, companyName: ctx.companyName ?? null })
+  return new SignJWT({ companyId: ctx.companyId, companyName: ctx.companyName ?? null, role: ctx.role ?? 'member' })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(ctx.userId)
     .setIssuedAt()
@@ -45,6 +47,7 @@ export async function getAuthContext(req: Request): Promise<AuthCtx | null> {
           userId: String(payload.sub),
           companyId: String(payload.companyId),
           companyName: payload.companyName ? String(payload.companyName) : undefined,
+          role: payload.role === 'admin' ? 'admin' : 'member',
         };
       }
     } catch {
@@ -59,6 +62,7 @@ export async function getAuthContext(req: Request): Promise<AuthCtx | null> {
       userId: String(session.user.id ?? ''),
       companyId: String(session.user.companyId),
       companyName: session.user.companyName,
+      role: session.user.role === 'admin' ? 'admin' : 'member',
     };
   }
 

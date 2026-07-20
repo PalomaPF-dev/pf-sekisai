@@ -30,7 +30,7 @@ async function handlePOST(req: Request) {
   const sql = neon(url);
 
   const rows = await sql`
-    SELECT u.id, u.email, u.name, u.password_hash,
+    SELECT u.id, u.email, u.name, u.password_hash, u.role,
            c.id AS company_id, c.name AS company_name
     FROM users u
     JOIN companies c ON c.id = u.company_id
@@ -47,6 +47,7 @@ async function handlePOST(req: Request) {
     userId: user.id as string,
     companyId: user.company_id as string,
     companyName: user.company_name as string,
+    role: user.role === 'admin' ? 'admin' : 'member',
   });
 
   return NextResponse.json({

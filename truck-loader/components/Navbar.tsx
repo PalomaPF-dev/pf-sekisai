@@ -1,14 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
 import { UserMenu } from './UserMenu';
 import BrandLogo from './BrandLogo';
+import { useIsAdmin } from '@/lib/useRole';
+import { useDemo } from '@/lib/demo';
 
 // 業務の流れ（①設定 → ②データ入力 → ③積載計画）に沿った並び
-const NAV_ITEMS = [
+// adminOnly: true の項目（マスター設定・初期設定ウィザード）は管理者のみ表示する。
+type NavItem = { href: string; label: string; icon: ReactNode; adminOnly?: boolean };
+const NAV_ITEMS: NavItem[] = [
   {
     href: '/',
     label: 'ダッシュボード',
@@ -51,6 +55,7 @@ const NAV_ITEMS = [
   {
     href: '/settings',
     label: 'マスター設定',
+    adminOnly: true,
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="3"/>
@@ -61,6 +66,7 @@ const NAV_ITEMS = [
   {
     href: '/setup',
     label: '初期設定ウィザード',
+    adminOnly: true,
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8L19 13M15 9h0M17.8 6.2L19 5M3 21l9-9M12.2 6.2L11 5"/>
@@ -69,10 +75,10 @@ const NAV_ITEMS = [
   },
 ];
 
-function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+function NavLinks({ pathname, onNavigate, showAdmin }: { pathname: string; onNavigate?: () => void; showAdmin: boolean }) {
   return (
     <nav className="flex flex-col gap-1 px-3">
-      {NAV_ITEMS.map(({ href, label, icon }) => {
+      {NAV_ITEMS.filter((item) => showAdmin || !item.adminOnly).map(({ href, label, icon }) => {
         const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
         return (
           <Link
@@ -101,6 +107,11 @@ function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
 export function Navbar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const isAdmin = useIsAdmin();
+  const demo = useDemo();
+  // マスター設定/初期設定ウィザードは管理者のみ表示。
+  // デモ（閲覧専用）は従来どおり閲覧できるよう表示する（編集は各画面側でブロック）。
+  const showAdminNav = isAdmin || demo;
 
   return (
     <>
@@ -157,7 +168,7 @@ export function Navbar() {
           paddingBottom: 16,
         }}
       >
-        <NavLinks pathname={pathname} />
+        <NavLinks pathname={pathname} showAdmin={showAdminNav} />
       </aside>
 
       {/* ── モバイルドロワー ── */}
@@ -177,7 +188,7 @@ export function Navbar() {
               </button>
             </div>
             <div className="pt-3">
-              <NavLinks pathname={pathname} onNavigate={() => setMobileOpen(false)} />
+              <NavLinks pathname={pathname} onNavigate={() => setMobileOpen(false)} showAdmin={showAdminNav} />
             </div>
           </aside>
         </div>

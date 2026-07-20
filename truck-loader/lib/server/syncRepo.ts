@@ -69,6 +69,23 @@ export async function loadSnapshotData(companyId: string): Promise<Record<string
   });
 }
 
+/**
+ * マスタ（＝管理者のみ編集可能な定義データ）のコレクションキー。
+ * 非管理者の同期push時は、これらの受信値を破棄しサーバ側の現行値で上書きする
+ * （＝メンバーはマスタを書き換えできない）。日常業務データはこの対象外。
+ */
+export const MASTER_KEYS = ['factories', 'products', 'warehouses', 'truckTypes', 'palletTypes'] as const;
+
+/** 正規化テーブルから company のマスタ（上記5種）だけを組み立てて返す。 */
+export async function loadMasterData(companyId: string): Promise<Record<string, unknown>> {
+  return runWithCompany(companyId, async () => {
+    const [factories, products, warehouses, truckTypes, palletTypes] = await Promise.all([
+      db.loadFactories(), db.loadProducts(), db.loadWarehouses(), db.loadTruckTypes(), db.loadPalletTypes(),
+    ]);
+    return { factories, products, warehouses, truckTypes, palletTypes };
+  });
+}
+
 /** スナップショットを正規化テーブルへ反映（全削除→再投入）。更新時刻を記録。 */
 export async function saveSnapshotData(companyId: string, data: Record<string, unknown>, updatedAt: number): Promise<void> {
   await runWithCompany(companyId, async () => {
