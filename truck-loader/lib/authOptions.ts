@@ -17,7 +17,7 @@ function getDb() {
  */
 async function lookupUser(sql: ReturnType<typeof getDb>, rawId: string) {
   let rows = await sql`
-    SELECT u.id, u.email, u.name, u.password_hash, u.pending,
+    SELECT u.id, u.email, u.name, u.password_hash, u.pending, u.role,
            c.id AS company_id, c.name AS company_name
     FROM users u
     JOIN companies c ON c.id = u.company_id
@@ -26,7 +26,7 @@ async function lookupUser(sql: ReturnType<typeof getDb>, rawId: string) {
   `;
   if (rows.length === 0) {
     rows = await sql`
-      SELECT u.id, u.email, u.name, u.password_hash, u.pending,
+      SELECT u.id, u.email, u.name, u.password_hash, u.pending, u.role,
              c.id AS company_id, c.name AS company_name
       FROM users u
       JOIN companies c ON c.id = u.company_id
@@ -82,6 +82,8 @@ export const authOptions: NextAuthOptions = {
           name: user.name as string,
           companyId: user.company_id as string,
           companyName: user.company_name as string,
+          // マスタ設定の編集可否に使用。未設定の既存DBは 'member' 相当（安全側）。
+          role: ((user.role as string | null) ?? 'member') as 'admin' | 'member',
         };
       },
     }),
@@ -95,6 +97,7 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.companyId = user.companyId;
         token.companyName = user.companyName;
+        token.role = user.role ?? 'member';
       }
       return token;
     },
@@ -102,6 +105,7 @@ export const authOptions: NextAuthOptions = {
       session.user.id = token.id;
       session.user.companyId = token.companyId;
       session.user.companyName = token.companyName;
+      session.user.role = token.role ?? 'member';
       return session;
     },
   },

@@ -4,6 +4,8 @@ import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import clsx from 'clsx';
 import { useAppStore } from '@/lib/store';
+import { useIsAdmin } from '@/lib/useRole';
+import { useDemo } from '@/lib/demo';
 
 const WEEK = ['月', '火', '水', '木', '金', '土', '日'];
 const COLORS = ['#2ECC71', '#4A90D9', '#E67E22', '#8B5A2B', '#E74C3C', '#16A085', '#9B59B6', '#F1C40F', '#1ABC9C', '#E84393'];
@@ -15,6 +17,8 @@ function hasWhQty(obj: Record<string, Record<string, number>>): boolean {
 
 export default function SetupWizard() {
   const s = useAppStore();
+  const isAdmin = useIsAdmin();
+  const demo = useDemo();
   const [step, setStep] = useState(0);
   const [seeding, setSeeding] = useState(false);
   const [seedError, setSeedError] = useState<string | null>(null);
@@ -52,6 +56,30 @@ export default function SetupWizard() {
     5: Object.values(s.productionPlan).some((v) => v > 0),
     6: Object.values(s.weeklyShippingSchedule).some((m) => Object.values(m).some((d) => Array.isArray(d) && d.some(Boolean))),
   };
+
+  // 初期設定ウィザードは工場・拠点・製品などのマスタを登録するため、管理者のみ利用可能。
+  // メンバーには閲覧専用の案内を表示し、日常業務は各画面へ誘導する。
+  // デモ（閲覧専用）は従来どおりウィザードを閲覧できる（書込は store 側でブロック）。
+  if (!isAdmin && !demo) {
+    return (
+      <div className="mx-auto max-w-2xl p-4 sm:p-6">
+        <h1 className="text-lg font-bold text-slate-800">初期設定ウィザード</h1>
+        <div className="mt-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
+          <span className="shrink-0 text-lg">🔒</span>
+          <div>
+            <p className="font-semibold">初期設定（マスタ登録）は管理者のみ利用できます。</p>
+            <p className="mt-1 text-amber-700">
+              工場・拠点・製品などのマスタは管理者が設定します。日常業務（積載計画の閲覧・作成、在庫やスケジュールの入力）は各画面からご利用いただけます。
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Link href="/loading-plan" className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">🚛 積載計画を見る</Link>
+              <Link href="/" className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">ダッシュボードへ</Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-4xl p-4 sm:p-6">

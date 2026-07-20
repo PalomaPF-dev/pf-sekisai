@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import clsx from 'clsx';
 import { useAppStore } from '@/lib/store';
+import { useIsAdmin } from '@/lib/useRole';
 
 /** product→warehouse→qty に有効値があるか */
 function hasWhQty(obj: Record<string, Record<string, number>>): boolean {
@@ -17,6 +18,7 @@ export function OnboardingChecklist() {
     loadSampleData,
   } = useAppStore();
 
+  const isAdmin = useIsAdmin();
   const [seeding, setSeeding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,7 +52,19 @@ export function OnboardingChecklist() {
     }
   };
 
-  // ── 空テナント：まず「サンプルで始める」を大きく訴求 ──
+  // ── 空テナント（メンバー）：初期設定は管理者の担当。案内のみ表示 ──
+  if (isEmpty && !isAdmin) {
+    return (
+      <div className="mb-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-base font-bold text-slate-800">初期設定の準備中です</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          工場・拠点・製品などのマスタ登録は<strong>管理者</strong>が行います。設定が完了すると、積載計画の閲覧・作成や在庫入力がご利用いただけます。
+        </p>
+      </div>
+    );
+  }
+
+  // ── 空テナント（管理者）：まず「サンプルで始める」を大きく訴求 ──
   if (isEmpty) {
     return (
       <div className="mb-5 rounded-xl border border-indigo-200 bg-gradient-to-br from-indigo-50 to-white p-5 shadow-sm">
@@ -89,7 +103,7 @@ export function OnboardingChecklist() {
           セットアップ {allDone ? '完了 ✓' : `${doneCount}/${steps.length}`}
         </h2>
         <div className="flex items-center gap-3">
-          {!allDone && (
+          {!allDone && isAdmin && (
             <Link href="/setup" className="text-xs font-semibold text-slate-500 hover:text-indigo-600 hover:underline">
               ウィザードで設定 →
             </Link>

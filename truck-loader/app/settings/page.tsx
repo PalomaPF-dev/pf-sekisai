@@ -10,6 +10,7 @@ import * as db from '@/lib/db';
 import { BiometricLockSetting } from '@/components/BiometricLockSetting';
 import { toast } from '@/components/Toast';
 import { useDemo, notifyDemoBlocked } from '@/lib/demo';
+import { useIsAdmin } from '@/lib/useRole';
 import clsx from 'clsx';
 
 type Tab = 'products' | 'locations' | 'pallets' | 'trucks' | 'operating' | 'calc';
@@ -29,6 +30,13 @@ export default function SettingsPage() {
 
   // デモ（閲覧専用）。プライマリの追加/取込/保存操作を無効化する。
   const demo = useDemo();
+
+  // マスタ設定の編集は管理者（role==='admin'）のみ。メンバーは閲覧専用。
+  const isAdmin = useIsAdmin();
+  // 実際に編集UIを出すかどうか（管理者、かつデモでない）。
+  const canEdit = isAdmin && !demo;
+  // ログイン済みメンバー（＝管理者でない・デモでない）に閲覧専用の注記を出す。
+  const showAdminOnlyNote = !isAdmin && !demo;
 
   // 器具名ごとの色マップ・製品コードごとの色マップ（描画用）
   const equipmentColorMap = useMemo(() => buildEquipmentColorMap(products), [products]);
@@ -236,7 +244,7 @@ export default function SettingsPage() {
           <h1 className="text-xl font-bold text-slate-800">マスター設定</h1>
           <p className="text-sm text-slate-500 mt-0.5">製品・拠点のマスターデータを管理します</p>
         </div>
-        {!demo && (
+        {canEdit && (
           <button
             onClick={() => {
               if (!window.confirm('画面の表示をデフォルト状態に戻します。よろしいですか？\n（保存済みデータは再読み込みで復元されます）')) return;
@@ -250,6 +258,14 @@ export default function SettingsPage() {
           </button>
         )}
       </div>
+
+      {/* マスタ設定は管理者のみ変更できる旨の注記（メンバー閲覧時） */}
+      {showAdminOnlyNote && (
+        <div className="mb-6 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <span className="shrink-0">🔒</span>
+          <span>マスタ設定は管理者のみ変更できます。この画面は閲覧のみ可能です。</span>
+        </div>
+      )}
 
       {/* Face ID ロック（ネイティブのみ） */}
       <div className="mb-6">
@@ -282,12 +298,12 @@ export default function SettingsPage() {
       </div>
 
       {/* ── 計算設定 ── */}
-      {tab === 'calc' && <CalcSettingsPanel />}
+      {tab === 'calc' && <CalcSettingsPanel canEdit={canEdit} />}
 
       {/* ── 工場マスター ── */}
       {tab === 'locations' && (
         <div>
-          {!demo && (
+          {canEdit && (
             <div className="flex justify-end mb-3">
               <button
                 onClick={() => setEditingLocation(newLocation())}
@@ -335,6 +351,8 @@ export default function SettingsPage() {
                         {isFactory ? (productCount > 0 ? `${productCount}製品` : '未割り当て') : '—'}
                       </td>
                       <td className="px-4 py-2 text-right">
+                        {canEdit ? (
+                          <>
                         <button
                           onClick={() => setEditingLocation({ ...l })}
                           className="text-xs text-brand-600 hover:underline mr-3"
@@ -355,6 +373,10 @@ export default function SettingsPage() {
                         >
                           削除
                         </button>
+                          </>
+                        ) : (
+                          <span className="text-xs text-slate-300">—</span>
+                        )}
                       </td>
                     </tr>
                   );
@@ -409,8 +431,8 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* CSVインポートパネル（デモでは非表示） */}
-          {!demo && (
+          {/* CSVインポートパネル（デモ・非管理者では非表示） */}
+          {canEdit && (
           <details className="mb-4 bg-slate-50 border border-slate-200 rounded-lg">
             <summary className="px-4 py-3 text-sm font-medium text-slate-600 cursor-pointer select-none hover:bg-slate-100 rounded-lg">
               📥 CSVで一括インポート
@@ -564,6 +586,7 @@ export default function SettingsPage() {
                 同じ商品コードが複数登録されています：
                 <span className="font-mono ml-1">{Array.from(duplicateCodes).join(', ')}</span>
               </span>
+              {canEdit && (
               <button
                 onClick={handleDeduplicateProducts}
                 disabled={deduping}
@@ -576,6 +599,7 @@ export default function SettingsPage() {
               >
                 {deduping ? '処理中…' : '重複を削除'}
               </button>
+              )}
               {dedupResult && (
                 <span className={clsx(
                   'text-xs font-medium shrink-0',
@@ -673,7 +697,7 @@ export default function SettingsPage() {
                       </div>
                     )}
                   </div>
-                  {!demo && (
+                  {canEdit && (
                     <button
                       onClick={() => setEditingProduct(newProduct())}
                       className="text-sm px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors shrink-0"
@@ -829,8 +853,14 @@ export default function SettingsPage() {
                                   <StackingBadge allowStackOnTop={p.allowStackOnTop} />
                                 </td>
                                 <td className="px-3 py-2 text-right whitespace-nowrap">
+                                  {canEdit ? (
+                                    <>
                                   <button onClick={() => setEditingProduct({ ...p })} className="text-xs text-brand-600 hover:underline mr-3">編集</button>
                                   <button onClick={() => handleRemoveProduct(p.code)} className="text-xs text-red-400 hover:underline">削除</button>
+                                    </>
+                                  ) : (
+                                    <span className="text-xs text-slate-300">—</span>
+                                  )}
                                 </td>
                               </tr>
                             ))}
@@ -866,7 +896,7 @@ export default function SettingsPage() {
       {/* ── パレット型マスター ── */}
       {tab === 'pallets' && (
         <div>
-          {!demo && (
+          {canEdit && (
             <div className="flex justify-end mb-3">
               <button
                 onClick={() => setEditingPallet(newPalletType())}
@@ -916,6 +946,8 @@ export default function SettingsPage() {
                         )}
                       </td>
                       <td className="px-4 py-2 text-right">
+                        {canEdit ? (
+                          <>
                         <button
                           onClick={() => setEditingPallet({ ...pt })}
                           className="text-xs text-brand-600 hover:underline mr-3"
@@ -936,6 +968,10 @@ export default function SettingsPage() {
                         >
                           削除
                         </button>
+                          </>
+                        ) : (
+                          <span className="text-xs text-slate-300">—</span>
+                        )}
                       </td>
                     </tr>
                   );
@@ -964,7 +1000,7 @@ export default function SettingsPage() {
       {/* ── トラックマスター ── */}
       {tab === 'trucks' && (
         <div>
-          {!demo && (
+          {canEdit && (
             <div className="flex justify-end mb-3">
               <button
                 onClick={() => setEditingTruck(newTruckType())}
@@ -1014,6 +1050,8 @@ export default function SettingsPage() {
                         )}
                       </td>
                       <td className="px-4 py-2 text-right">
+                        {canEdit ? (
+                          <>
                         <button
                           onClick={() => setEditingTruck({ ...t })}
                           className="text-xs text-brand-600 hover:underline mr-3"
@@ -1034,6 +1072,10 @@ export default function SettingsPage() {
                         >
                           削除
                         </button>
+                          </>
+                        ) : (
+                          <span className="text-xs text-slate-300">—</span>
+                        )}
                       </td>
                     </tr>
                   );
@@ -1095,12 +1137,14 @@ export default function SettingsPage() {
                       return (
                         <button
                           key={i}
-                          onClick={() => setOperatingDay(f.code, i, !active)}
+                          disabled={!canEdit}
+                          onClick={() => { if (!canEdit) return; setOperatingDay(f.code, i, !active); }}
                           className={clsx(
                             'w-9 h-9 rounded-lg text-xs font-bold border-2 transition-all',
                             active
                               ? i >= 5 ? 'border-indigo-400 bg-indigo-500 text-white' : 'border-brand-500 bg-brand-600 text-white'
                               : 'border-slate-200 bg-slate-50 text-slate-300',
+                            !canEdit && 'cursor-not-allowed opacity-70',
                           )}
                         >
                           {label}
@@ -1114,6 +1158,7 @@ export default function SettingsPage() {
                   factoryCode={f.code}
                   defaultDays={weekDays}
                   nonWorkingDates={nwd}
+                  canEdit={canEdit}
                   onToggle={(date) => toggleNonWorkingDate(f.code, date)}
                 />
               </div>
@@ -1133,11 +1178,13 @@ function OperatingCalendar({
   factoryCode,
   defaultDays,
   nonWorkingDates,
+  canEdit = true,
   onToggle,
 }: {
   factoryCode: string;
   defaultDays: boolean[];
   nonWorkingDates: string[];
+  canEdit?: boolean;
   onToggle: (date: string) => void;
 }) {
   const today = new Date();
@@ -1238,9 +1285,10 @@ function OperatingCalendar({
           return (
             <button
               key={dateStr}
-              disabled={isDefaultOff}
-              onClick={() => onToggle(dateStr)}
+              disabled={isDefaultOff || !canEdit}
+              onClick={() => { if (!canEdit) return; onToggle(dateStr); }}
               title={
+                !canEdit ? 'マスタ設定は管理者のみ変更できます' :
                 isDefaultOff ? '曜日デフォルトで非稼働' :
                 isNonWorking ? 'クリックで稼働日に戻す' :
                 'クリックで非稼働日に設定'
@@ -1764,9 +1812,10 @@ function ProductModal({
 
 // ─── 拠点モーダル ──────────────────────────────────────────────────────
 // ─── 計算設定パネル ────────────────────────────────────────────────────
-function CalcSettingsPanel() {
+function CalcSettingsPanel({ canEdit = true }: { canEdit?: boolean }) {
   const [s, setS] = useState<CalcSettings>(() => getCalcSettings());
   const update = (patch: Partial<CalcSettings>) => {
+    if (!canEdit) return; // 非管理者は計算設定を変更できない
     const next = { ...s, ...patch };
     setS(next);
     saveCalcSettings(next);
@@ -1776,6 +1825,11 @@ function CalcSettingsPanel() {
       <p className="text-sm text-slate-500 mb-6">
         送り数の配分方法・基準在庫の決め方・重量計算の前提を設定します。変更は各画面の計算に即時反映されます（この端末に保存）。
       </p>
+      {!canEdit && (
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 mb-4">
+          計算設定は管理者のみ変更できます（閲覧のみ）。
+        </p>
+      )}
 
       {/* 配分方式 */}
       <section className="mb-7">
@@ -1783,11 +1837,11 @@ function CalcSettingsPanel() {
         <p className="text-xs text-slate-400 mb-2.5">生産数が「全拠点の不足合計」に満たないときの配り方</p>
         <div className="flex flex-col gap-2.5">
           <label className="flex items-start gap-2 text-sm cursor-pointer">
-            <input type="radio" name="distMode" className="mt-1" checked={s.distributionMode === 'proportional'} onChange={() => update({ distributionMode: 'proportional' })} />
+            <input type="radio" name="distMode" className="mt-1" disabled={!canEdit} checked={s.distributionMode === 'proportional'} onChange={() => update({ distributionMode: 'proportional' })} />
             <span><b>不足比率で按分</b><br /><span className="text-xs text-slate-500">全拠点へ不足量に比例して薄く配分（既定）</span></span>
           </label>
           <label className="flex items-start gap-2 text-sm cursor-pointer">
-            <input type="radio" name="distMode" className="mt-1" checked={s.distributionMode === 'priority'} onChange={() => update({ distributionMode: 'priority' })} />
+            <input type="radio" name="distMode" className="mt-1" disabled={!canEdit} checked={s.distributionMode === 'priority'} onChange={() => update({ distributionMode: 'priority' })} />
             <span><b>優先度順に満たす</b><br /><span className="text-xs text-slate-500">優先度の高い拠点（拠点マスターで設定）から不足を満タンにし、生産が尽きたら以降は0</span></span>
           </label>
         </div>
@@ -1799,11 +1853,11 @@ function CalcSettingsPanel() {
         <p className="text-xs text-slate-400 mb-2.5">「現在庫＋輸送中−予定出荷」がこの基準を下回った分を不足として補充します</p>
         <div className="flex flex-col gap-2.5">
           <label className="flex items-start gap-2 text-sm cursor-pointer">
-            <input type="radio" name="baseMode" className="mt-1" checked={s.baselineMode === 'manual'} onChange={() => update({ baselineMode: 'manual' })} />
+            <input type="radio" name="baseMode" className="mt-1" disabled={!canEdit} checked={s.baselineMode === 'manual'} onChange={() => update({ baselineMode: 'manual' })} />
             <span><b>手入力</b><br /><span className="text-xs text-slate-500">拠点別の基準在庫を手入力した値で判定（既定）</span></span>
           </label>
           <label className="flex items-start gap-2 text-sm cursor-pointer">
-            <input type="radio" name="baseMode" className="mt-1" checked={s.baselineMode === 'auto'} onChange={() => update({ baselineMode: 'auto' })} />
+            <input type="radio" name="baseMode" className="mt-1" disabled={!canEdit} checked={s.baselineMode === 'auto'} onChange={() => update({ baselineMode: 'auto' })} />
             <span><b>自動算出（安全在庫＋リードタイム）</b><br /><span className="text-xs text-slate-500">予定出荷から日平均を求め、リードタイム＋安全在庫日数ぶんを基準在庫とする</span></span>
           </label>
         </div>
@@ -1811,14 +1865,14 @@ function CalcSettingsPanel() {
           <div className="mt-3 grid grid-cols-2 gap-3 bg-slate-50 rounded-lg p-3.5">
             <Field label="安全在庫（日数）">
               <input
-                type="number" min={0} step={1} className={INPUT_CLASS}
+                type="number" min={0} step={1} className={INPUT_CLASS} disabled={!canEdit}
                 value={s.safetyStockDays}
                 onChange={(e) => update({ safetyStockDays: parseInt(e.target.value, 10) || 0 })}
               />
             </Field>
             <Field label="週の出荷日数" hint="日平均出荷の算出に使用">
               <input
-                type="number" min={1} max={7} step={1} className={INPUT_CLASS}
+                type="number" min={1} max={7} step={1} className={INPUT_CLASS} disabled={!canEdit}
                 value={s.shippingDaysPerWeek}
                 onChange={(e) => update({ shippingDaysPerWeek: parseInt(e.target.value, 10) || 1 })}
               />

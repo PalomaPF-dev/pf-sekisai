@@ -19,6 +19,9 @@ const LOCAL_USER = {
   email: 'local@device',
   companyId: 'local',
   companyName: 'オフライン',
+  // ネイティブは単一端末・オフライン前提のため、ローカルユーザーは管理者扱い
+  // （マスタ設定の編集を許可）。オンライン同期時はサーバがトークンの role で判定する。
+  role: 'admin' as const,
 };
 
 const LOCAL_SESSION = {
