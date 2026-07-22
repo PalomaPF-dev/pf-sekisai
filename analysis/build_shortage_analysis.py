@@ -14,6 +14,7 @@
 import argparse
 import glob
 import os
+import re
 import sys
 
 import pandas as pd
@@ -52,6 +53,25 @@ def detect_files(input_dir):
     return found
 
 
+def parse_vessel_ref(ref):
+    """④入荷連絡備考の配船番号を⑤配船マスタのキーに変換する。
+
+    船便   : Y288-1K  -> (288, '1', '288-K')
+    航空便 : YA289-7  -> (289, '2', '289-7')
+    """
+    if not isinstance(ref, str):
+        return None
+    m = re.match(r"^Y(A?)(\d{3})-(.+)$", ref.strip())
+    if not m:
+        return None
+    is_air, wk, suffix = m.group(1) == "A", int(m.group(2)), m.group(3)
+    if is_air:
+        return wk, "2", f"{wk}-{suffix}"
+    if suffix and suffix[0].isdigit():
+        return wk, suffix[0], f"{wk}-{suffix[1:]}"
+    return wk, "1", f"{wk}-{suffix}"
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--input-dir", required=True, help="5つの帳票xlsxが入ったフォルダ")
@@ -67,6 +87,14 @@ def main():
     df2 = pd.read_excel(files["planned"], dtype=str)
     df3 = pd.read_excel(files["released"], dtype=str)
     df4 = pd.read_excel(files["arrivals"], dtype=str)
+    # ⑤配船マスタ(2行目は和名ヘッダのため除外)。論理削除行は除く
+    df5 = pd.read_excel(files["vessels"], dtype=str, skiprows=[1])
+    df5 = df5[df5["del_flg"] != "1"]
+    vessel_master = {}
+    for _, row in df5.iterrows():
+        no = row.get("shp_air_no")
+        if isinstance(no, str) and no.strip():
+            vessel_master[no.strip()] = row
 
     # 対象品目 = 使用予定(②③)に登場する品目
     items = sorted(set(df2["品目ＣＤ"].dropna()) | set(df3["子品目ＣＤ"].dropna()))
@@ -224,76 +252,154 @@ def main():
     # ================= 配船別入荷予定 =================
     ws_s = wb.create_sheet("配船別入荷予定")
     put(ws_s, 1, 1, "配船別 入荷予定（④の未入荷分・対象品目）", f_title, bd=False)
-    put(ws_s, 2, 1, "配船番号=④入荷連絡備考。形式 Y{週}-{区分}{記号}(1=船便) / YA{週}-{連番}(航空便)", f_note, bd=False)
-    header_row(ws_s, 4, ["配船番号", "入荷予定日(最小)", "入荷予定日(最大)"]
+    put(ws_s, 2, 1, "配船番号=④入荷連絡備考。形式 Y{週}-{区分}{記号}(1=船便) / YA{週}-{連番}(航空便)。船名等は⑤配船マスタとの突合(未登録週は空欄)", f_note, bd=False)
+    header_row(ws_s, 4, ["配船番号", "入荷予定日(最小)", "入荷予定日(最大)",
+                         "船名(⑤)", "コンテナ(⑤)", "日本出港日(⑤)"]
                + [f"{it}\n{names.get(it, '')}" for it in items] + ["計"])
+    ic0 = 7  # 品目列の開始
     r = 5
+    unmatched = []
     for sh in sorted(ship_dates.index):
         put(ws_s, r, 1, sh, f_bold)
         put(ws_s, r, 2, ship_dates.loc[sh, "min"], fmt=DATE)
         put(ws_s, r, 3, ship_dates.loc[sh, "max"], fmt=DATE)
+        parsed = parse_vessel_ref(sh)
+        mrow = vessel_master.get(parsed[2]) if parsed else None
+        if mrow is not None:
+            put(ws_s, r, 4, mrow.get("shp_nm") or "")
+            put(ws_s, r, 5, mrow.get("cntnr_sz") or "")
+            dep = pd.to_datetime(mrow.get("prt_dep_dt"), errors="coerce")
+            put(ws_s, r, 6, dep if pd.notna(dep) else "", fmt=DATE)
+        else:
+            unmatched.append(sh)
+            for c in (4, 5, 6):
+                put(ws_s, r, c, "")
         for i, it in enumerate(items):
-            put(ws_s, r, 4 + i, int(sup_ship.get((sh, it), 0) or 0), fmt=NUM)
-        put(ws_s, r, 4 + len(items),
-            f"=SUM(D{r}:{get_column_letter(3+len(items))}{r})", f_bold, fmt=NUM)
+            put(ws_s, r, ic0 + i, int(sup_ship.get((sh, it), 0) or 0), fmt=NUM)
+        put(ws_s, r, ic0 + len(items),
+            f"=SUM({get_column_letter(ic0)}{r}:{get_column_letter(ic0-1+len(items))}{r})",
+            f_bold, fmt=NUM)
         r += 1
     put(ws_s, r, 1, "合計", f_bold, fill=fill_sub)
-    put(ws_s, r, 2, "", fill=fill_sub)
-    put(ws_s, r, 3, "", fill=fill_sub)
+    for c in range(2, ic0):
+        put(ws_s, r, c, "", fill=fill_sub)
     for i in range(len(items) + 1):
-        L = get_column_letter(4 + i)
-        put(ws_s, r, 4 + i, f"=SUM({L}5:{L}{r-1})", f_bold, fmt=NUM, fill=fill_sub)
-    for c, w in zip("ABC", (12, 15, 15)):
+        L = get_column_letter(ic0 + i)
+        put(ws_s, r, ic0 + i, f"=SUM({L}5:{L}{r-1})", f_bold, fmt=NUM, fill=fill_sub)
+    if unmatched:
+        put(ws_s, r + 2, 1,
+            f"⑤配船マスタ未登録: {', '.join(unmatched)} (マスタ最新化後に再実行すると自動突合)", f_note, bd=False)
+    for c, w in zip("ABCDEF", (12, 15, 15, 22, 12, 14)):
         ws_s.column_dimensions[c].width = w
     for i in range(len(items) + 1):
-        ws_s.column_dimensions[get_column_letter(4 + i)].width = 13
+        ws_s.column_dimensions[get_column_letter(ic0 + i)].width = 13
 
-    # ================= 週別不足_必要積載 =================
-    ws_w = wb.create_sheet("週別不足_必要積載")
-    put(ws_w, 1, 1, "週別の需要・入荷・週末在庫 と 必要積載量", f_title, bd=False)
-    put(ws_w, 2, 1, "週末在庫がマイナスの週までに、その不足分を積載(入荷)させる必要がある", f_note, bd=False)
-    hdr = ["週(月曜)"]
+    # ================= 積載計画案 =================
+    # 週次バケットで「不足させないために各週に何個入荷(=積載)させるべきか」を算出。
+    # 必要追加入荷 = MAX(0, 当週需要 + 安全在庫係数×翌週需要 - 前週末在庫 - 登録済入荷)
+    ws_w = wb.create_sheet("積載計画案")
+    put(ws_w, 1, 1, "積載計画案（週別の必要追加入荷量）", f_title, bd=False)
+    fill_input = PatternFill("solid", fgColor="FFFF00")
+    f_input = Font(name=FONT, size=10, bold=True, color="0000FF")
+    put(ws_w, 2, 1, "安全在庫係数(翌週需要×)", f_bold, bd=False)
+    put(ws_w, 2, 3, 0.5, f_input, fmt="0.00", fill=fill_input)
+    put(ws_w, 2, 4, "海上リードタイム(週)", f_bold, bd=False)
+    put(ws_w, 2, 6, 3, f_input, fmt="0", fill=fill_input)
+    put(ws_w, 3, 1, "黄色セルは入力値(変更可)。必要追加入荷>0が積載対象。登録済入荷期間内(網掛け週)の不足は船便では間に合わないため航空便・前倒しを検討", f_note, bd=False)
+    hdr = ["入荷週(月曜)", "配船番号(目安)", "積込目安(月曜)"]
     for it in items:
-        hdr += [f"{it}\n需要", f"{it}\n入荷予定", f"{it}\n週末在庫"]
-    header_row(ws_w, 4, hdr)
-    item_band(ws_w, 3)
+        hdr += [f"{it}\n需要", f"{it}\n登録済入荷", f"{it}\n必要追加入荷", f"{it}\n週末在庫"]
+    header_row(ws_w, 5, hdr)
+    for i, it in enumerate(items):
+        put(ws_w, 4, 4 + i * 4, names.get(it, ""), f_bold, fill=fill_sub)
+        ws_w.merge_cells(start_row=4, start_column=4 + i * 4,
+                         end_row=4, end_column=7 + i * 4)
+
     wk_start = (min(all_dates) - pd.Timedelta(days=min(all_dates).weekday())).normalize()
-    weeks = pd.date_range(wk_start, max(all_dates), freq="W-MON")
-    r = 5
+    weeks = list(pd.date_range(wk_start, max(all_dates), freq="W-MON"))
+
+    # 週→配船番号の対応(登録済は④の初回入荷週、以降はY番号を週次で外挿)
+    week_vessels = {}
+    max_ywk = 0
+    for sh in ship_dates.index:
+        parsed = parse_vessel_ref(sh)
+        if parsed:
+            max_ywk = max(max_ywk, parsed[0])
+        wk = ship_dates.loc[sh, "min"]
+        wk = (wk - pd.Timedelta(days=wk.weekday())).normalize()
+        week_vessels.setdefault(wk, []).append(sh)
+    last_reg_week = max(week_vessels) if week_vessels else wk_start
+
+    r = 6
     put(ws_w, r, 1, "現在庫", f_bold, fill=fill_sub)
+    put(ws_w, r, 2, "", fill=fill_sub)
+    put(ws_w, r, 3, "", fill=fill_sub)
     for i in range(len(items)):
-        put(ws_w, r, 2 + i * 3, "", fill=fill_sub)
-        put(ws_w, r, 3 + i * 3, "", fill=fill_sub)
-        put(ws_w, r, 4 + i * 3, f"=在庫推移!{get_column_letter(4+i*3)}5",
+        for c in range(4 + i * 4, 7 + i * 4):
+            put(ws_w, r, c, "", fill=fill_sub)
+        put(ws_w, r, 7 + i * 4, f"=在庫推移!{get_column_letter(4+i*3)}5",
             f_bold, fmt=NUM, fill=fill_sub)
-    r0w = 6
+    r0w = 7
+    fill_reg = PatternFill("solid", fgColor="F2F2F2")
     for k, wk in enumerate(weeks):
         r = r0w + k
-        put(ws_w, r, 1, wk, fmt=DATE)
+        in_reg = wk <= last_reg_week
+        row_fill = fill_reg if in_reg else None
+        put(ws_w, r, 1, wk, fmt=DATE, fill=row_fill)
+        if wk in week_vessels:
+            label = ", ".join(sorted(week_vessels[wk]))
+        elif wk > last_reg_week and max_ywk:
+            label = f"Y{max_ywk + int((wk - last_reg_week).days // 7)}(推定)"
+        else:
+            label = ""
+        put(ws_w, r, 2, label, fill=row_fill)
+        put(ws_w, r, 3, f"=A{r}-$F$2*7", fmt=DATE, fill=row_fill)
         nxt = wk + pd.Timedelta(days=7)
+        last_week = k == len(weeks) - 1
         for i in range(len(items)):
-            c = 2 + i * 3
-            Lu = get_column_letter(4 + i * 3)
-            Ls = get_column_letter(2 + i * 3)
+            c = 4 + i * 4
+            Ld, Ls_, Lreq, Le = (get_column_letter(c), get_column_letter(c + 1),
+                                 get_column_letter(c + 2), get_column_letter(c + 3))
+            Lu = get_column_letter(4 + i * 3)  # 実使用予定「計」列
+            Ls = get_column_letter(2 + i * 3)  # 在庫推移「入荷」列
             cond = (f'実使用予定!$A${r0}:$A${last_u},">="&$A{r},'
                     f'実使用予定!$A${r0}:$A${last_u},"<"&DATE({nxt.year},{nxt.month},{nxt.day})')
-            put(ws_w, r, c, f"=SUMIFS(実使用予定!{Lu}{r0}:{Lu}{last_u},{cond})", fmt=NUM)
+            put(ws_w, r, c, f"=SUMIFS(実使用予定!{Lu}{r0}:{Lu}{last_u},{cond})",
+                fmt=NUM, fill=row_fill)
             cond2 = (f'在庫推移!$A${r0b}:$A${last_b},">="&$A{r},'
                      f'在庫推移!$A${r0b}:$A${last_b},"<"&DATE({nxt.year},{nxt.month},{nxt.day})')
-            put(ws_w, r, c + 1, f"=SUMIFS(在庫推移!{Ls}{r0b}:{Ls}{last_b},{cond2})", fmt=NUM)
+            put(ws_w, r, c + 1, f"=SUMIFS(在庫推移!{Ls}{r0b}:{Ls}{last_b},{cond2})",
+                fmt=NUM, fill=row_fill)
+            nxt_dem = "0" if last_week else f"{Ld}{r+1}"
             put(ws_w, r, c + 2,
-                f"={get_column_letter(c+2)}{r-1}+{get_column_letter(c+1)}{r}-{get_column_letter(c)}{r}",
-                f_bold, fmt=NUM)
+                f"=ROUNDUP(MAX(0,{Ld}{r}+$C$2*{nxt_dem}-{Le}{r-1}-{Ls_}{r}),0)",
+                f_bold, fmt=NUM, fill=row_fill)
+            put(ws_w, r, c + 3,
+                f"={Le}{r-1}+{Ls_}{r}+{Lreq}{r}-{Ld}{r}", fmt=NUM, fill=row_fill)
     last_w = r0w + len(weeks) - 1
+    r = last_w + 1
+    put(ws_w, r, 1, "必要追加入荷 合計", f_bold, fill=fill_sub)
+    put(ws_w, r, 2, "", fill=fill_sub)
+    put(ws_w, r, 3, "", fill=fill_sub)
     for i in range(len(items)):
-        L = get_column_letter(4 + i * 3)
+        for off in range(4):
+            c = 4 + i * 4 + off
+            if off == 2:
+                L = get_column_letter(c)
+                put(ws_w, r, c, f"=SUM({L}{r0w}:{L}{last_w})", f_bold, fmt=NUM, fill=fill_sub)
+            else:
+                put(ws_w, r, c, "", fill=fill_sub)
+    for i in range(len(items)):
+        Lreq = get_column_letter(6 + i * 4)
         ws_w.conditional_formatting.add(
-            f"{L}{r0w}:{L}{last_w}",
-            CellIsRule(operator="lessThan", formula=["0"], fill=fill_warn))
+            f"{Lreq}{r0w}:{Lreq}{last_w}",
+            CellIsRule(operator="greaterThan", formula=["0"], fill=fill_warn))
     ws_w.column_dimensions["A"].width = 12
-    for c in range(2, 2 + len(items) * 3):
+    ws_w.column_dimensions["B"].width = 16
+    ws_w.column_dimensions["C"].width = 12
+    for c in range(4, 4 + len(items) * 4):
         ws_w.column_dimensions[get_column_letter(c)].width = 11
-    ws_w.freeze_panes = "B6"
+    ws_w.freeze_panes = "D6"
 
     # ================= サマリ =================
     ws_m = wb.create_sheet("サマリ", 0)
