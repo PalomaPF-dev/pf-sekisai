@@ -26,6 +26,11 @@ async function handlePOST(req: Request) {
   const auth = await getAuthContext(req);
   if (!auth?.companyId) return new NextResponse('Unauthorized', { status: 401 });
 
+  // 作業者（role='worker'）は閲覧専用。同期push（書き込み）は全面拒否する。
+  if (auth.role === 'worker') {
+    return NextResponse.json({ error: '作業者アカウントは閲覧のみ可能です。' }, { status: 403 });
+  }
+
   const body = await req.json().catch(() => null);
   if (!body || typeof body.updatedAt !== 'number' || typeof body.data !== 'object' || body.data === null) {
     return new NextResponse('Bad Request', { status: 400 });

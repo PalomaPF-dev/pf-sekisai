@@ -23,6 +23,7 @@ import {
 } from '@/lib/csv';
 import type { OperatingDays, Warehouse } from '@/lib/types';
 import { useDemo } from '@/lib/demo';
+import { useIsWorker } from '@/lib/useRole';
 import clsx from 'clsx';
 
 /** 名前で重複排除（最初の出現を残す） */
@@ -125,6 +126,9 @@ export default function ProductionPage() {
     clearProductionPlan, clearLocationStock, clearPlannedSales, clearInTransitStock, clearBaselineStock,
   } = useAppStore();
   const demo = useDemo();
+  const worker = useIsWorker();
+  // 閲覧専用（デモ or 作業者アカウント）。編集UIを無効化する。
+  const readOnly = demo || worker;
 
   const [activeTab, setActiveTab] = useState<Tab>('production');
 
@@ -399,7 +403,7 @@ export default function ProductionPage() {
           </button>
         ))}
         {/* 一括クリアボタン（全タブ・デモでは非表示） */}
-        {!demo && (
+        {!readOnly && (
           <div className="ml-auto pb-1">
             <button
               onClick={() => handleClear(activeTab)}
@@ -568,7 +572,7 @@ export default function ProductionPage() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => { importProductionPlan(prodPreview.dailyPlan, prodPreview.productionPlan); setProdImported(true); }}
-                  disabled={prodImported || demo}
+                  disabled={prodImported || readOnly}
                   className={clsx(
                     'px-4 py-2 text-sm rounded-lg transition-colors',
                     prodImported ? 'bg-emerald-100 text-emerald-700 cursor-default' : 'bg-brand-600 text-white hover:bg-brand-700',
@@ -695,7 +699,7 @@ export default function ProductionPage() {
                                         {isWorking ? (
                                           <input
                                             type="number" min={0}
-                                            readOnly={demo}
+                                            readOnly={readOnly}
                                             value={qty === 0 ? '' : qty}
                                             onChange={(e) => {
                                               const v = parseInt(e.target.value, 10) || 0;
@@ -895,7 +899,7 @@ export default function ProductionPage() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => { importLocationStockBulk(locPreview.locationStock); setLocImported(true); }}
-                  disabled={locImported || demo}
+                  disabled={locImported || readOnly}
                   className={clsx(
                     'px-4 py-2 text-sm rounded-lg transition-colors',
                     locImported ? 'bg-emerald-100 text-emerald-700 cursor-default' : 'bg-brand-600 text-white hover:bg-brand-700',
@@ -960,7 +964,7 @@ export default function ProductionPage() {
                                 <td key={wh.name} className="px-1 py-1.5 text-center">
                                   <input
                                     type="number" min={0}
-                                    readOnly={demo}
+                                    readOnly={readOnly}
                                     value={stock === 0 ? '' : stock}
                                     onChange={(e) => setLocationStock(p.code, targetCode, parseInt(e.target.value, 10) || 0)}
                                     placeholder="0"
@@ -1126,7 +1130,7 @@ export default function ProductionPage() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => { importInTransitStockBulk(transitPreview.inTransitStock); setTransitImported(true); }}
-                  disabled={transitImported || demo}
+                  disabled={transitImported || readOnly}
                   className={clsx(
                     'px-4 py-2 text-sm rounded-lg transition-colors',
                     transitImported ? 'bg-emerald-100 text-emerald-700 cursor-default' : 'bg-brand-600 text-white hover:bg-brand-700',
@@ -1195,7 +1199,7 @@ export default function ProductionPage() {
                                   <td key={wh.name} className="px-1 py-1.5 text-center">
                                     <input
                                       type="number" min={0}
-                                      readOnly={demo}
+                                      readOnly={readOnly}
                                       value={qty === 0 ? '' : qty}
                                       onChange={(e) => setInTransitStock(p.code, targetCode, parseInt(e.target.value, 10) || 0)}
                                       placeholder="0"
@@ -1330,7 +1334,7 @@ export default function ProductionPage() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => { importPlannedSalesBulk(salesPreview.plannedSales); setSalesImported(true); }}
-                  disabled={salesImported || demo}
+                  disabled={salesImported || readOnly}
                   className={clsx(
                     'px-4 py-2 text-sm rounded-lg transition-colors',
                     salesImported ? 'bg-emerald-100 text-emerald-700 cursor-default' : 'bg-brand-600 text-white hover:bg-brand-700',
@@ -1395,7 +1399,7 @@ export default function ProductionPage() {
                                 <td key={wh.name} className="px-1 py-1.5 text-center">
                                   <input
                                     type="number" min={0}
-                                    readOnly={demo}
+                                    readOnly={readOnly}
                                     value={qty === 0 ? '' : qty}
                                     onChange={(e) => setPlannedSales(p.code, targetCode, parseInt(e.target.value, 10) || 0)}
                                     placeholder="0"
@@ -1513,7 +1517,7 @@ export default function ProductionPage() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => { importBaselineStockBulk(baselinePreview.baseline); setBaselineImported(true); }}
-                  disabled={baselineImported || demo}
+                  disabled={baselineImported || readOnly}
                   className={clsx(
                     'px-4 py-2 text-sm rounded-lg transition-colors',
                     baselineImported ? 'bg-emerald-100 text-emerald-700 cursor-default' : 'bg-brand-600 text-white hover:bg-brand-700',
@@ -1572,7 +1576,7 @@ export default function ProductionPage() {
                             <td key={wh.code} className="px-1 py-1.5 text-center">
                               <input
                                 type="number" min={0}
-                                readOnly={demo}
+                                readOnly={readOnly}
                                 value={baseline === 0 ? '' : baseline}
                                 onChange={(e) => setBaseline(p.code, wh.code, parseInt(e.target.value, 10) || 0)}
                                 placeholder="0"
@@ -1744,7 +1748,7 @@ export default function ProductionPage() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => { importSendQtyManualBulk(sendQtyPreview.sendQty); setSendQtyImported(true); }}
-                  disabled={sendQtyImported || demo}
+                  disabled={sendQtyImported || readOnly}
                   className={clsx(
                     'px-4 py-2 text-sm rounded-lg transition-colors',
                     sendQtyImported ? 'bg-emerald-100 text-emerald-700 cursor-default' : 'bg-indigo-600 text-white hover:bg-indigo-700',
@@ -1848,7 +1852,7 @@ export default function ProductionPage() {
                                             </div>
                                             <input
                                               type="number" min={0}
-                                              readOnly={demo}
+                                              readOnly={readOnly}
                                               value={isManual ? manualVal : ''}
                                               onChange={(e) => {
                                                 const v = parseInt(e.target.value, 10);

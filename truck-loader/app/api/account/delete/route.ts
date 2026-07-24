@@ -23,6 +23,11 @@ export async function POST(req: Request) {
 async function handlePOST(req: Request) {
   const auth = await getAuthContext(req);
   if (!auth?.companyId) return new NextResponse('Unauthorized', { status: 401 });
+
+  // 作業者（role='worker'）は閲覧専用。アカウント削除（全データ削除）は拒否する。
+  if (auth.role === 'worker') {
+    return NextResponse.json({ error: '作業者アカウントは閲覧のみ可能です。' }, { status: 403 });
+  }
   const cid = auth.companyId;
 
   // FKの無い補助テーブル（存在しなければ作成→削除でエラー回避）

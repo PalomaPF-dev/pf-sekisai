@@ -82,8 +82,10 @@ export const authOptions: NextAuthOptions = {
           name: user.name as string,
           companyId: user.company_id as string,
           companyName: user.company_name as string,
-          // マスタ設定の編集可否に使用。未設定の既存DBは 'member' 相当（安全側）。
-          role: ((user.role as string | null) ?? 'member') as 'admin' | 'member',
+          // マスタ設定の編集可否等に使用。admin=管理者 / worker=作業者（閲覧のみ）。
+          // 未設定・未知の値の既存DBは 'member' 相当（安全側）。
+          role: (user.role === 'admin' || user.role === 'worker' ? user.role : 'member') as
+            'admin' | 'member' | 'worker',
         };
       },
     }),

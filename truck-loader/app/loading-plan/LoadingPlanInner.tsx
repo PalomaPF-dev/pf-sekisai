@@ -12,6 +12,7 @@ import { HelpTip } from '@/components/HelpTip';
 import { PrintableLoadingPlan } from '@/components/PrintableLoadingPlan';
 import { exportLoadingPlanPdf } from '@/lib/exportPdf';
 import { useDemo } from '@/lib/demo';
+import { useIsWorker } from '@/lib/useRole';
 import type { DayWarehousePlan, Warehouse } from '@/lib/types';
 import clsx from 'clsx';
 
@@ -64,6 +65,9 @@ export default function LoadingPlanInner() {
     confirmShipment, setShippingDay, setSendQtyManual,
   } = useAppStore();
   const demo = useDemo();
+  const worker = useIsWorker();
+  // 閲覧専用（デモ or 作業者アカウント）。編集UIを無効化する。
+  const readOnly = demo || worker;
   const calcSettings = useCalcSettings();
 
 
@@ -223,6 +227,7 @@ export default function LoadingPlanInner() {
     return allCodes.some((w) => weeklyShippingSchedule[selectedFactory]?.[w.code]?.[dayIdx] ?? false);
   };
   const handleToggle = (wh: Warehouse, dayIdx: number) => {
+    if (readOnly) return; // 閲覧専用（作業者アカウント等）はスケジュール変更不可
     const current = getDayActive(wh, dayIdx);
     warehouses.filter((w) => w.name === wh.name).forEach((w) => setShippingDay(selectedFactory, w.code, dayIdx, !current));
   };
@@ -275,7 +280,7 @@ export default function LoadingPlanInner() {
           >
             {pdfBusy ? '作成中…' : '🖨 印刷・PDF'}
           </button>
-          {!demo && (
+          {!readOnly && (
             <button
               onClick={handleConfirmShipment}
               className={clsx(
