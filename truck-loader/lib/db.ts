@@ -23,7 +23,8 @@ import {
   SAMPLE_BASELINE_STOCK, SAMPLE_LOCATION_STOCK, SAMPLE_PLANNED_SALES,
   SAMPLE_OPERATING_DAYS, SAMPLE_FACTORY_SCHEDULE,
 } from './sampleData';
-import { getOverrideCompanyId } from './server/companyContext';
+import { getOverrideCompanyId, getOverrideContext } from './server/companyContext';
+import { resolveUserFactoryScopeCode, resolveUserFactoryScopeName } from './server/factoryScope';
 
 // ─── Auth helper ─────────────────────────────────────────────────────────────
 
@@ -62,6 +63,114 @@ async function getCompanyIdForWrite(): Promise<string> {
   return session.user.companyId;
 }
 
+// ─── 工場スコープ（部署＝工場によるデータ表示制限） ───────────────────────────
+// 一般(member)・作業者(worker)で所属工場があるユーザーは、その工場のデータだけを
+// 読み書きできる。管理者(admin)と工場未設定(factory=NULL)は制限なし。
+// 役割・所属工場は JWT に載せず毎回 DB から取得する（ポータルでの変更を即時反映）。
+
+/** スコープ外への書き込みを拒否するときのメッセージ */
+const OUT_OF_SCOPE_MESSAGE = '所属工場以外のデータは変更できません。';
+
+/**
+ * 現在の実行文脈の工場コードスコープを返す。
+ *   null              … 制限なし
+ *   NO_FACTORY_MATCH  … 部署名に一致する工場がマスタに無い（＝結果は空）
+ * 同期(Bearer)経由は AsyncLocalStorage に解決済みの値が載っているのでそれを使う。
+ */
+async function getFactoryScopeCode(cid: string): Promise<string | null> {
+  const ov = getOverrideContext();
+  if (ov) return ov.factoryScopeCode ?? null;
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
+  if (!userId) return null;
+  return resolveUserFactoryScopeCode(cid, userId);
+}
+
+/** 読み取り用: company_id と工場スコープをまとめて取得 */
+async function scopedRead(): Promise<{ cid: string; scope: string | null }> {
+  const cid = await getCompanyId();
+  return { cid, scope: await getFactoryScopeCode(cid) };
+}
+
+/** 書き込み用: company_id（作業者は拒否）と工場スコープをまとめて取得 */
+async function scopedWrite(): Promise<{ cid: string; scope: string | null }> {
+  const cid = await getCompanyIdForWrite();
+  return { cid, scope: await getFactoryScopeCode(cid) };
+}
+
+/** スコープ内の製品コード集合を返す（scope=null なら null＝絞り込み不要） */
+async function scopedProductCodes(cid: string, scope: string | null): Promise<Set<string> | null> {
+  if (!scope) return null;
+  const rows = await sql`
+    SELECT code FROM products
+    WHERE company_id = ${cid} AND COALESCE(NULLIF(factory_code, ''), 'F001') = ${scope}
+  `;
+  return new Set(rows.map((r) => r.code as string));
+}
+
+/** 工場コードがスコープ外なら例外（スコープ無しは素通し） */
+function assertFactoryInScope(scope: string | null, factoryCode: string): void {
+  if (scope && (factoryCode || 'F001') !== scope) throw new Error(OUT_OF_SCOPE_MESSAGE);
+}
+
+/** 製品（の所属工場）がスコープ外なら例外。存在しない製品への書き込みも拒否する。 */
+async function assertProductInScope(cid: string, scope: string | null, productCode: string): Promise<void> {
+  if (!scope) return;
+  const rows = await sql`
+    SELECT 1 FROM products
+    WHERE company_id = ${cid} AND code = ${productCode}
+      AND COALESCE(NULLIF(factory_code, ''), 'F001') = ${scope}
+    LIMIT 1
+  `;
+  if (rows.length === 0) throw new Error(OUT_OF_SCOPE_MESSAGE);
+}
+
+/** 製品マスタの書き込み可否: 新しい所属工場も、既存行の所属工場もスコープ内であること */
+async function assertProductWritable(
+  cid: string, scope: string | null, code: string, factoryCode: string,
+): Promise<void> {
+  if (!scope) return;
+  assertFactoryInScope(scope, factoryCode);
+  const rows = await sql`
+    SELECT COALESCE(NULLIF(factory_code, ''), 'F001') AS fc FROM products
+    WHERE company_id = ${cid} AND code = ${code} LIMIT 1
+  `;
+  if (rows.length > 0 && rows[0].fc !== scope) throw new Error(OUT_OF_SCOPE_MESSAGE);
+}
+
+/** 製品キーのテーブルをスコープ内の行だけ削除する（scope=null なら従来どおり全削除） */
+async function deleteScopedByProduct(
+  cid: string,
+  table:
+    | 'production_plan' | 'daily_production_plan' | 'baseline_stock' | 'inventory_stock'
+    | 'location_stock' | 'in_transit_stock' | 'planned_sales' | 'send_qty_manual',
+  scope: string | null,
+): Promise<void> {
+  if (!scope) {
+    await sql.query(`DELETE FROM ${table} WHERE company_id = $1`, [cid]);
+    return;
+  }
+  await sql.query(
+    `DELETE FROM ${table} t WHERE t.company_id = $1 AND EXISTS (
+       SELECT 1 FROM products p
+       WHERE p.company_id = t.company_id AND p.code = t.product_code
+         AND COALESCE(NULLIF(p.factory_code, ''), 'F001') = $2)`,
+    [cid, scope],
+  );
+}
+
+/**
+ * 現在のログインユーザーの工場スコープ名（＝ポータルの部署名）を返す。null = 制限なし。
+ * 工場コードへの解決はデータソース（Neon / 端末ローカル）ごとの工場マスタで行うため、
+ * クライアント側（lib/store.ts）に任せる。
+ */
+export async function loadFactoryScopeName(): Promise<string | null> {
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
+  if (!userId) return null;
+  return resolveUserFactoryScopeName(userId);
+}
+
 // ─── Company & User (登録用) ─────────────────────────────────────────────────
 
 /** 会社を作成し、生成された company_id を返す。登録時に30日トライアルを付与。 */
@@ -97,17 +206,19 @@ export async function emailExists(email: string): Promise<boolean> {
 // ─── Factories ────────────────────────────────────────────────────────────────
 
 export async function loadFactories(): Promise<Factory[]> {
-  const cid = await getCompanyId();
+  const { cid, scope } = await scopedRead();
   const rows = await sql`
     SELECT code, name FROM factories
     WHERE company_id = ${cid}
+      AND (${scope}::text IS NULL OR code = ${scope})
     ORDER BY code
   `;
   return rows.map((r) => ({ code: r.code as string, name: r.name as string }));
 }
 
 export async function upsertFactory(f: Factory) {
-  const cid = await getCompanyIdForWrite();
+  const { cid, scope } = await scopedWrite();
+  assertFactoryInScope(scope, f.code);
   await sql`
     INSERT INTO factories (company_id, code, name)
     VALUES (${cid}, ${f.code}, ${f.name})
@@ -116,16 +227,20 @@ export async function upsertFactory(f: Factory) {
 }
 
 export async function deleteFactory(code: string) {
-  const cid = await getCompanyIdForWrite();
+  const { cid, scope } = await scopedWrite();
+  assertFactoryInScope(scope, code);
   await sql`DELETE FROM factories WHERE company_id = ${cid} AND code = ${code}`;
 }
 
 // ─── Products ────────────────────────────────────────────────────────────────
 
 export async function loadProducts(): Promise<Product[]> {
-  const cid = await getCompanyId();
+  const { cid, scope } = await scopedRead();
   const rows = await sql`
-    SELECT * FROM products WHERE company_id = ${cid} ORDER BY code
+    SELECT * FROM products
+    WHERE company_id = ${cid}
+      AND (${scope}::text IS NULL OR COALESCE(NULLIF(factory_code, ''), 'F001') = ${scope})
+    ORDER BY code
   `;
   const seen = new Set<string>();
   return rows
@@ -151,7 +266,8 @@ export async function loadProducts(): Promise<Product[]> {
 }
 
 export async function upsertProduct(p: Product) {
-  const cid = await getCompanyIdForWrite();
+  const { cid, scope } = await scopedWrite();
+  await assertProductWritable(cid, scope, p.code, p.factoryCode ?? '');
   await sql`
     INSERT INTO products (
       company_id, code, name, capacity_per_pallet, pallet_type, color,
@@ -186,17 +302,22 @@ export async function upsertProducts(products: Product[]) {
 }
 
 export async function deleteProduct(code: string) {
-  const cid = await getCompanyIdForWrite();
+  const { cid, scope } = await scopedWrite();
+  await assertProductInScope(cid, scope, code);
   await sql`DELETE FROM products WHERE company_id = ${cid} AND code = ${code}`;
 }
 
 /**
  * DB 上の products テーブルの重複行（同一 code・同一 company_id）を削除する。
+ * 工場スコープありのユーザーは自工場の製品だけを対象にする。
  */
 export async function deduplicateProducts(): Promise<number> {
-  const cid = await getCompanyIdForWrite();
+  const { cid, scope } = await scopedWrite();
   const rows = await sql`
-    SELECT * FROM products WHERE company_id = ${cid} ORDER BY code
+    SELECT * FROM products
+    WHERE company_id = ${cid}
+      AND (${scope}::text IS NULL OR COALESCE(NULLIF(factory_code, ''), 'F001') = ${scope})
+    ORDER BY code
   `;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -356,17 +477,22 @@ export async function deletePalletType(code: string) {
 // ─── Production Plan ─────────────────────────────────────────────────────────
 
 export async function loadProductionPlan(): Promise<ProductionPlan> {
-  const cid = await getCompanyId();
+  const { cid, scope } = await scopedRead();
+  const codes = await scopedProductCodes(cid, scope);
   const rows = await sql`
     SELECT product_code, qty FROM production_plan WHERE company_id = ${cid}
   `;
   const plan: ProductionPlan = {};
-  for (const r of rows) plan[r.product_code as string] = r.qty as number;
+  for (const r of rows) {
+    if (codes && !codes.has(r.product_code as string)) continue;
+    plan[r.product_code as string] = r.qty as number;
+  }
   return plan;
 }
 
 export async function upsertProductionQty(productCode: string, qty: number) {
-  const cid = await getCompanyIdForWrite();
+  const { cid, scope } = await scopedWrite();
+  await assertProductInScope(cid, scope, productCode);
   await sql`
     INSERT INTO production_plan (company_id, product_code, qty)
     VALUES (${cid}, ${productCode}, ${qty})
@@ -377,12 +503,14 @@ export async function upsertProductionQty(productCode: string, qty: number) {
 // ─── Daily Production Plan ───────────────────────────────────────────────────
 
 export async function loadDailyProductionPlan(): Promise<DailyProductionPlan> {
-  const cid = await getCompanyId();
+  const { cid, scope } = await scopedRead();
+  const codes = await scopedProductCodes(cid, scope);
   const rows = await sql`
     SELECT product_code, date, qty FROM daily_production_plan WHERE company_id = ${cid}
   `;
   const plan: DailyProductionPlan = {};
   for (const r of rows) {
+    if (codes && !codes.has(r.product_code as string)) continue;
     if (!plan[r.product_code as string]) plan[r.product_code as string] = {};
     plan[r.product_code as string][r.date as string] = r.qty as number;
   }
@@ -390,9 +518,12 @@ export async function loadDailyProductionPlan(): Promise<DailyProductionPlan> {
 }
 
 export async function replaceAllDailyProductionPlan(dailyPlan: DailyProductionPlan) {
-  const cid = await getCompanyIdForWrite();
-  await sql`DELETE FROM daily_production_plan WHERE company_id = ${cid}`;
+  const { cid, scope } = await scopedWrite();
+  const codes = await scopedProductCodes(cid, scope);
+  // スコープありのときは自工場の行だけを入れ替える（他工場のデータを消さない）
+  await deleteScopedByProduct(cid, 'daily_production_plan', scope);
   for (const [productCode, dates] of Object.entries(dailyPlan)) {
+    if (codes && !codes.has(productCode)) continue;
     for (const [date, qty] of Object.entries(dates)) {
       if (qty > 0) {
         await sql`
@@ -405,7 +536,8 @@ export async function replaceAllDailyProductionPlan(dailyPlan: DailyProductionPl
 }
 
 export async function upsertDailyProductionQty(productCode: string, date: string, qty: number) {
-  const cid = await getCompanyIdForWrite();
+  const { cid, scope } = await scopedWrite();
+  await assertProductInScope(cid, scope, productCode);
   if (qty > 0) {
     await sql`
       INSERT INTO daily_production_plan (company_id, product_code, date, qty)
@@ -423,12 +555,14 @@ export async function upsertDailyProductionQty(productCode: string, date: string
 // ─── Baseline Stock（拠点別 基準在庫数） ───────────────────────────────────────
 
 export async function loadBaselineStock(): Promise<BaselineStock> {
-  const cid = await getCompanyId();
+  const { cid, scope } = await scopedRead();
+  const codes = await scopedProductCodes(cid, scope);
   const rows = await sql`
     SELECT product_code, warehouse_code, qty FROM baseline_stock WHERE company_id = ${cid}
   `;
   const baseline: BaselineStock = {};
   for (const r of rows) {
+    if (codes && !codes.has(r.product_code as string)) continue;
     if (!baseline[r.product_code as string]) baseline[r.product_code as string] = {};
     baseline[r.product_code as string][r.warehouse_code as string] = r.qty as number;
   }
@@ -436,7 +570,8 @@ export async function loadBaselineStock(): Promise<BaselineStock> {
 }
 
 export async function upsertBaseline(productCode: string, warehouseCode: string, qty: number) {
-  const cid = await getCompanyIdForWrite();
+  const { cid, scope } = await scopedWrite();
+  await assertProductInScope(cid, scope, productCode);
   await sql`
     INSERT INTO baseline_stock (company_id, product_code, warehouse_code, qty)
     VALUES (${cid}, ${productCode}, ${warehouseCode}, ${qty})
@@ -445,9 +580,11 @@ export async function upsertBaseline(productCode: string, warehouseCode: string,
 }
 
 export async function replaceAllBaselineStock(baseline: BaselineStock) {
-  const cid = await getCompanyIdForWrite();
-  await sql`DELETE FROM baseline_stock WHERE company_id = ${cid}`;
+  const { cid, scope } = await scopedWrite();
+  const codes = await scopedProductCodes(cid, scope);
+  await deleteScopedByProduct(cid, 'baseline_stock', scope);
   for (const [pc, whs] of Object.entries(baseline)) {
+    if (codes && !codes.has(pc)) continue;
     for (const [wc, qty] of Object.entries(whs)) {
       await sql`
         INSERT INTO baseline_stock (company_id, product_code, warehouse_code, qty)
@@ -460,17 +597,22 @@ export async function replaceAllBaselineStock(baseline: BaselineStock) {
 // ─── Inventory Stock ─────────────────────────────────────────────────────────
 
 export async function loadInventoryStock(): Promise<InventoryStock> {
-  const cid = await getCompanyId();
+  const { cid, scope } = await scopedRead();
+  const codes = await scopedProductCodes(cid, scope);
   const rows = await sql`
     SELECT product_code, qty FROM inventory_stock WHERE company_id = ${cid}
   `;
   const stock: InventoryStock = {};
-  for (const r of rows) stock[r.product_code as string] = r.qty as number;
+  for (const r of rows) {
+    if (codes && !codes.has(r.product_code as string)) continue;
+    stock[r.product_code as string] = r.qty as number;
+  }
   return stock;
 }
 
 export async function upsertInventoryStock(productCode: string, qty: number) {
-  const cid = await getCompanyIdForWrite();
+  const { cid, scope } = await scopedWrite();
+  await assertProductInScope(cid, scope, productCode);
   await sql`
     INSERT INTO inventory_stock (company_id, product_code, qty)
     VALUES (${cid}, ${productCode}, ${qty})
@@ -479,9 +621,11 @@ export async function upsertInventoryStock(productCode: string, qty: number) {
 }
 
 export async function replaceAllInventoryStock(stock: InventoryStock) {
-  const cid = await getCompanyIdForWrite();
-  await sql`DELETE FROM inventory_stock WHERE company_id = ${cid}`;
+  const { cid, scope } = await scopedWrite();
+  const codes = await scopedProductCodes(cid, scope);
+  await deleteScopedByProduct(cid, 'inventory_stock', scope);
   for (const [product_code, qty] of Object.entries(stock)) {
+    if (codes && !codes.has(product_code)) continue;
     await sql`
       INSERT INTO inventory_stock (company_id, product_code, qty)
       VALUES (${cid}, ${product_code}, ${qty})
@@ -492,12 +636,14 @@ export async function replaceAllInventoryStock(stock: InventoryStock) {
 // ─── Location Stock ──────────────────────────────────────────────────────────
 
 export async function loadLocationStock(): Promise<LocationStock> {
-  const cid = await getCompanyId();
+  const { cid, scope } = await scopedRead();
+  const codes = await scopedProductCodes(cid, scope);
   const rows = await sql`
     SELECT product_code, warehouse_code, qty FROM location_stock WHERE company_id = ${cid}
   `;
   const stock: LocationStock = {};
   for (const r of rows) {
+    if (codes && !codes.has(r.product_code as string)) continue;
     if (!stock[r.product_code as string]) stock[r.product_code as string] = {};
     stock[r.product_code as string][r.warehouse_code as string] = r.qty as number;
   }
@@ -505,7 +651,8 @@ export async function loadLocationStock(): Promise<LocationStock> {
 }
 
 export async function upsertLocationStock(productCode: string, warehouseCode: string, qty: number) {
-  const cid = await getCompanyIdForWrite();
+  const { cid, scope } = await scopedWrite();
+  await assertProductInScope(cid, scope, productCode);
   await sql`
     INSERT INTO location_stock (company_id, product_code, warehouse_code, qty)
     VALUES (${cid}, ${productCode}, ${warehouseCode}, ${qty})
@@ -514,9 +661,11 @@ export async function upsertLocationStock(productCode: string, warehouseCode: st
 }
 
 export async function replaceAllLocationStock(stock: LocationStock) {
-  const cid = await getCompanyIdForWrite();
-  await sql`DELETE FROM location_stock WHERE company_id = ${cid}`;
+  const { cid, scope } = await scopedWrite();
+  const codes = await scopedProductCodes(cid, scope);
+  await deleteScopedByProduct(cid, 'location_stock', scope);
   for (const [pc, whs] of Object.entries(stock)) {
+    if (codes && !codes.has(pc)) continue;
     for (const [wc, qty] of Object.entries(whs)) {
       await sql`
         INSERT INTO location_stock (company_id, product_code, warehouse_code, qty)
@@ -529,12 +678,14 @@ export async function replaceAllLocationStock(stock: LocationStock) {
 // ─── In-Transit Stock ────────────────────────────────────────────────────────
 
 export async function loadInTransitStock(): Promise<InTransitStock> {
-  const cid = await getCompanyId();
+  const { cid, scope } = await scopedRead();
+  const codes = await scopedProductCodes(cid, scope);
   const rows = await sql`
     SELECT product_code, warehouse_code, qty FROM in_transit_stock WHERE company_id = ${cid}
   `;
   const stock: InTransitStock = {};
   for (const r of rows) {
+    if (codes && !codes.has(r.product_code as string)) continue;
     if (!stock[r.product_code as string]) stock[r.product_code as string] = {};
     stock[r.product_code as string][r.warehouse_code as string] = r.qty as number;
   }
@@ -542,7 +693,8 @@ export async function loadInTransitStock(): Promise<InTransitStock> {
 }
 
 export async function upsertInTransitStock(productCode: string, warehouseCode: string, qty: number) {
-  const cid = await getCompanyIdForWrite();
+  const { cid, scope } = await scopedWrite();
+  await assertProductInScope(cid, scope, productCode);
   if (qty === 0) {
     await sql`
       DELETE FROM in_transit_stock
@@ -558,9 +710,11 @@ export async function upsertInTransitStock(productCode: string, warehouseCode: s
 }
 
 export async function replaceAllInTransitStock(stock: InTransitStock) {
-  const cid = await getCompanyIdForWrite();
-  await sql`DELETE FROM in_transit_stock WHERE company_id = ${cid}`;
+  const { cid, scope } = await scopedWrite();
+  const codes = await scopedProductCodes(cid, scope);
+  await deleteScopedByProduct(cid, 'in_transit_stock', scope);
   for (const [pc, whs] of Object.entries(stock)) {
+    if (codes && !codes.has(pc)) continue;
     for (const [wc, qty] of Object.entries(whs)) {
       if (qty > 0) {
         await sql`
@@ -575,12 +729,14 @@ export async function replaceAllInTransitStock(stock: InTransitStock) {
 // ─── Planned Sales ───────────────────────────────────────────────────────────
 
 export async function loadPlannedSales(): Promise<PlannedSales> {
-  const cid = await getCompanyId();
+  const { cid, scope } = await scopedRead();
+  const codes = await scopedProductCodes(cid, scope);
   const rows = await sql`
     SELECT product_code, warehouse_code, qty FROM planned_sales WHERE company_id = ${cid}
   `;
   const sales: PlannedSales = {};
   for (const r of rows) {
+    if (codes && !codes.has(r.product_code as string)) continue;
     if (!sales[r.product_code as string]) sales[r.product_code as string] = {};
     sales[r.product_code as string][r.warehouse_code as string] = r.qty as number;
   }
@@ -588,7 +744,8 @@ export async function loadPlannedSales(): Promise<PlannedSales> {
 }
 
 export async function upsertPlannedSales(productCode: string, warehouseCode: string, qty: number) {
-  const cid = await getCompanyIdForWrite();
+  const { cid, scope } = await scopedWrite();
+  await assertProductInScope(cid, scope, productCode);
   await sql`
     INSERT INTO planned_sales (company_id, product_code, warehouse_code, qty)
     VALUES (${cid}, ${productCode}, ${warehouseCode}, ${qty})
@@ -597,9 +754,11 @@ export async function upsertPlannedSales(productCode: string, warehouseCode: str
 }
 
 export async function replaceAllPlannedSales(sales: PlannedSales) {
-  const cid = await getCompanyIdForWrite();
-  await sql`DELETE FROM planned_sales WHERE company_id = ${cid}`;
+  const { cid, scope } = await scopedWrite();
+  const codes = await scopedProductCodes(cid, scope);
+  await deleteScopedByProduct(cid, 'planned_sales', scope);
   for (const [pc, whs] of Object.entries(sales)) {
+    if (codes && !codes.has(pc)) continue;
     for (const [wc, qty] of Object.entries(whs)) {
       if (qty > 0) {
         await sql`
@@ -614,9 +773,11 @@ export async function replaceAllPlannedSales(sales: PlannedSales) {
 // ─── Weekly Shipping Schedule ────────────────────────────────────────────────
 
 export async function loadWeeklyShippingSchedule(): Promise<WeeklyShippingSchedule> {
-  const cid = await getCompanyId();
+  const { cid, scope } = await scopedRead();
   const rows = await sql`
-    SELECT factory_code, warehouse_code, days FROM weekly_shipping_schedule WHERE company_id = ${cid}
+    SELECT factory_code, warehouse_code, days FROM weekly_shipping_schedule
+    WHERE company_id = ${cid}
+      AND (${scope}::text IS NULL OR factory_code = ${scope})
   `;
   const schedule: WeeklyShippingSchedule = {};
   for (const r of rows) {
@@ -627,7 +788,8 @@ export async function loadWeeklyShippingSchedule(): Promise<WeeklyShippingSchedu
 }
 
 export async function upsertShippingSchedule(factoryCode: string, warehouseCode: string, days: boolean[]) {
-  const cid = await getCompanyIdForWrite();
+  const { cid, scope } = await scopedWrite();
+  assertFactoryInScope(scope, factoryCode);
   await sql`
     INSERT INTO weekly_shipping_schedule (company_id, factory_code, warehouse_code, days)
     VALUES (${cid}, ${factoryCode}, ${warehouseCode}, ${days})
@@ -638,9 +800,11 @@ export async function upsertShippingSchedule(factoryCode: string, warehouseCode:
 // ─── Operating Days ──────────────────────────────────────────────────────────
 
 export async function loadOperatingDays(): Promise<OperatingDays> {
-  const cid = await getCompanyId();
+  const { cid, scope } = await scopedRead();
   const rows = await sql`
-    SELECT factory_code, days FROM operating_days WHERE company_id = ${cid}
+    SELECT factory_code, days FROM operating_days
+    WHERE company_id = ${cid}
+      AND (${scope}::text IS NULL OR factory_code = ${scope})
   `;
   const result: OperatingDays = {};
   for (const r of rows) result[r.factory_code as string] = r.days as boolean[];
@@ -648,7 +812,8 @@ export async function loadOperatingDays(): Promise<OperatingDays> {
 }
 
 export async function upsertOperatingDays(factoryCode: string, days: boolean[]) {
-  const cid = await getCompanyIdForWrite();
+  const { cid, scope } = await scopedWrite();
+  assertFactoryInScope(scope, factoryCode);
   await sql`
     INSERT INTO operating_days (company_id, factory_code, days)
     VALUES (${cid}, ${factoryCode}, ${days})
@@ -659,9 +824,12 @@ export async function upsertOperatingDays(factoryCode: string, days: boolean[]) 
 // ─── Non-Working Dates（祝日・特別休業日） ────────────────────────────────────
 
 export async function loadNonWorkingDates(): Promise<NonWorkingDates> {
-  const cid = await getCompanyId();
+  const { cid, scope } = await scopedRead();
   const rows = await sql`
-    SELECT factory_code, date FROM non_working_dates WHERE company_id = ${cid} ORDER BY date
+    SELECT factory_code, date FROM non_working_dates
+    WHERE company_id = ${cid}
+      AND (${scope}::text IS NULL OR factory_code = ${scope})
+    ORDER BY date
   `;
   const result: NonWorkingDates = {};
   for (const r of rows) {
@@ -672,7 +840,8 @@ export async function loadNonWorkingDates(): Promise<NonWorkingDates> {
 }
 
 export async function addNonWorkingDate(factoryCode: string, date: string) {
-  const cid = await getCompanyIdForWrite();
+  const { cid, scope } = await scopedWrite();
+  assertFactoryInScope(scope, factoryCode);
   await sql`
     INSERT INTO non_working_dates (company_id, factory_code, date)
     VALUES (${cid}, ${factoryCode}, ${date})
@@ -681,7 +850,8 @@ export async function addNonWorkingDate(factoryCode: string, date: string) {
 }
 
 export async function removeNonWorkingDate(factoryCode: string, date: string) {
-  const cid = await getCompanyIdForWrite();
+  const { cid, scope } = await scopedWrite();
+  assertFactoryInScope(scope, factoryCode);
   await sql`
     DELETE FROM non_working_dates
     WHERE company_id = ${cid} AND factory_code = ${factoryCode} AND date = ${date}
@@ -691,12 +861,14 @@ export async function removeNonWorkingDate(factoryCode: string, date: string) {
 // ─── 送り数手動上書き ─────────────────────────────────────────────────────────
 
 export async function loadSendQtyManual(): Promise<SendQtyManual> {
-  const cid = await getCompanyId();
+  const { cid, scope } = await scopedRead();
+  const codes = await scopedProductCodes(cid, scope);
   const rows = await sql`
     SELECT product_code, warehouse_code, qty FROM send_qty_manual WHERE company_id = ${cid}
   `;
   const result: SendQtyManual = {};
   for (const r of rows) {
+    if (codes && !codes.has(r.product_code as string)) continue;
     if (!result[r.product_code as string]) result[r.product_code as string] = {};
     result[r.product_code as string][r.warehouse_code as string] = r.qty as number;
   }
@@ -704,7 +876,8 @@ export async function loadSendQtyManual(): Promise<SendQtyManual> {
 }
 
 export async function upsertSendQtyManual(productCode: string, warehouseCode: string, qty: number) {
-  const cid = await getCompanyIdForWrite();
+  const { cid, scope } = await scopedWrite();
+  await assertProductInScope(cid, scope, productCode);
   await sql`
     INSERT INTO send_qty_manual (company_id, product_code, warehouse_code, qty)
     VALUES (${cid}, ${productCode}, ${warehouseCode}, ${qty})
@@ -713,7 +886,8 @@ export async function upsertSendQtyManual(productCode: string, warehouseCode: st
 }
 
 export async function deleteSendQtyManual(productCode: string, warehouseCode: string) {
-  const cid = await getCompanyIdForWrite();
+  const { cid, scope } = await scopedWrite();
+  await assertProductInScope(cid, scope, productCode);
   await sql`
     DELETE FROM send_qty_manual
     WHERE company_id = ${cid} AND product_code = ${productCode} AND warehouse_code = ${warehouseCode}
@@ -721,9 +895,11 @@ export async function deleteSendQtyManual(productCode: string, warehouseCode: st
 }
 
 export async function replaceAllSendQtyManual(data: SendQtyManual) {
-  const cid = await getCompanyIdForWrite();
-  await sql`DELETE FROM send_qty_manual WHERE company_id = ${cid}`;
+  const { cid, scope } = await scopedWrite();
+  const codes = await scopedProductCodes(cid, scope);
+  await deleteScopedByProduct(cid, 'send_qty_manual', scope);
   for (const [pc, whMap] of Object.entries(data)) {
+    if (codes && !codes.has(pc)) continue;
     for (const [wc, qty] of Object.entries(whMap)) {
       if (qty > 0) {
         await sql`
@@ -836,7 +1012,9 @@ function buildSampleDailyPlan(): DailyProductionPlan {
  * @returns seeded=false なら既存データありでスキップ
  */
 export async function seedSampleDataForCompany(): Promise<{ seeded: boolean }> {
-  const cid = await getCompanyIdForWrite();
+  const { cid, scope } = await scopedWrite();
+  // サンプルは複数工場（F001/F002）にまたがるため、工場スコープ付きのユーザーは投入不可。
+  if (scope) throw new Error(OUT_OF_SCOPE_MESSAGE);
 
   // 既存データがある場合はスキップ（上書き防止）
   const existing = await sql`SELECT 1 FROM products WHERE company_id = ${cid} LIMIT 1`;

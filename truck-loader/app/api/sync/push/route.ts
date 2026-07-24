@@ -8,10 +8,15 @@
  * 権限: マスタ（工場・製品・倉庫・トラック種別・パレット種別）の変更は role==='admin' のみ。
  *       非管理者のpushは受信マスタを破棄し、サーバ現行のマスタで上書きしてから保存する
  *       （＝日常業務データ＝在庫/生産/計画等の書き込みは全員に許可しつつ、マスタは保護）。
+ *
+ * 部署（工場）スコープ: 一括同期（全削除→再投入）なので、所属工場のあるユーザーの push で
+ *       他工場のデータが消えないよう、解決した工場コードを saveSnapshotData に渡して
+ *       削除・再投入の範囲を自工場に限定する。
  */
 import { NextResponse } from 'next/server';
 import { getAuthContext } from '@/lib/server/auth';
 import { saveSnapshotData, loadMasterData, MASTER_KEYS } from '@/lib/server/syncRepo';
+import { resolveUserFactoryScopeCode } from '@/lib/server/factoryScope';
 import { withCors, preflight } from '@/lib/cors';
 
 export function OPTIONS(req: Request) {
@@ -46,6 +51,11 @@ async function handlePOST(req: Request) {
     for (const key of MASTER_KEYS) data[key] = currentMaster[key];
   }
 
-  await saveSnapshotData(auth.companyId, data, body.updatedAt);
+  // 所属工場（部署）スコープ。null = 制限なし（管理者・工場未設定）。
+  const scope = auth.userId
+    ? await resolveUserFactoryScopeCode(auth.companyId, auth.userId)
+    : null;
+
+  await saveSnapshotData(auth.companyId, data, body.updatedAt, scope);
   return NextResponse.json({ ok: true });
 }

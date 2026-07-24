@@ -16,6 +16,10 @@ function offline(name: string): never {
 
 const stub = (name: string) => async (..._args: unknown[]): Promise<never> => offline(name);
 
+// ─── 部署（工場）スコープ ─────────────────────────────────
+// ネイティブ（オフライン・端末ローカルの単一ユーザー）は表示制限なし＝常に null を返す。
+export const loadFactoryScopeName = async (): Promise<string | null> => null;
+
 // ─── Company & User ───────────────────────────────────────
 export const createCompany = stub('createCompany');
 export const createUser = stub('createUser');

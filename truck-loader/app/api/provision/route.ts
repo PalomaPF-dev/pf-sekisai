@@ -141,6 +141,11 @@ export async function POST(req: Request) {
         // 承認者の社員番号（任意）。trim して空なら NULL（未設定）。
         const approverLoginId: string | null =
           (u?.approverLoginId ?? '').toString().trim() || null;
+        // 所属工場（任意）。ポータルの部署が「工場」種別のときだけ部署名が入る。
+        // 空文字は「全工場（制限なし）」として NULL 扱い。
+        // フィールド自体が省略された既存ユーザーは工場を変更しない。
+        const hasFactory = u != null && Object.prototype.hasOwnProperty.call(u, 'factory');
+        const factory = hasFactory ? ((u?.factory ?? '').toString().trim() || null) : null;
         if (email && (!isEmail(email) || email.length > 254)) {
           results.push({ loginId, status: 'error', message: 'メールアドレスの形式が正しくありません。' });
           continue;
@@ -148,7 +153,7 @@ export async function POST(req: Request) {
 
         // 既存ユーザー（login_id 一致）: ポータル側の編集を反映（氏名・役割・承認者、
         // メールは非空指定時のみ）。pending / password_hash には触れない。
-        // regenerateLinks のときだけ設定リンクを再発行。
+        // factory 指定があれば更新し、regenerateLinks のときだけ設定リンクを再発行。
         const existing = await sql`SELECT id, pending FROM users WHERE login_id = ${loginId} LIMIT 1`;
         if (existing.length > 0) {
           const userId = existing[0].id as string;
@@ -160,6 +165,9 @@ export async function POST(req: Request) {
                 approver_login_id = ${approverLoginId},
                 email = COALESCE(${email}, email)
             WHERE id = ${userId}`;
+          if (hasFactory) {
+            await sql`UPDATE users SET factory = ${factory} WHERE id = ${userId}`;
+          }
           if (!regenerateLinks) {
             results.push({ loginId, status: 'exists', passwordSet });
             continue;
@@ -183,8 +191,8 @@ export async function POST(req: Request) {
           continue;
         }
 
-        // 新規発行: 招待ユーザー作成 → 設定リンク発行 →（メールがあれば）送信
-        const userId = await createInvitedUser(companyId, loginId, email, name, role, approverLoginId);
+        // 新規発行: 招待ユーザー作成（所属工場つき）→ 設定リンク発行 →（メールがあれば）送信
+        const userId = await createInvitedUser(companyId, loginId, email, name, role, factory, approverLoginId);
         const token = randomBytes(32).toString('hex');
         await sql`
           INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)

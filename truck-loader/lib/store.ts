@@ -18,6 +18,10 @@ import {
 } from './defaultData';
 import { getDataSource } from './dataSource';
 import { isDemoMode, notifyDemoBlocked } from './demo';
+import { loadFactoryScopeName } from './db';
+import {
+  applyFactoryScopeToDataset, resolveFactoryCode, type FactoryScope,
+} from './factoryScope';
 
 // 永続化層（実行環境に応じて Server / Local を選択）。
 // store の各アクションはこの db を通して読み書きする。詳細は lib/dataSource/ 参照。
@@ -38,6 +42,12 @@ function blockedByDemo(): boolean {
 interface AppState {
   // ─── ロード状態 ────────────────────────────────────────────
   isLoaded: boolean;
+
+  /**
+   * 部署（工場）スコープ。null = 制限なし（管理者・工場未設定）。
+   * 非nullのとき、この store のデータは既にその工場だけに絞り込まれている。
+   */
+  factoryScope: FactoryScope | null;
 
   // ─── マスター ────────────────────────────────────────────────
   locations: Location[];        // 場所マスター（真実の単一ソース）
@@ -114,6 +124,7 @@ interface AppState {
 
 const defaultState = {
   isLoaded: false,
+  factoryScope: null as FactoryScope | null,
   locations: [] as Location[],
   factories: [] as Factory[],
   products: [] as Product[],
@@ -173,16 +184,20 @@ export const useAppStore = create<AppState>()((set, get) => ({
         db.loadSendQtyManual().catch(() => ({} as SendQtyManual)),
       ]);
 
+      // 部署（工場）スコープ。所属工場名はサーバー（users.factory）から都度取得し、
+      // 工場コードへの解決は読み込んだ工場マスタで行う（データソースに依らず一致させるため）。
+      // ネイティブ（オフライン）はサーバー機能が無いので制限なし扱い。
+      const scopeName = await loadFactoryScopeName().catch(() => null);
+      const scope: FactoryScope | null = scopeName
+        ? { factoryName: scopeName, factoryCode: resolveFactoryCode(locationsToFactories(locations), scopeName) }
+        : null;
+
       // DBから読み込んだ内容をそのまま使う（テナントが自分で登録）。
+      // スコープありのユーザーには自工場のデータだけを渡す（サーバー側でも同じ絞り込みを実施）。
       // factories / warehouses は locations から派生（計算・各ページ用ビュー）。
-      set({
-        isLoaded: true,
+      const scoped = applyFactoryScopeToDataset({
         locations,
-        factories: locationsToFactories(locations),
-        warehouses: locationsToWarehouses(locations),
         products,
-        truckTypes,
-        palletTypes,
         productionPlan,
         dailyProductionPlan,
         baselineStock,
@@ -194,6 +209,16 @@ export const useAppStore = create<AppState>()((set, get) => ({
         inTransitStock,
         plannedSales,
         sendQtyManual,
+      }, scope);
+
+      set({
+        isLoaded: true,
+        factoryScope: scope,
+        ...scoped,
+        factories: locationsToFactories(scoped.locations),
+        warehouses: locationsToWarehouses(scoped.locations),
+        truckTypes,
+        palletTypes,
       });
     } catch (err) {
       console.error('[DB] loadFromDB error:', err);
