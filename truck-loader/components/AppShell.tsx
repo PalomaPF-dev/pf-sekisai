@@ -9,6 +9,7 @@ import { Navbar } from '@/components/Navbar';
 import { SupabaseProvider } from '@/components/SupabaseProvider';
 import { TrialGate } from '@/components/TrialGate';
 import { DemoBanner } from '@/components/DemoBanner';
+import { WorkerBanner } from '@/components/WorkerBanner';
 
 // ナビ・データ読込を出さない「素の」ページ（ログイン）
 const BARE_PATHS = ['/login', '/password-reset', '/first-login'];
@@ -25,6 +26,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <TrialGate>
       <DemoBanner />
+      <WorkerBanner />
       <Navbar />
       <SupabaseProvider>
         {/* PCはサイドバー分(200px)右にずらす。モバイルは全幅（ドロワーで遷移） */}

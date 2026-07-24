@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import { calcWeeklyPlans } from '@/lib/calculations';
 import { useCalcSettings } from '@/lib/useCalcSettings';
+import { useIsWorker } from '@/lib/useRole';
 import type { DayWarehousePlan } from '@/lib/types';
 
 const DAY_LABELS = ['月', '火', '水', '木', '金', '土', '日'];
@@ -46,6 +47,7 @@ export default function SchedulePage() {
     weeklyShippingSchedule, inTransitStock, plannedSales, sendQtyManual, setShippingDay,
   } = useAppStore();
   const calcSettings = useCalcSettings();
+  const worker = useIsWorker();
 
   const [selectedFactory, setSelectedFactory] = useState<string>(factories[0]?.code ?? '');
   const [planMonday, setPlanMonday] = useState<Date>(() => getMondayOf(new Date()));
@@ -92,6 +94,7 @@ export default function SchedulePage() {
   };
 
   const handleToggle = (wh: (typeof relevantWarehouses)[number], dayIdx: number) => {
+    if (worker) return; // 閲覧専用（作業者アカウント）はスケジュール変更不可
     const current = getDayActive(wh, dayIdx);
     const allCodes = warehouses.filter((w) => w.name === wh.name);
     allCodes.forEach((w) => setShippingDay(selectedFactory, w.code, dayIdx, !current));

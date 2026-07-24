@@ -8,6 +8,7 @@ import { useCalcSettings } from '@/lib/useCalcSettings';
 import { buildEquipmentColorMap } from '@/lib/productColors';
 import { HelpTip } from '@/components/HelpTip';
 import { useDemo } from '@/lib/demo';
+import { useIsWorker } from '@/lib/useRole';
 import clsx from 'clsx';
 
 export default function InventoryPage() {
@@ -19,6 +20,9 @@ export default function InventoryPage() {
   } = useAppStore();
   const calcSettings = useCalcSettings();
   const demo = useDemo();
+  const worker = useIsWorker();
+  // 閲覧専用（デモ or 作業者アカウント）。編集UIを無効化する。
+  const readOnly = demo || worker;
 
   const [confirmed, setConfirmed] = useState(false);
 
@@ -156,7 +160,7 @@ export default function InventoryPage() {
           <Link href="/production" className="text-xs text-brand-600 hover:underline">
             配送計画入力 →
           </Link>
-          {!demo && (
+          {!readOnly && (
             <button
               onClick={handleConfirmShipment}
               disabled={activePlans.length === 0}
@@ -436,12 +440,12 @@ export default function InventoryPage() {
                                             type="number" min={0}
                                             value={cur === 0 ? '' : cur}
                                             onChange={(e) => setLocationStock(p.code, wh.code, parseInt(e.target.value, 10) || 0)}
-                                            readOnly={demo}
+                                            readOnly={readOnly}
                                             placeholder="0"
                                             className={clsx(
                                               'w-16 text-center border border-slate-200 rounded px-1 py-0.5 text-xs',
                                               'focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500',
-                                              demo ? 'bg-slate-50 text-slate-400 cursor-not-allowed' : 'bg-white',
+                                              readOnly ? 'bg-slate-50 text-slate-400 cursor-not-allowed' : 'bg-white',
                                             )}
                                           />
                                         )}

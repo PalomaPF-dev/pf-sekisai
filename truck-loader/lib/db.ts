@@ -42,6 +42,26 @@ async function getCompanyId(): Promise<string> {
   return session.user.companyId;
 }
 
+/**
+ * 書き込み系 Server Action 用の company_id 取得。
+ * 作業者（role='worker'・閲覧専用）による書き込みをサーバー側で確実に拒否する。
+ * override（Bearer同期コンテキスト）経由は /api/sync/push 側で worker を拒否済みのため素通しする。
+ */
+async function getCompanyIdForWrite(): Promise<string> {
+  const override = getOverrideCompanyId();
+  if (override) {
+    return override;
+  }
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.companyId) {
+    throw new Error('認証が必要です。ログインしてください。');
+  }
+  if (session.user.role === 'worker') {
+    throw new Error('作業者アカウントは閲覧のみ可能です。');
+  }
+  return session.user.companyId;
+}
+
 // ─── Company & User (登録用) ─────────────────────────────────────────────────
 
 /** 会社を作成し、生成された company_id を返す。登録時に30日トライアルを付与。 */
@@ -87,7 +107,7 @@ export async function loadFactories(): Promise<Factory[]> {
 }
 
 export async function upsertFactory(f: Factory) {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   await sql`
     INSERT INTO factories (company_id, code, name)
     VALUES (${cid}, ${f.code}, ${f.name})
@@ -96,7 +116,7 @@ export async function upsertFactory(f: Factory) {
 }
 
 export async function deleteFactory(code: string) {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   await sql`DELETE FROM factories WHERE company_id = ${cid} AND code = ${code}`;
 }
 
@@ -131,7 +151,7 @@ export async function loadProducts(): Promise<Product[]> {
 }
 
 export async function upsertProduct(p: Product) {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   await sql`
     INSERT INTO products (
       company_id, code, name, capacity_per_pallet, pallet_type, color,
@@ -166,7 +186,7 @@ export async function upsertProducts(products: Product[]) {
 }
 
 export async function deleteProduct(code: string) {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   await sql`DELETE FROM products WHERE company_id = ${cid} AND code = ${code}`;
 }
 
@@ -174,7 +194,7 @@ export async function deleteProduct(code: string) {
  * DB 上の products テーブルの重複行（同一 code・同一 company_id）を削除する。
  */
 export async function deduplicateProducts(): Promise<number> {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   const rows = await sql`
     SELECT * FROM products WHERE company_id = ${cid} ORDER BY code
   `;
@@ -230,7 +250,7 @@ export async function loadWarehouses(): Promise<Warehouse[]> {
 }
 
 export async function upsertWarehouse(w: Warehouse) {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   // "group"（旧・東西区分）・max_pallets（旧・最大P数）列は廃止したが DB列は NOT NULL のため
   // 互換値（''／0）を補う。容量はトラック内寸とパレット寸法から積載計算時に自動算出する。
   await sql`
@@ -243,7 +263,7 @@ export async function upsertWarehouse(w: Warehouse) {
 }
 
 export async function deleteWarehouse(code: string) {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   await sql`DELETE FROM warehouses WHERE company_id = ${cid} AND code = ${code}`;
 }
 
@@ -265,7 +285,7 @@ export async function loadTruckTypes(): Promise<TruckType[]> {
 }
 
 export async function upsertTruckType(t: TruckType) {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   // 旧 max_pallets/cols/rows 列は読まないが NOT NULL 制約が残っているため、
   // 内寸から導いた安全値を書く（実際の容量はパレット寸法と内寸から積載計算時に自動算出）。
   const lc = legacyTruckCols(t);
@@ -291,7 +311,7 @@ function legacyTruckCols(t: { widthMM?: number; depthMM?: number }) {
 }
 
 export async function deleteTruckType(code: string) {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   await sql`DELETE FROM truck_types WHERE company_id = ${cid} AND code = ${code}`;
 }
 
@@ -314,7 +334,7 @@ export async function loadPalletTypes(): Promise<PalletType[]> {
 }
 
 export async function upsertPalletType(pt: PalletType) {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   await sql`
     INSERT INTO pallet_types (company_id, code, name, width_mm, depth_mm, height_mm, max_weight_kg, loaded_height_mm)
     VALUES (${cid}, ${pt.code}, ${pt.name}, ${pt.widthMM}, ${pt.depthMM}, ${pt.heightMM}, ${pt.maxWeightKg}, ${pt.loadedHeightMM ?? 1200})
@@ -329,7 +349,7 @@ export async function upsertPalletType(pt: PalletType) {
 }
 
 export async function deletePalletType(code: string) {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   await sql`DELETE FROM pallet_types WHERE company_id = ${cid} AND code = ${code}`;
 }
 
@@ -346,7 +366,7 @@ export async function loadProductionPlan(): Promise<ProductionPlan> {
 }
 
 export async function upsertProductionQty(productCode: string, qty: number) {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   await sql`
     INSERT INTO production_plan (company_id, product_code, qty)
     VALUES (${cid}, ${productCode}, ${qty})
@@ -370,7 +390,7 @@ export async function loadDailyProductionPlan(): Promise<DailyProductionPlan> {
 }
 
 export async function replaceAllDailyProductionPlan(dailyPlan: DailyProductionPlan) {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   await sql`DELETE FROM daily_production_plan WHERE company_id = ${cid}`;
   for (const [productCode, dates] of Object.entries(dailyPlan)) {
     for (const [date, qty] of Object.entries(dates)) {
@@ -385,7 +405,7 @@ export async function replaceAllDailyProductionPlan(dailyPlan: DailyProductionPl
 }
 
 export async function upsertDailyProductionQty(productCode: string, date: string, qty: number) {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   if (qty > 0) {
     await sql`
       INSERT INTO daily_production_plan (company_id, product_code, date, qty)
@@ -416,7 +436,7 @@ export async function loadBaselineStock(): Promise<BaselineStock> {
 }
 
 export async function upsertBaseline(productCode: string, warehouseCode: string, qty: number) {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   await sql`
     INSERT INTO baseline_stock (company_id, product_code, warehouse_code, qty)
     VALUES (${cid}, ${productCode}, ${warehouseCode}, ${qty})
@@ -425,7 +445,7 @@ export async function upsertBaseline(productCode: string, warehouseCode: string,
 }
 
 export async function replaceAllBaselineStock(baseline: BaselineStock) {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   await sql`DELETE FROM baseline_stock WHERE company_id = ${cid}`;
   for (const [pc, whs] of Object.entries(baseline)) {
     for (const [wc, qty] of Object.entries(whs)) {
@@ -450,7 +470,7 @@ export async function loadInventoryStock(): Promise<InventoryStock> {
 }
 
 export async function upsertInventoryStock(productCode: string, qty: number) {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   await sql`
     INSERT INTO inventory_stock (company_id, product_code, qty)
     VALUES (${cid}, ${productCode}, ${qty})
@@ -459,7 +479,7 @@ export async function upsertInventoryStock(productCode: string, qty: number) {
 }
 
 export async function replaceAllInventoryStock(stock: InventoryStock) {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   await sql`DELETE FROM inventory_stock WHERE company_id = ${cid}`;
   for (const [product_code, qty] of Object.entries(stock)) {
     await sql`
@@ -485,7 +505,7 @@ export async function loadLocationStock(): Promise<LocationStock> {
 }
 
 export async function upsertLocationStock(productCode: string, warehouseCode: string, qty: number) {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   await sql`
     INSERT INTO location_stock (company_id, product_code, warehouse_code, qty)
     VALUES (${cid}, ${productCode}, ${warehouseCode}, ${qty})
@@ -494,7 +514,7 @@ export async function upsertLocationStock(productCode: string, warehouseCode: st
 }
 
 export async function replaceAllLocationStock(stock: LocationStock) {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   await sql`DELETE FROM location_stock WHERE company_id = ${cid}`;
   for (const [pc, whs] of Object.entries(stock)) {
     for (const [wc, qty] of Object.entries(whs)) {
@@ -522,7 +542,7 @@ export async function loadInTransitStock(): Promise<InTransitStock> {
 }
 
 export async function upsertInTransitStock(productCode: string, warehouseCode: string, qty: number) {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   if (qty === 0) {
     await sql`
       DELETE FROM in_transit_stock
@@ -538,7 +558,7 @@ export async function upsertInTransitStock(productCode: string, warehouseCode: s
 }
 
 export async function replaceAllInTransitStock(stock: InTransitStock) {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   await sql`DELETE FROM in_transit_stock WHERE company_id = ${cid}`;
   for (const [pc, whs] of Object.entries(stock)) {
     for (const [wc, qty] of Object.entries(whs)) {
@@ -568,7 +588,7 @@ export async function loadPlannedSales(): Promise<PlannedSales> {
 }
 
 export async function upsertPlannedSales(productCode: string, warehouseCode: string, qty: number) {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   await sql`
     INSERT INTO planned_sales (company_id, product_code, warehouse_code, qty)
     VALUES (${cid}, ${productCode}, ${warehouseCode}, ${qty})
@@ -577,7 +597,7 @@ export async function upsertPlannedSales(productCode: string, warehouseCode: str
 }
 
 export async function replaceAllPlannedSales(sales: PlannedSales) {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   await sql`DELETE FROM planned_sales WHERE company_id = ${cid}`;
   for (const [pc, whs] of Object.entries(sales)) {
     for (const [wc, qty] of Object.entries(whs)) {
@@ -607,7 +627,7 @@ export async function loadWeeklyShippingSchedule(): Promise<WeeklyShippingSchedu
 }
 
 export async function upsertShippingSchedule(factoryCode: string, warehouseCode: string, days: boolean[]) {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   await sql`
     INSERT INTO weekly_shipping_schedule (company_id, factory_code, warehouse_code, days)
     VALUES (${cid}, ${factoryCode}, ${warehouseCode}, ${days})
@@ -628,7 +648,7 @@ export async function loadOperatingDays(): Promise<OperatingDays> {
 }
 
 export async function upsertOperatingDays(factoryCode: string, days: boolean[]) {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   await sql`
     INSERT INTO operating_days (company_id, factory_code, days)
     VALUES (${cid}, ${factoryCode}, ${days})
@@ -652,7 +672,7 @@ export async function loadNonWorkingDates(): Promise<NonWorkingDates> {
 }
 
 export async function addNonWorkingDate(factoryCode: string, date: string) {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   await sql`
     INSERT INTO non_working_dates (company_id, factory_code, date)
     VALUES (${cid}, ${factoryCode}, ${date})
@@ -661,7 +681,7 @@ export async function addNonWorkingDate(factoryCode: string, date: string) {
 }
 
 export async function removeNonWorkingDate(factoryCode: string, date: string) {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   await sql`
     DELETE FROM non_working_dates
     WHERE company_id = ${cid} AND factory_code = ${factoryCode} AND date = ${date}
@@ -684,7 +704,7 @@ export async function loadSendQtyManual(): Promise<SendQtyManual> {
 }
 
 export async function upsertSendQtyManual(productCode: string, warehouseCode: string, qty: number) {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   await sql`
     INSERT INTO send_qty_manual (company_id, product_code, warehouse_code, qty)
     VALUES (${cid}, ${productCode}, ${warehouseCode}, ${qty})
@@ -693,7 +713,7 @@ export async function upsertSendQtyManual(productCode: string, warehouseCode: st
 }
 
 export async function deleteSendQtyManual(productCode: string, warehouseCode: string) {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   await sql`
     DELETE FROM send_qty_manual
     WHERE company_id = ${cid} AND product_code = ${productCode} AND warehouse_code = ${warehouseCode}
@@ -701,7 +721,7 @@ export async function deleteSendQtyManual(productCode: string, warehouseCode: st
 }
 
 export async function replaceAllSendQtyManual(data: SendQtyManual) {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
   await sql`DELETE FROM send_qty_manual WHERE company_id = ${cid}`;
   for (const [pc, whMap] of Object.entries(data)) {
     for (const [wc, qty] of Object.entries(whMap)) {
@@ -816,7 +836,7 @@ function buildSampleDailyPlan(): DailyProductionPlan {
  * @returns seeded=false なら既存データありでスキップ
  */
 export async function seedSampleDataForCompany(): Promise<{ seeded: boolean }> {
-  const cid = await getCompanyId();
+  const cid = await getCompanyIdForWrite();
 
   // 既存データがある場合はスキップ（上書き防止）
   const existing = await sql`SELECT 1 FROM products WHERE company_id = ${cid} LIMIT 1`;

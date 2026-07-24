@@ -15,8 +15,11 @@ export interface AuthCtx {
   userId: string;
   companyId: string;
   companyName?: string;
-  /** 'admin' のみマスタ（工場/製品/倉庫/トラック/パレット種別）を書き換え可能。未設定は 'member' 相当。 */
-  role?: 'admin' | 'member';
+  /**
+   * 'admin' のみマスタ（工場/製品/倉庫/トラック/パレット種別）を書き換え可能。
+   * 'worker'（作業者）は閲覧のみで書き込み一切不可。未設定は 'member' 相当。
+   */
+  role?: 'admin' | 'member' | 'worker';
 }
 
 function secretKey(): Uint8Array {
@@ -47,7 +50,7 @@ export async function getAuthContext(req: Request): Promise<AuthCtx | null> {
           userId: String(payload.sub),
           companyId: String(payload.companyId),
           companyName: payload.companyName ? String(payload.companyName) : undefined,
-          role: payload.role === 'admin' ? 'admin' : 'member',
+          role: payload.role === 'admin' || payload.role === 'worker' ? payload.role : 'member',
         };
       }
     } catch {
@@ -62,7 +65,7 @@ export async function getAuthContext(req: Request): Promise<AuthCtx | null> {
       userId: String(session.user.id ?? ''),
       companyId: String(session.user.companyId),
       companyName: session.user.companyName,
-      role: session.user.role === 'admin' ? 'admin' : 'member',
+      role: session.user.role === 'admin' || session.user.role === 'worker' ? session.user.role : 'member',
     };
   }
 

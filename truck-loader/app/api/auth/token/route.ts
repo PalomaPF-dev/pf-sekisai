@@ -47,7 +47,7 @@ async function handlePOST(req: Request) {
     userId: user.id as string,
     companyId: user.company_id as string,
     companyName: user.company_name as string,
-    role: user.role === 'admin' ? 'admin' : 'member',
+    role: user.role === 'admin' || user.role === 'worker' ? (user.role as 'admin' | 'worker') : 'member',
   });
 
   return NextResponse.json({

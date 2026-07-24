@@ -57,10 +57,11 @@ export async function GET(req: Request) {
       WHERE u.login_id = ${loginId} LIMIT 1`;
   } catch {
     // login_id 列が未追加の既存DBでは冪等migration後に一度だけ再試行
+    // （ensureAuthSchema が role 列も冪等追加するため、こちらでも u.role を取得できる）
     try {
       await ensureAuthSchema();
       rows = await sql`
-        SELECT u.id, u.email, u.name, c.id AS company_id, c.name AS company_name
+        SELECT u.id, u.email, u.name, u.role, c.id AS company_id, c.name AS company_name
         FROM users u JOIN companies c ON c.id = u.company_id
         WHERE u.login_id = ${loginId} LIMIT 1`;
     } catch {
@@ -79,7 +80,9 @@ export async function GET(req: Request) {
       name: user.name as string,
       companyId: user.company_id as string,
       companyName: user.company_name as string,
-      role: (user.role === 'admin' ? 'admin' : 'member') as 'admin' | 'member',
+      // admin=管理者 / worker=作業者（閲覧のみ）。未設定・未知の値は 'member'（安全側）。
+      role: (user.role === 'admin' || user.role === 'worker' ? user.role : 'member') as
+        'admin' | 'member' | 'worker',
     },
     secret: authSecret,
     maxAge: MAX_AGE,

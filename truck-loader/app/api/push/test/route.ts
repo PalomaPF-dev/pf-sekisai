@@ -15,6 +15,11 @@ export async function POST(req: Request) {
   const companyId = auth?.companyId;
   if (!companyId) return new NextResponse('Unauthorized', { status: 401 });
 
+  // 作業者（role='worker'）は閲覧専用。テスト通知の発信も拒否する。
+  if (auth?.role === 'worker') {
+    return NextResponse.json({ error: '作業者アカウントは閲覧のみ可能です。' }, { status: 403 });
+  }
+
   const body = await req.json().catch(() => ({}));
 
   // device_tokens が無ければ作成（register 未実行でもエラーにしない）

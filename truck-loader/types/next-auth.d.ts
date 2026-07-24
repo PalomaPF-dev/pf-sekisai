@@ -1,7 +1,8 @@
 import NextAuth, { DefaultSession, DefaultUser } from 'next-auth';
 import { JWT as DefaultJWT } from 'next-auth/jwt';
 
-export type AppRole = 'admin' | 'member';
+// admin=管理者 / member=一般 / worker=作業者（閲覧のみ）
+export type AppRole = 'admin' | 'member' | 'worker';
 
 declare module 'next-auth' {
   interface Session {

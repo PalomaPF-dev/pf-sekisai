@@ -31,7 +31,7 @@ export async function ensureAuthSchema(): Promise<void> {
   // 招待（管理者がアカウントを発行する）モデル用の列（冪等追加）。
   // pending=true は招待済み・パスワード未設定。
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS pending BOOLEAN NOT NULL DEFAULT false`;
-  // 役割（ポータル provision v2 で連携・冪等追加）。admin=管理者 / member=一般。
+  // 役割（ポータル provision v2 で連携・冪等追加）。admin=管理者 / member=一般 / worker=作業者（閲覧のみ）。
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'member'`;
   // 承認者の社員番号（ポータル provision v2 で連携・冪等追加）。NULL = 未設定。
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS approver_login_id TEXT`;
@@ -73,7 +73,7 @@ export async function createInvitedUser(
   loginId: string,
   email: string | null,
   name: string,
-  role: 'admin' | 'member' = 'member',
+  role: 'admin' | 'member' | 'worker' = 'member',
   approverLoginId: string | null = null,
 ): Promise<string> {
   // ランダムな使えないパスワード（招待完了までログイン不可）
