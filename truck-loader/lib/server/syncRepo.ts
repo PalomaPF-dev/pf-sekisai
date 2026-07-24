@@ -46,8 +46,15 @@ async function setSyncUpdatedAt(companyId: string, updatedAt: number): Promise<v
   `;
 }
 
-/** 正規化テーブルから company のデータセットを組み立てる（LocalDB と同形） */
-export async function loadSnapshotData(companyId: string): Promise<Record<string, unknown>> {
+/**
+ * 正規化テーブルから company のデータセットを組み立てる（LocalDB と同形）。
+ * factoryScope（解決済みの工場コード。null = 制限なし）を渡すと、db.ts の各 load が
+ * その工場のデータだけを返す（＝一般・作業者は自工場のみ同期される）。
+ */
+export async function loadSnapshotData(
+  companyId: string,
+  factoryScope?: string | null,
+): Promise<Record<string, unknown>> {
   return runWithCompany(companyId, async () => {
     const [
       factories, products, warehouses, truckTypes, palletTypes,
@@ -66,7 +73,7 @@ export async function loadSnapshotData(companyId: string): Promise<Record<string
       locationStock, weeklyShippingSchedule, operatingDays, nonWorkingDates,
       inTransitStock, plannedSales, sendQtyManual,
     };
-  });
+  }, factoryScope);
 }
 
 /**
@@ -86,28 +93,71 @@ export async function loadMasterData(companyId: string): Promise<Record<string, 
   });
 }
 
-/** スナップショットを正規化テーブルへ反映（全削除→再投入）。更新時刻を記録。 */
-export async function saveSnapshotData(companyId: string, data: Record<string, unknown>, updatedAt: number): Promise<void> {
+/**
+ * スナップショットを正規化テーブルへ反映（全削除→再投入）。更新時刻を記録。
+ *
+ * factoryScope（解決済みの工場コード。null = 制限なし）を渡すと、削除・再投入とも
+ * その工場のデータだけに限定する。一括同期は「全削除→再投入」のため、スコープ付き
+ * ユーザーの push で他工場のデータが消えないよう、ここで必ず絞り込む。
+ */
+export async function saveSnapshotData(
+  companyId: string,
+  data: Record<string, unknown>,
+  updatedAt: number,
+  factoryScope?: string | null,
+): Promise<void> {
+  const scope = factoryScope ?? null;
+  /** スコープありなら自工場のものだけ通す（工場コードで判定） */
+  const inScope = (factoryCode: string) => !scope || (factoryCode || 'F001') === scope;
+
   await runWithCompany(companyId, async () => {
     // マスター（db.ts のマッピングを再利用）
-    await sql`DELETE FROM factories WHERE company_id = ${companyId}`;
-    for (const f of asArr<Factory>(data.factories)) await db.upsertFactory(f);
+    // ※ スコープありのときは自工場の行のみ入れ替える（他工場のマスタには触れない）
+    const factories = asArr<Factory>(data.factories).filter((f) => inScope(f.code));
+    if (scope) {
+      await sql`DELETE FROM factories WHERE company_id = ${companyId} AND code = ${scope}`;
+    } else {
+      await sql`DELETE FROM factories WHERE company_id = ${companyId}`;
+    }
+    for (const f of factories) await db.upsertFactory(f);
 
-    await sql`DELETE FROM products WHERE company_id = ${companyId}`;
-    await db.upsertProducts(asArr<Product>(data.products));
+    const products = asArr<Product>(data.products).filter((p) => inScope(p.factoryCode ?? ''));
+    if (scope) {
+      await sql`
+        DELETE FROM products WHERE company_id = ${companyId}
+          AND COALESCE(NULLIF(factory_code, ''), 'F001') = ${scope}`;
+    } else {
+      await sql`DELETE FROM products WHERE company_id = ${companyId}`;
+    }
+    await db.upsertProducts(products);
+    // スコープありのとき、業務データの投入対象になる製品コード（自工場の製品のみ）
+    const productCodes = scope ? new Set(products.map((p) => p.code)) : null;
 
-    await sql`DELETE FROM warehouses WHERE company_id = ${companyId}`;
-    for (const w of asArr<Warehouse>(data.warehouses)) await db.upsertWarehouse(w);
+    // 拠点・トラック種別・パレット種別は工場軸を持たない共通マスタ。
+    // スコープありのユーザー（＝非管理者）は変更できないため、まるごと入れ替えない。
+    if (!scope) {
+      await sql`DELETE FROM warehouses WHERE company_id = ${companyId}`;
+      for (const w of asArr<Warehouse>(data.warehouses)) await db.upsertWarehouse(w);
 
-    await sql`DELETE FROM truck_types WHERE company_id = ${companyId}`;
-    for (const t of asArr<TruckType>(data.truckTypes)) await db.upsertTruckType(t);
+      await sql`DELETE FROM truck_types WHERE company_id = ${companyId}`;
+      for (const t of asArr<TruckType>(data.truckTypes)) await db.upsertTruckType(t);
 
-    await sql`DELETE FROM pallet_types WHERE company_id = ${companyId}`;
-    for (const p of asArr<PalletType>(data.palletTypes)) await db.upsertPalletType(p);
+      await sql`DELETE FROM pallet_types WHERE company_id = ${companyId}`;
+      for (const p of asArr<PalletType>(data.palletTypes)) await db.upsertPalletType(p);
+    }
 
     // 週間生産計画
-    await sql`DELETE FROM production_plan WHERE company_id = ${companyId}`;
+    if (scope) {
+      await sql`
+        DELETE FROM production_plan t WHERE t.company_id = ${companyId}
+          AND EXISTS (SELECT 1 FROM products p
+                      WHERE p.company_id = t.company_id AND p.code = t.product_code
+                        AND COALESCE(NULLIF(p.factory_code, ''), 'F001') = ${scope})`;
+    } else {
+      await sql`DELETE FROM production_plan WHERE company_id = ${companyId}`;
+    }
     for (const [code, qty] of ent(asMap<ProductionPlan>(data.productionPlan))) {
+      if (productCodes && !productCodes.has(code)) continue;
       await db.upsertProductionQty(code, qty as number);
     }
 
@@ -121,23 +171,32 @@ export async function saveSnapshotData(companyId: string, data: Record<string, u
     await db.replaceAllSendQtyManual(asMap<SendQtyManual>(data.sendQtyManual));
 
     // 出荷スケジュール
-    await sql`DELETE FROM weekly_shipping_schedule WHERE company_id = ${companyId}`;
+    await sql`
+      DELETE FROM weekly_shipping_schedule WHERE company_id = ${companyId}
+        AND (${scope}::text IS NULL OR factory_code = ${scope})`;
     for (const [fc, whs] of ent(asMap<WeeklyShippingSchedule>(data.weeklyShippingSchedule))) {
+      if (!inScope(fc)) continue;
       for (const [wc, days] of ent(whs)) await db.upsertShippingSchedule(fc, wc, days as boolean[]);
     }
 
     // 稼働日
-    await sql`DELETE FROM operating_days WHERE company_id = ${companyId}`;
+    await sql`
+      DELETE FROM operating_days WHERE company_id = ${companyId}
+        AND (${scope}::text IS NULL OR factory_code = ${scope})`;
     for (const [fc, days] of ent(asMap<OperatingDays>(data.operatingDays))) {
+      if (!inScope(fc)) continue;
       await db.upsertOperatingDays(fc, days as boolean[]);
     }
 
     // 非稼働日
-    await sql`DELETE FROM non_working_dates WHERE company_id = ${companyId}`;
+    await sql`
+      DELETE FROM non_working_dates WHERE company_id = ${companyId}
+        AND (${scope}::text IS NULL OR factory_code = ${scope})`;
     for (const [fc, dates] of ent(asMap<NonWorkingDates>(data.nonWorkingDates))) {
+      if (!inScope(fc)) continue;
       for (const d of (dates as string[])) await db.addNonWorkingDate(fc, d);
     }
-  });
+  }, scope);
 
   await setSyncUpdatedAt(companyId, updatedAt);
 }

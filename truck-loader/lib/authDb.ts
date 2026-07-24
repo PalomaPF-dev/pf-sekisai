@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { sql } from './neon';
+import type { AppRole } from '@/types/next-auth';
 
 /**
  * 認証用テーブル（companies/users）を社員番号ログインに対応させるための冪等マイグレーション。
@@ -35,6 +36,9 @@ export async function ensureAuthSchema(): Promise<void> {
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'member'`;
   // 承認者の社員番号（ポータル provision v2 で連携・冪等追加）。NULL = 未設定。
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS approver_login_id TEXT`;
+  // 所属工場（ポータルの部署が「工場」種別のときの部署名。冪等追加）。NULL = 全工場を閲覧可。
+  // role='member'/'worker' かつ非NULLのユーザーは、その工場のデータのみ閲覧できる。
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS factory TEXT`;
   // 社員番号ログイン用の login_id 列（冪等追加）。メールアドレスは任意項目に変更（NOT NULL 解除）。
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS login_id TEXT`;
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS users_login_id_idx ON users(login_id)`;
@@ -74,16 +78,45 @@ export async function createInvitedUser(
   email: string | null,
   name: string,
   role: 'admin' | 'member' | 'worker' = 'member',
+  factory: string | null = null,
   approverLoginId: string | null = null,
 ): Promise<string> {
   // ランダムな使えないパスワード（招待完了までログイン不可）
   const passwordHash = await bcrypt.hash(crypto.randomBytes(24).toString('hex'), 12);
   const rows = await sql`
-    INSERT INTO users (company_id, login_id, email, name, password_hash, pending, role, approver_login_id)
-    VALUES (${companyId}, ${loginId}, ${email}, ${name}, ${passwordHash}, true, ${role}, ${approverLoginId})
+    INSERT INTO users (company_id, login_id, email, name, password_hash, pending, role, factory, approver_login_id)
+    VALUES (${companyId}, ${loginId}, ${email}, ${name}, ${passwordHash}, true, ${role}, ${factory}, ${approverLoginId})
     RETURNING id
   `;
   return rows[0].id as string;
+}
+
+/**
+ * ユーザーの役割と所属工場を1クエリで取得（存在しなければ role/factory とも null）。
+ * 所属工場はポータル側でいつでも変更されうるため、JWT には載せずここで都度取得する。
+ * 既存DBに factory 列が未追加のまま呼ばれた場合（42703: undefined_column）は
+ * ensureAuthSchema で冪等追加してから1回だけリトライする。
+ */
+export async function getUserRoleAndFactory(
+  userId: string,
+): Promise<{ role: AppRole | null; factory: string | null }> {
+  let rows;
+  try {
+    rows = await sql`SELECT role, factory FROM users WHERE id = ${userId} LIMIT 1`;
+  } catch (e) {
+    const code =
+      (e as { code?: string; sourceError?: { code?: string } })?.code ??
+      (e as { sourceError?: { code?: string } })?.sourceError?.code;
+    if (code !== '42703') throw e;
+    await ensureAuthSchema();
+    rows = await sql`SELECT role, factory FROM users WHERE id = ${userId} LIMIT 1`;
+  }
+  if (rows.length === 0) return { role: null, factory: null };
+  const role = rows[0].role;
+  return {
+    role: (role === 'admin' || role === 'worker' ? role : 'member') as AppRole,
+    factory: (rows[0].factory as string | null) ?? null,
+  };
 }
 
 export { PROVISION_COMPANY_NAME };
